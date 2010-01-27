@@ -9,7 +9,8 @@
 (defvar *clutter-symbols* (make-hash-table :test #'equal)
   "Flat namespace of all clutter symbols")
 
-(defun clutter-intern (string)
+(defun clutter-intern (name)
+  (check-type name string)
   (setf (gethash name *clutter-symbols*)
         (make-clutter-symbol :name name)))
 
