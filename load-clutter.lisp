@@ -6,9 +6,9 @@
 
 (defvar *source-files*
   ()
-  "List of source files to load")
+  "List of source paths to load, relative to `*source-directory*'")
 
 (let ((*load-print*   t)
       (*load-verbose* t))
   (dolist (file *source-files*)
-    (load file)))
+    (load (merge-pathnames file *source-directory*))))
