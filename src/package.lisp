@@ -8,4 +8,5 @@
 
 (defpackage #:clutter.symbols
   (:use)
+  (:export "repl")
   (:documentation "Clutter symbols"))
