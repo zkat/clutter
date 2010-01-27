@@ -3,4 +3,5 @@
 (defsystem clutter
   :serial t
   :components
-  ((:file "package")))
+  ((:file "package")
+   (:file "symbols")))
