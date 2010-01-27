@@ -5,3 +5,7 @@
 (defpackage #:clutter
   (:use #:cl)
   (:documentation "Cluttered interpreter"))
+
+(defpackage #:clutter.symbols
+  (:use)
+  (:documentation "Clutter symbols"))
