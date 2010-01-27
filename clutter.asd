@@ -7,4 +7,5 @@
             :serial t
             :components
             ((:file "package")
-             (:file "symbols")))))
+             (:file "symbols")
+             (:file "reader")))))
