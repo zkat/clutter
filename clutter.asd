@@ -5,6 +5,6 @@
   :components
   ((:module "src"
             :serial t
-            :components 
+            :components
             ((:file "package")
              (:file "symbols")))))
