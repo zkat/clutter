@@ -3,5 +3,8 @@
 (defsystem clutter
   :serial t
   :components
-  ((:file "package")
-   (:file "symbols")))
+  ((:module "src"
+            :serial t
+            :components 
+            ((:file "package")
+             (:file "symbols")))))
