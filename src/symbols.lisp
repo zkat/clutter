@@ -11,10 +11,6 @@
 
 (defun clutter-intern (name)
   (check-type name string)
-  (setf (gethash name *clutter-symbols*)
-        (make-clutter-symbol :name name)))
-
-(defun ensure-clutter-symbol (name)
-  (check-type name string)
   (or (gethash name *clutter-symbols*)
-      (clutter-intern name)))
+      (setf (gethash name *clutter-symbols*)
+            (make-clutter-symbol :name name))))
