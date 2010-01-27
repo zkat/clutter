@@ -2,15 +2,12 @@
 
 (in-package #:clutter)
 
-(defstruct clutter-symbol
-  "A Clutter symbol in the interpreted lisp"
-  name)
+(defun clutter-symbol? (x)
+  (and (symbolp x)
+       (eq (symbol-package x) (find-package :clutter.symbols))))
 
-(defvar *clutter-symbols* (make-hash-table :test #'equal)
-  "Flat namespace of all clutter symbols")
+(deftype clutter-symbol ()
+  '(satisfies clutter-symbol?))
 
 (defun clutter-intern (name)
-  (check-type name string)
-  (or (gethash name *clutter-symbols*)
-      (setf (gethash name *clutter-symbols*)
-            (make-clutter-symbol :name name))))
+  (intern name :clutter.symbols))
