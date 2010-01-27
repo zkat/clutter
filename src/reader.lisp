@@ -2,15 +2,23 @@
 
 (in-package #:clutter)
 
-(defvar *symbol-terminators*
-  '(#\Space #\( #\) #\Newline))
+(defparameter *whitespace*
+  '(#\Backspace #\Tab #\Newline #\Linefeed #\Page #\Return #\Space))
 
-(defvar *symbol-single-escape* #\\)
+(defparameter *symbol-terminators*
+  '(#\( #\)))
+
+(defun symbol-terminator? (char)
+  (or (member char *whitespace*)
+      (member char *symbol-terminators*)))
+
+(defparameter *symbol-single-escape* #\\)
 
 (defun read-clutter-symbol (stream)
   (do ((name (make-array 10 :element-type 'character :adjustable t :fill-pointer 0))
        (char (read-char stream) (read-char stream)))
-      ((find char *symbol-terminators*)
+      ((symbol-terminator? char)
+       (unread-char char stream)
        (ensure-clutter-symbol (coerce name 'simple-string)))
     (when (eq char *symbol-single-escape*)
       (setf char (read-char stream)))
