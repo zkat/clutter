@@ -6,7 +6,5 @@
   ((:module "src"
             :serial t
             :components
-            ((:file "package")
-             (:file "symbols")
-             (:file "conses")
-             (:file "reader")))))
+            ((:file "clutter")))))
+
