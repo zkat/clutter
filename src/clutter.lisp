@@ -42,7 +42,7 @@
 
 (defun make-function (variables body env)
   (lambda (values)
-    (eprogn body (extend *initial-env* variables values))))
+    (eprogn body (extend env variables values))))
 
 (defun evaluate (exp env)
   (if (atom exp)
