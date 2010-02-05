@@ -6,9 +6,10 @@
 
 (defun eprogn (exps env)
   (when exps
-    (evaluate (car exps) env)
-    (when (cdr exps)
-      (eprogn (cdr exps) env))))
+    (if (cdr exps)
+        (progn (evaluate (car exps) env)
+               (eprogn (cdr exps) env))
+        (evaluate (car exps) env))))
 
 (defun eval-list (list env)
   (mapcar (lambda (exp) (evaluate exp env)) list))
