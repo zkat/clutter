@@ -1,8 +1,38 @@
 (cl:defpackage #:clutter (:use :cl))
 (cl:in-package :clutter)
 
+(defparameter *secret-unbound-value* (gensym "SECRETLY-UNBOUND-"))
 (defparameter *false* 'f)
 (defparameter *initial-env* ())
+(defparameter *global-env* *initial-env*)
+
+(defun push-initial-binding (name &optional (value *secret-unbound-value*))
+  (push (cons name value) *global-env*))
+(defmacro definitial (name &optional (value nil valuep))
+  `(progn (push-initial-binding ',name ,@(when valuep `(,value)))
+          ',name))
+(defmacro defprimitive (name value arity)
+  `(definitial ,name (lambda (values)
+                       (if (= ,arity (length values))
+                           (apply ,value values)
+                           (error "Incorrect arity.")))))
+
+(definitial t t)
+(definitial f *false*)
+(definitial nil '())
+(defprimitive cons #'cons 2)
+(defprimitive car #'car 1)
+(defprimitive cdr #'cdr 1)
+(defprimitive rplaca #'rplaca 2)
+(defprimitive rplacd #'rplacd 2)
+(defprimitive eq? #'eq 2)
+(defprimitive eql? #'eql 2)
+(defprimitive < #'< 2)
+(defprimitive > #'> 2)
+(defprimitive = #'= 2)
+
+(defun repl ()
+  (loop (print (evaluate (read) *global-env*)) (terpri)))
 
 (defun eprogn (exps env)
   (when exps
