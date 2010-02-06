@@ -36,7 +36,11 @@
 (defun repl ()
   (let ((*readtable* (copy-readtable *readtable*)))
     (setf (readtable-case *readtable*) :preserve)
-    (loop (print (evaluate (progn (princ "> ") (read)) *global-env*)) (terpri))))
+    (loop
+      (princ "> ")
+      (with-simple-restart (abort "Return to Clutter's toplevel")
+        (print (evaluate (read) *global-env*)))
+      (fresh-line))))
 
 (defun eprogn (exps env)
   (when exps
