@@ -38,7 +38,7 @@
 (defprimitive |>| (lambda (x y) (if (> x y) *true* *false*)) 2)
 (defprimitive |=| (lambda (x y) (if (= x y) *true* *false*)) 2)
 (defprimitive |apply| #'invoke 2)
-(definitial-fun |funcall| (lambda (args) (invoke (car args) (cdr args))))
+(definitial-fun |call| (lambda (args) (invoke (car args) (cdr args))))
 
 (defun repl ()
   (let ((*readtable* (copy-readtable *readtable*)))
