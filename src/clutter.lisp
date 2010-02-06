@@ -90,7 +90,7 @@
                 (evaluate (caddr exp) env)
                 (evaluate (cadddr exp) env)))
         (|do| (eprogn (cdr exp) env))
-        (set! (setf (lookup (cadr exp) env)
+        (|set!| (setf (lookup (cadr exp) env)
                     (evaluate (caddr exp) env)))
         (|lambda| (make-function (cadr exp) (cddr exp) env))
         (|apply| (invoke (evaluate (cadr exp) env)
