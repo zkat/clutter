@@ -31,6 +31,7 @@
 (defprimitive |<| (lambda (x y) (if (< x y) *true* *false*)) 2)
 (defprimitive |>| (lambda (x y) (if (> x y) *true* *false*)) 2)
 (defprimitive |=| (lambda (x y) (if (= x y) *true* *false*)) 2)
+(defprimitive |apply| #'invoke 2)
 
 (defun repl ()
   (let ((*readtable* (copy-readtable *readtable*)))
