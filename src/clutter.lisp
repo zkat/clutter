@@ -39,7 +39,7 @@
     (loop
       (princ "> ")
       (with-simple-restart (abort "Return to Clutter's toplevel")
-        (print (evaluate (read) *global-env*)))
+        (princ (evaluate (read) *global-env*)))
       (fresh-line))))
 
 (defun eprogn (exps env)
