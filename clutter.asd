@@ -6,5 +6,5 @@
   ((:module "src"
             :serial t
             :components
-            ((:file "clutter")))))
+            ((:file "interpreter")))))
 
