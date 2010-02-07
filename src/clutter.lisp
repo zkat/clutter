@@ -27,6 +27,7 @@
 (definitial |t| *true*)
 (definitial |f| *false*)
 (definitial |nil| '())
+(defprimitive |not| (lambda (x) (if (eq x *false*) *true* *false*)) 1)
 (defprimitive |cons| #'cons 2)
 (defprimitive |car| #'car 1)
 (defprimitive |cdr| #'cdr 1)
@@ -34,6 +35,7 @@
 (defprimitive |rplacd| #'rplacd 2)
 (defprimitive |eq?| (lambda (x y) (if (eq x y) *true* *false*)) 2)
 (defprimitive |eql?| (lambda (x y) (if (eql x y) *true* *false*)) 2)
+(defprimitive |symbol?| (lambda (x) (if (symbolp x) *true* *false*)) 1)
 (defprimitive |<| (lambda (x y) (if (< x y) *true* *false*)) 2)
 (defprimitive |>| (lambda (x y) (if (> x y) *true* *false*)) 2)
 (defprimitive |=| (lambda (x y) (if (= x y) *true* *false*)) 2)
@@ -46,7 +48,7 @@
     (loop
       (princ "> ")
       (with-simple-restart (abort "Return to Clutter's toplevel")
-        (princ (evaluate (read) *global-env* *global-fenv*)))
+        (prin1 (evaluate (read) *global-env* *global-fenv*)))
       (fresh-line))))
 
 (defun eprogn (exps env fenv)
