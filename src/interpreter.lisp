@@ -1,6 +1,5 @@
-(cl:in-package "COMMON-LISP")
-(defpackage #:clutter
-  (:use #:cl))
+;;;; -*- Mode: Lisp; indent-tabs-mode: nil -*-
+
 (in-package #:clutter)
 
 ;;;

@@ -6,5 +6,6 @@
   ((:module "src"
             :serial t
             :components
-            ((:file "interpreter")))))
+            ((:file "cl-package")
+             (:file "interpreter")))))
 
