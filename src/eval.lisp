@@ -80,16 +80,13 @@
             (unless (find-binding name fenv)
               (error "~A is not a lexically visible function" name))
             (lookup name fenv)))
-         (|flet|
-          (destructuring-bind ((&rest bindings) &body body)
+         (|bind-lexical-function|
+          (destructuring-bind (name value &body body)
               argument-forms
-            (eval-do body env
-                     (let (names functions)
-                       (dolist (binding bindings)
-                         (destructuring-bind (name (&rest args) &body body) binding
-                           (push name names)
-                           (push (make-function args body env fenv) functions)))
-                       (extend fenv (nreverse names) (nreverse functions))))))
+            (let ((new-function (evaluate value env fenv)))
+              (unless (functionp new-function)
+                (error "~A is not a function" new-function))
+              (eval-do body env (extend fenv (list name) (list new-function))))))
 
          (t
 
