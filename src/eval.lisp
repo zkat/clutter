@@ -13,15 +13,6 @@
           do (evaluate (pop forms) env fenv)
           finally (return (evaluate (first forms) env fenv)))))
 
-(defun invoke (function args)
-  (if (functionp function)
-      (funcall function args)
-      (error "Not a function: ~S" function)))
-
-(defun make-function (variables body env fenv)
-  (lambda (values)
-    (eval-do body (extend env variables values) fenv)))
-
 (defun evaluate (form env fenv)
   (typecase form
 

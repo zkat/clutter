@@ -8,7 +8,8 @@
             :components
             ((:file "cl-package")
              (:file "environments")
-             (:file "primitives")
+             (:file "functions")
              (:file "eval")
-             (:file "repl")))))
+             (:file "repl")
+             (:file "primitives")))))
 
