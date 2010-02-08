@@ -9,5 +9,6 @@
             ((:file "cl-package")
              (:file "environments")
              (:file "primitives")
-             (:file "eval")))))
+             (:file "eval")
+             (:file "repl")))))
 
