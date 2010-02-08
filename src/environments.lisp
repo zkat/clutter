@@ -6,8 +6,7 @@
 ;;; Environments
 ;;;
 
-(defparameter *initial-env* '())
-(defparameter *global-env* *initial-env*)
+(defparameter *global-env* '())
 (defparameter *global-fenv* '())
 
 (defun push-initial-binding (name value)
