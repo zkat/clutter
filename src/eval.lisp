@@ -6,12 +6,10 @@
 ;;; Evaluator
 ;;;
 
-(defun eprogn (exps env fenv)
-  (when exps
-    (if (cdr exps)
-        (progn (evaluate (car exps) env fenv)
-               (eprogn (cdr exps) env fenv))
-        (evaluate (car exps) env fenv))))
+(defun eval-do (forms env fenv)
+  "`Evaluate' each of FORMS in the environments ENV and FENV"
+  (dolist (form forms)
+    (evaluate form env fenv)))
 
 (defun eval-list (list env fenv)
   (mapcar (lambda (exp) (evaluate exp env fenv)) list))
@@ -23,7 +21,7 @@
 
 (defun make-function (variables body env fenv)
   (lambda (values)
-    (eprogn body (extend env variables values) fenv)))
+    (eval-do body (extend env variables values) fenv)))
 
 (defun evaluate-application (fn args fenv)
   (assert (symbolp fn))
@@ -47,13 +45,13 @@
         (|function| (if (symbolp (cadr exp))
                         (lookup (cadr exp) fenv)
                         (error "No such function: ~A" (cadr exp))))
-        (|flet| (eprogn (cddr exp) env (extend fenv (mapcar #'car (cadr exp))
-                                               (mapcar (lambda (def)
-                                                         (make-function (cadr def)
-                                                                        (cddr def)
-                                                                        env fenv))
-                                                       (cadr exp)))))
-          (otherwise (evaluate-application (car exp)
+        (|flet| (eval-do (cddr exp) env (extend fenv (mapcar #'car (cadr exp))
+                                                (mapcar (lambda (def)
+                                                          (make-function (cadr def)
+                                                                         (cddr def)
+                                                                         env fenv))
+                                                        (cadr exp)))))
+        (otherwise (evaluate-application (car exp)
                                          (eval-list (cdr exp) env fenv)
                                          fenv)))))
 
