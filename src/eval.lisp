@@ -49,7 +49,7 @@
                 (evaluate then env fenv)
                 (evaluate else env fenv))))
          (|do| (eval-do (cdr form) env fenv))
-         (|set!|
+         (|set-lexical-variable|
           (destructuring-bind (variable value)
               argument-forms
             ;; Sanity checks -- these should happen at "compile time"
@@ -59,6 +59,14 @@
               (error "~A is not a lexically visible variable" variable))
             (setf (lookup variable env)
                   (evaluate value env fenv))))
+         (|bind-lexical-variable|
+          (destructuring-bind (variable value &body body)
+              argument-forms
+            (eval-do body
+                     (extend env
+                             (list variable)
+                             (list (evaluate value env fenv)))
+                     fenv)))
          (|lambda|
           (destructuring-bind ((&rest args) &body body)
               argument-forms
