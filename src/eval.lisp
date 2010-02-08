@@ -11,9 +11,6 @@
   (dolist (form forms)
     (evaluate form env fenv)))
 
-(defun eval-list (list env fenv)
-  (mapcar (lambda (exp) (evaluate exp env fenv)) list))
-
 (defun invoke (function args)
   (if (functionp function)
       (funcall function args)
@@ -23,10 +20,6 @@
   (lambda (values)
     (eval-do body (extend env variables values) fenv)))
 
-(defun evaluate-application (fn args fenv)
-  (assert (symbolp fn))
-  (funcall (lookup fn fenv) args))
-
 (defun evaluate (form env fenv)
   (typecase form
 
@@ -34,27 +27,68 @@
     (symbol (lookup form env))
 
     ;; Compound form
-    (cons (case (car form)
-            (|quote| (cadr form))
-            (|if| (if (not (eq (evaluate (cadr form) env fenv) *false*))
-                      (evaluate (caddr form) env fenv)
-                      (evaluate (cadddr form) env fenv)))
-            (|do| (eval-do (cdr form) env fenv))
-            (|set!| (setf (lookup (cadr form) env)
-                          (evaluate (caddr form) env fenv)))
-            (|lambda| (make-function (cadr form) (cddr form) env fenv))
-            (|function| (if (symbolp (cadr form))
-                            (lookup (cadr form) fenv)
-                            (error "No such function: ~A" (cadr form))))
-            (|flet| (eval-do (cddr form) env (extend fenv (mapcar #'car (cadr form))
-                                                     (mapcar (lambda (def)
-                                                               (make-function (cadr def)
-                                                                              (cddr def)
-                                                                              env fenv))
-                                                             (cadr form)))))
-            (otherwise (evaluate-application (car form)
-                                             (eval-list (cdr form) env fenv)
-                                             fenv))))
+    (cons
+     (destructuring-bind (operator &rest argument-forms) form
+
+       ;; Sanity check -- this should happen at "compile time"
+       (unless (symbolp operator)
+         (error "~A is not a valid operator name" (car form)))
+
+       ;; Special operators
+       (case operator
+         (|quote|
+          (destructuring-bind (object)
+              argument-forms
+            object))
+         (|if|
+          (destructuring-bind (test then else)
+              argument-forms
+            (if (not (eq (evaluate test env fenv) *false*))
+                (evaluate then env fenv)
+                (evaluate else env fenv))))
+         (|do| (eval-do (cdr form) env fenv))
+         (|set!|
+          (destructuring-bind (variable value)
+              argument-forms
+            ;; Sanity checks -- these should happen at "compile time"
+            (unless (symbolp variable)
+              (error "~A is not a valid variable name" variable))
+            (unless (find-binding variable env)
+              (error "~A is not a lexically visible variable" variable))
+            (setf (lookup variable env)
+                  (evaluate value env fenv))))
+         (|lambda|
+          (destructuring-bind ((&rest args) &body body)
+              argument-forms
+            (make-function args body env fenv)))
+         (|function|
+          (destructuring-bind (name)
+              argument-forms
+            ;; Sanity checks -- these should happen at "compile time"
+            (unless (symbolp name)
+              (error "~A is not a valid function name" name))
+            (unless (find-binding name fenv)
+              (error "~A is not a lexically visible function" name))
+            (lookup name fenv)))
+         (|flet|
+          (destructuring-bind ((&rest bindings) &body body)
+              argument-forms
+            (eval-do body env
+                     (let (names functions)
+                       (dolist (binding bindings)
+                         (destructuring-bind (name (&rest args) &body body) binding
+                           (push name names)
+                           (push (make-function args body env fenv) functions)))
+                       (extend fenv (nreverse names) (nreverse functions))))))
+
+         (t
+
+          ;; FIXME: Macros
+
+          ;; Function call
+          (funcall (lookup operator fenv)
+                   (mapcar (lambda (form) (evaluate form env fenv))
+                           argument-forms))))))
 
     ;; Self-evaluating object
     (t form)))
