@@ -7,5 +7,7 @@
             :serial t
             :components
             ((:file "cl-package")
-             (:file "interpreter")))))
+             (:file "environments")
+             (:file "primitives")
+             (:file "eval")))))
 
