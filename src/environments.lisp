@@ -51,3 +51,14 @@
              (error "Too many values")
              env))
         ((symbolp variables) (cons (cons variables values) env))))
+
+;;;
+;;; Primitive Constants
+;;;
+
+(defparameter *true* '|t|)
+(defparameter *false* '|f|)
+
+(definitial |t| *true*)
+(definitial |f| *false*)
+(definitial |nil| '())

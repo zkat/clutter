@@ -6,12 +6,6 @@
 ;;; Primitives
 ;;;
 
-(defparameter *true* '|t|)
-(defparameter *false* '|f|)
-
-(definitial |t| *true*)
-(definitial |f| *false*)
-(definitial |nil| '())
 (defprimitive |not| (lambda (x) (if (eq x *false*) *true* *false*)) 1)
 (defprimitive |cons| #'cons 2)
 (defprimitive |car| #'car 1)
