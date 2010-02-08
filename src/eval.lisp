@@ -8,8 +8,10 @@
 
 (defun eval-do (forms env fenv)
   "`Evaluate' each of FORMS in the environments ENV and FENV"
-  (dolist (form forms)
-    (evaluate form env fenv)))
+  (when forms
+    (loop until (null (rest forms))
+          do (evaluate (pop forms) env fenv)
+          finally (return (evaluate (first forms) env fenv)))))
 
 (defun invoke (function args)
   (if (functionp function)
