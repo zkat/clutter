@@ -101,7 +101,11 @@
     (t form)))
 
 (defun repl ()
-  (let ((*readtable* (copy-readtable *readtable*)))
+  (let ((*readtable* (copy-readtable *readtable*))
+        (*global-fenv* (extend *global-fenv*
+                               (list '|die|)
+                               (list (lambda (args)
+                                       (return-from repl args))))))
     (setf (readtable-case *readtable*) :preserve)
     (loop
       (princ "> ")
