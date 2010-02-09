@@ -116,9 +116,9 @@
           ;; FIXME: Macros
 
           ;; Function call
-          (funcall (lookup operator fenv)
-                   (mapcar (lambda (form) (evaluate form env fenv))
-                           argument-forms))))))
+          (invoke (lookup operator fenv)
+                  (mapcar (lambda (form) (evaluate form env fenv))
+                          argument-forms))))))
 
     ;; Self-evaluating object
     (t form)))
