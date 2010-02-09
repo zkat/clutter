@@ -50,13 +50,14 @@
               (error "~A is not a lexically visible variable" variable))
             (setf (lookup variable env)
                   (evaluate value env fenv))))
-         (|bind-lexical-variable|
-          (destructuring-bind (variable value &body body)
+         (|bind-lexical-variables|
+          (destructuring-bind (vars-and-values &body body)
               argument-forms
             (eval-do body
                      (extend env
-                             (list variable)
-                             (list (evaluate value env fenv)))
+                             (loop for var in vars-and-values by #'cddr collect var)
+                             (loop for val in (cdr vars-and-values) by #'cddr
+                                collect (evaluate val env fenv)))
                      fenv)))
          (|lambda|
           (destructuring-bind ((&rest args) &body body)
@@ -71,13 +72,18 @@
             (unless (find-binding name fenv)
               (error "~A is not a lexically visible function" name))
             (lookup name fenv)))
-         (|bind-lexical-function|
-          (destructuring-bind (name value &body body)
+         (|bind-lexical-functions|
+          (destructuring-bind (vars-and-funs &body body)
               argument-forms
-            (let ((new-function (evaluate value env fenv)))
-              (unless (functionp new-function)
-                (error "~A is not a function" new-function))
-              (eval-do body env (extend fenv (list name) (list new-function))))))
+            (eval-do body
+                     env
+                     (extend fenv
+                             (loop for var in vars-and-funs by #'cddr collect var)
+                             (loop for val in (cdr vars-and-funs) by #'cddr
+                                collect
+                                (let ((new-function (evaluate val env fenv)))
+                                  (if (functionp new-function) new-function
+                                      (error "~A is not a function." new-function))))))))
          (|define-lexical-variable|
           (destructuring-bind (name value)
               argument-forms
