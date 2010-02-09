@@ -1,0 +1,10 @@
+(bind-lexical-variables (x "Hello"
+                         y "World")
+  (define-lexical-function hello-world (lambda () (print x) (print y))))
+
+(call (function hello-world))
+
+(bind-lexical-functions (hello-world (lambda (x) (print "Hello") (print x)))
+  (hello-world "Syko"))
+
+(hello-world)
