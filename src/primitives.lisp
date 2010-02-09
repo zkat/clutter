@@ -6,6 +6,16 @@
 ;;; Primitives
 ;;;
 
+(defmacro definitial-fun (name value)
+  `(progn (push-initial-function-binding ',name ,value)
+          ',name))
+
+(defmacro defprimitive (name value arity)
+  `(definitial-fun ,name (lambda (values)
+                           (if (= ,arity (length values))
+                               (apply ,value values)
+                               (error "Incorrect arity.")))))
+
 (defprimitive |not| (lambda (x) (if (eq x *false*) *true* *false*)) 1)
 (defprimitive |cons| #'cons 2)
 (defprimitive |car| #'car 1)
