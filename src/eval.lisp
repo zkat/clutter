@@ -84,7 +84,7 @@
                                 (let ((new-function (evaluate val env fenv)))
                                   (if (functionp new-function) new-function
                                       (error "~A is not a function." new-function))))))))
-         (|define-lexical-variable|
+         (|define-global-variable|
           (destructuring-bind (name value)
               argument-forms
             (unless (symbolp name)
@@ -96,7 +96,7 @@
                   (let ((relevant-cons (last *global-env*)))
                     (setf (cdr relevant-cons) (cons (cons name (evaluate value env fenv)) nil)))))
             name))
-         (|define-lexical-function|
+         (|define-global-function|
           (destructuring-bind (name value)
               argument-forms
             (unless (symbolp name)
