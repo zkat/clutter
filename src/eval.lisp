@@ -78,7 +78,33 @@
               (unless (functionp new-function)
                 (error "~A is not a function" new-function))
               (eval-do body env (extend fenv (list name) (list new-function))))))
-
+         (|define-lexical-variable|
+          (destructuring-bind (name value)
+              argument-forms
+            (unless (symbolp name)
+              (error "~A is not a valid variable name." name))
+            (let ((existing-binding (assoc name *global-env*)))
+              (if existing-binding
+                  (setf (cdr existing-binding)
+                        (evaluate value env fenv))
+                  (let ((relevant-cons (last *global-env*)))
+                    (setf (cdr relevant-cons) (cons (cons name (evaluate value env fenv)) nil)))))
+            name))
+         (|define-lexical-function|
+          (destructuring-bind (name value)
+              argument-forms
+            (unless (symbolp name)
+              (error "~A is not a valid variable name." name))
+            (let ((fn (evaluate value env fenv)))
+              (unless (functionp fn)
+                (error "~A is not a function." fn))
+              (let ((existing-binding (assoc name *global-fenv*)))
+                (if existing-binding
+                    (setf (cdr existing-binding)
+                          (evaluate value env fenv))
+                    (let ((relevant-cons (last *global-fenv*)))
+                      (setf (cdr relevant-cons) (cons (cons name (evaluate value env fenv)) nil))))))
+            name))
          (t
 
           ;; FIXME: Macros
