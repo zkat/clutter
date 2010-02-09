@@ -6,6 +6,8 @@
 ;;; Evaluator
 ;;;
 
+(defstruct (clutter-block (:constructor make-clutter-block (exit))) exit)
+
 (defun eval-do (forms env fenv)
   "`Evaluate' each of FORMS in the environments ENV and FENV"
   (when forms
@@ -111,6 +113,25 @@
                     (let ((relevant-cons (last *global-fenv*)))
                       (setf (cdr relevant-cons) (cons (cons name (evaluate value env fenv)) nil))))))
             name))
+         (|block|
+          (destructuring-bind (name &body body)
+              argument-forms
+            (unless (symbolp name)
+              (error "~A is not a valid block name." name))
+            (block nil
+              (eval-do body env
+                       (extend fenv (list name)
+                               (list (make-clutter-block (lambda (x) (return x)))))))))
+         (|return-from|
+          (destructuring-bind (name &optional (form nil formp))
+              argument-forms
+            (unless (symbolp name)
+              (error "~A is not a valid block name." name))
+            (let ((clutter-block (lookup name fenv)))
+              (unless (clutter-block-p clutter-block)
+                (error "~A is not a valid block." name))
+              (funcall (clutter-block-exit clutter-block)
+                       (when formp (evaluate form env fenv))))))
          (t
 
           ;; FIXME: Macros
