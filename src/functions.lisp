@@ -6,11 +6,14 @@
 ;;; Functions
 ;;;
 
-(defun invoke (function args)
-  (if (functionp function)
-      (funcall function args)
-      (error "Not a function: ~S" function)))
+(defstruct (clutter-function (:conc-name #:%function-)) function)
 
 (defun make-function (variables body env fenv)
-  (lambda (values)
-    (eval-do body (extend env variables values) fenv)))
+  (make-clutter-function
+   :function (lambda (values)
+               (eval-do body (extend env variables values) fenv))))
+
+(defun invoke (function args)
+  (if (clutter-function-p function)
+      (funcall (%function-function function) args)
+      (error "Not a function: ~S" function)))
