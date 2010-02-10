@@ -10,8 +10,9 @@
   (let ((*readtable* (copy-readtable *readtable*))
         (*global-fenv* (extend *global-fenv*
                                (list '|die|)
-                               (list (lambda (args)
-                                       (return-from repl args))))))
+                               (list (make-clutter-function
+                                      :function (lambda (args)
+                                                  (return-from repl args)))))))
     (setf (readtable-case *readtable*) :preserve)
     (loop
       (princ "> ")
