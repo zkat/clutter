@@ -5,7 +5,15 @@
 ;;;
 ;;; Symbols
 ;;;
+(defvar *clutter-package* nil)
 (defstruct clutter-symbol name package)
+(defmethod print-object ((o clutter-symbol) s)
+  (princ (clutter-symbol-name o) s)
+  #+nil(if (eq *clutter-package* (clutter-symbol-package o))
+      (princ (clutter-symbol-name o) s)
+      (format s "~A:~A"
+              (clutter-package-name (clutter-symbol-package o))
+              (clutter-symbol-name o))))
 (defvar *symbols* (make-hash-table :test #'equal))
 (defun clutter-intern (name)
   (or (gethash name *symbols*)
