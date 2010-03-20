@@ -2,24 +2,66 @@
 
 (in-package #:clutter)
 
+(defvar *default-namespace*)
+(defvar *namespace*)
+(defvar *namespace-root* nil)
+
 ;;;
 ;;; Symbols
 ;;;
-(defvar *clutter-package* nil)
-(defstruct clutter-symbol name package)
+(defstruct clutter-symbol name namespace)
 (defmethod print-object ((o clutter-symbol) s)
-  (princ (clutter-symbol-name o) s)
-  #+nil(if (eq *clutter-package* (clutter-symbol-package o))
+  (if (eq *namespace* (clutter-symbol-namespace o))
       (princ (clutter-symbol-name o) s)
       (format s "~A:~A"
-              (clutter-package-name (clutter-symbol-package o))
+              (namespace-name (clutter-symbol-namespace o))
               (clutter-symbol-name o))))
-(defvar *symbols* (make-hash-table :test #'equal))
-(defun clutter-intern (name)
-  (or (gethash name *symbols*)
-      (values (setf (gethash name *symbols*)
-                    (make-clutter-symbol :name name))
-              nil)))
+
+;;;
+;;; Namespaces
+;;;
+(defstruct (namespace (:predicate namespacep)
+                      (:constructor make-namespace (name)))
+  name (symbols (make-hash-table :test #'equal)))
+
+(defmethod print-object ((o namespace) s)
+  (print-unreadable-object (o s :type t :identity t)
+    (princ (namespace-name o) s)))
+
+(defun find-clutter-symbol (name &optional (namespace *namespace*))
+  (gethash name (namespace-symbols namespace)))
+
+(defun add-clutter-symbol (symbol &optional (namespace *namespace*))
+  (check-type symbol clutter-symbol)
+  (check-type namespace namespace)
+  (setf (gethash (clutter-symbol-name symbol)
+                 (namespace-symbols namespace))
+        symbol))
+
+(defun remove-clutter-symbol (symbol &optional (namespace *namespace*))
+  (check-type symbol clutter-symbol)
+  (check-type namespace namespace)
+  (remhash (clutter-symbol-name symbol)
+           (namespace-symbols namespace))
+  symbol)
+
+(defun find-namespace (name)
+  (find name *namespace-root* :test #'string= :key #'namespace-name))
+
+(defun ensure-namespace (name)
+  (or (find-namespace name)
+      (let ((namespace (make-namespace name)))
+        (push namespace *namespace-root*)
+        namespace)))
+
+(setf *default-namespace* (ensure-namespace "clutter")
+      *namespace* *default-namespace*
+      *namespace-root* (list *default-namespace*))
+
+(defun clutter-intern (name &optional (namespace *namespace*))
+  (or (find-clutter-symbol name namespace)
+      (add-clutter-symbol (make-clutter-symbol :name name :namespace namespace)
+                          namespace)))
 
 ;;;
 ;;; Reader
