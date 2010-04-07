@@ -1,6 +1,6 @@
 ;;;; -*- Mode: Lisp; indent-tabs-mode: nil -*-
 
-(defsystem clutter
+(asdf:defsystem clutter
   :serial t
   :components
   ((:module "src"
@@ -13,4 +13,3 @@
              (:file "eval")
              (:file "repl")
              (:file "primitives")))))
-
