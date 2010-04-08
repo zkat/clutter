@@ -7,6 +7,9 @@
 ;;;
 
 (defstruct (clutter-function (:conc-name #:%function-)) function)
+(defmethod print-object ((o clutter-function) s)
+  (print-unreadable-object (o s :identity t)
+    (format s "closure")))
 
 (defun make-function (variables body env fenv)
   (make-clutter-function
