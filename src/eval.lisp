@@ -111,7 +111,7 @@
             (unless (symbolp name)
               (error "~A is not a valid variable name." name))
             (let ((fn (evaluate value env fenv)))
-              (unless (functionp fn)
+              (unless (clutter-function-p fn)
                 (error "~A is not a function." fn))
               (let ((existing-binding (assoc name *global-fenv*)))
                 (if existing-binding

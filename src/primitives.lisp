@@ -53,3 +53,6 @@
   (invoke function args))
 (defprimitive |call| (function &rest args)
   (invoke function args))
+
+(defprimitive |print| (obj)
+  (print obj))
