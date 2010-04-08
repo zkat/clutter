@@ -24,8 +24,8 @@
      (destructuring-bind (operator &rest argument-forms) form
 
        ;; Sanity check -- this should happen at "compile time"
-       (unless (symbolp operator)
-         (error "~A is not a valid operator name" (car form)))
+       (unless (or (symbolp operator) (listp operator))
+         (error "~A is not a valid operator." (car form)))
 
        ;; Special operators
        (case operator
@@ -63,7 +63,7 @@
           (destructuring-bind ((&rest args) &body body)
               argument-forms
             (make-function args body env fenv)))
-         (|function|
+         (|fun|
           (destructuring-bind (name)
               argument-forms
             ;; Sanity checks -- these should happen at "compile time"
@@ -72,6 +72,15 @@
             (unless (find-binding name fenv)
               (error "~A is not a lexically visible function" name))
             (lookup name fenv)))
+         (|var|
+          (destructuring-bind (name)
+              argument-forms
+            ;; Sanity checks -- these should happen at "compile time"
+            (unless (symbolp name)
+              (error "~A is not a valid variable name." name))
+            (unless (find-binding name env)
+              (error "~A is not a visible variable." name))
+            (lookup name env)))
          (|bind-lexical-functions|
           (destructuring-bind (vars-and-funs &body body)
               argument-forms
@@ -116,7 +125,9 @@
           ;; FIXME: Macros
 
           ;; Function call
-          (invoke (lookup operator fenv)
+          (invoke (if (listp operator)
+                      (evaluate operator env fenv)
+                      (lookup operator fenv))
                   (mapcar (lambda (form) (evaluate form env fenv))
                           argument-forms))))))
 
