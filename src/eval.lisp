@@ -91,7 +91,7 @@
                              (loop for val in (cdr vars-and-funs) by #'cddr
                                 collect
                                 (let ((new-function (evaluate val env fenv)))
-                                  (if (functionp new-function) new-function
+                                  (if (clutter-function-p new-function) new-function
                                       (error "~A is not a function." new-function))))))))
          (|define-global-variable|
           (destructuring-bind (name value)
@@ -122,7 +122,7 @@
             name))
          (t
 
-          ;; FIXME: Macros
+          ;; TODO: Macros
 
           ;; Function call
           (invoke (if (listp operator)

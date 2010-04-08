@@ -46,6 +46,8 @@
   (if (> x y) *true* *false*))
 (defprimitive |=| (x y)
   (if (= x y) *true* *false*))
+(defprimitive |+| (x y)
+  (+ x y))
 
 (defprimitive |apply| (function args)
   (invoke function args))
