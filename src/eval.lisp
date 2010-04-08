@@ -81,6 +81,16 @@
             (unless (find-binding name env)
               (error "~A is not a visible variable." name))
             (lookup name env)))
+         (|set-lexical-function|
+          (destructuring-bind (variable value)
+              argument-forms
+            ;; Sanity checks -- these should happen at "compile time"
+            (unless (symbolp variable)
+              (error "~A is not a valid function name." variable))
+            (unless (find-binding variable env)
+              (error "~A is not a lexically visible function." variable))
+            (setf (lookup variable fenv)
+                  (evaluate value env fenv))))
          (|bind-lexical-functions|
           (destructuring-bind (vars-and-funs &body body)
               argument-forms
