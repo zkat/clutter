@@ -15,7 +15,7 @@
                                                   (return-from repl args)))))))
     (setf (readtable-case *readtable*) :preserve)
     (loop
-      (princ "> ")
-      (with-simple-restart (abort "Return to Clutter's toplevel")
-        (prin1 (evaluate (read) *global-env* *global-fenv*)))
-      (fresh-line))))
+       (princ "> ")
+       (with-simple-restart (abort "Return to Clutter's toplevel")
+         (format t "~%=> ~S" (evaluate (read) *global-env* *global-fenv*)))
+       (fresh-line))))
