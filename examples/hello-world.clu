@@ -2,7 +2,7 @@
                          y "World")
   (define-global-function hello-world (lambda () (print x) (print y))))
 
-(call (function hello-world))
+((fun hello-world))
 
 (bind-lexical-functions (hello-world (lambda (x) (print "Hello") (print x)))
   (hello-world "Syko"))
@@ -10,6 +10,9 @@
 (hello-world)
 
 (define-global-variable hello (quote Hello))
+
+(bind-lexical-variables (hello-var (lambda () (print "Call me any, any time.")))
+  ((var hello-var)))
 
 (print hello)
 (print (quote World!))
