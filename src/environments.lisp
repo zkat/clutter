@@ -35,19 +35,17 @@
          (if values
              (error "Too many values")
              env))
-        ((symbolp variables) (cons (cons variables values) env))))
+        ((clutter-symbol-p variables) (cons (cons variables values) env))))
 
 ;;;
 ;;; Primitive Constants
 ;;;
 
-(defmacro definitial (name value)
-  `(progn (push-initial-binding ',name ,value)
-          ',name))
+(defparameter *true* (clutter-intern "t"))
+(defparameter *false* (clutter-intern "f"))
 
-(defparameter *true* '|t|)
-(defparameter *false* '|f|)
-
-(definitial |t| *true*)
-(definitial |f| *false*)
-(definitial |nil| '())
+(defun define-initially (clutter-symbol-name value)
+  (push-initial-binding (clutter-intern clutter-symbol-name) value))
+(define-initially "t" *true*)
+(define-initially "f" *false*)
+(define-initially "nil" nil)
