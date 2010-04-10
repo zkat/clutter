@@ -7,15 +7,13 @@
 ;;;
 
 (defun repl ()
-  (let ((*readtable* (copy-readtable *readtable*))
-        (*global-fenv* (extend *global-fenv*
+  (let ((*global-fenv* (extend *global-fenv*
                                (list '|die|)
                                (list (make-clutter-function
                                       :function (lambda (args)
                                                   (return-from repl args)))))))
-    (setf (readtable-case *readtable*) :preserve)
     (loop
        (princ "> ")
        (with-simple-restart (abort "Return to Clutter's toplevel")
-         (format t "~%=> ~S" (evaluate (read) *global-env* *global-fenv*)))
+         (format t "~%=> ~S" (evaluate (clutter-read) *global-env* *global-fenv*)))
        (fresh-line))))
