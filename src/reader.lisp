@@ -71,11 +71,75 @@
 (defun whitespacep (char)
   (if (member char *whitespace-chars*) t nil))
 
+;; (defun invalid-char-p (char)
+;;   (declare (ignore char))
+;;   nil)
+
+;; (defparameter *multiple-escape-chars* '())
+;; (defun multiple-escape-char-p (char)
+;;   (when (find char *multiple-escape-chars*) t))
+
+;; (defparameter *single-escape-chars* '())
+;; (defun single-escape-char-p (char)
+;;   (when (find char *single-escape-chars*) t))
+
+;; (defparameter *macro-characters* '())
+;; (defun macro-character-p (char)
+;;   (when (find char *macro-characters*) t))
+
+;; (defun constituent-char-p (char)
+;;   (and (not (invalid-char-p char))
+;;        (whitespacep char)))
+
+(defparameter *terminating-macro-characters* '())
+(defun terminating-macro-char-p (char)
+  (when (find char *terminating-macro-characters*) t))
+
+(defparameter *reader-macro-functions* (make-hash-table))
+(defun reader-macro-function (char)
+  (gethash char *reader-macro-functions*))
+
+(defun set-clutter-reader-macro-function (char function)
+  (check-type char character)
+  (check-type function function)
+  (pushnew char *terminating-macro-characters*)
+  (setf (gethash char *reader-macro-functions*) function))
+
+(defun clutter-read-delimited-list (end-char stream)
+  (loop with list = ()
+     for char = (peek-char t stream)
+     do (if (char= end-char char)
+            (progn (read-char stream nil nil)
+                   (return-from clutter-read-delimited-list (nreverse list)))
+            (progn #+nil(read-char stream nil nil)
+                   (push (clutter-read stream) list)))))
+
+(set-clutter-reader-macro-function #\( (lambda (stream char)
+                                         (declare (ignore char))
+                                         (clutter-read-delimited-list #\) stream)))
+(set-clutter-reader-macro-function #\' (lambda (stream char)
+                                         (declare (ignore char))
+                                         `(,(clutter-intern "quote")
+                                            ,(clutter-read stream))))
+(set-clutter-reader-macro-function #\) (lambda (stream char)
+                                         (declare (ignore stream char))
+                                         (error "Unmatched #\).")))
+
+
 (defun read-token (stream)
   (loop with token = (make-array 8 :adjustable t :fill-pointer 0 :element-type 'character)
+     with collecting-token = nil
      for char = (read-char stream nil nil t)
      while (and char (not (whitespacep char)))
-     do (vector-push-extend char token)
+     do (if (terminating-macro-char-p char)
+            (if collecting-token
+                (progn (unread-char char)
+                       (return token))
+                (let ((result (multiple-value-list (funcall (reader-macro-function char) stream char))))
+                  (when result
+                    (return-from read-token (values (car result) t)))))
+            (progn (vector-push-extend char token)
+                   (setf collecting-token t)))
      finally (return token)))
 
 (defun parse-token (token)
@@ -165,4 +229,8 @@
   (clutter-intern token))
 
 (defun clutter-read (&optional (stream *standard-input*))
-  (parse-token (read-token stream)))
+  (multiple-value-bind (token donep)
+      (read-token stream)
+    (if donep
+        token
+        (parse-token token))))
