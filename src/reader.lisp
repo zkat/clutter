@@ -152,10 +152,14 @@
   (let ((minusp nil)
         (first-char (char token 0)))
     (cond ((char= #\- first-char)
-           (setf minusp t
-                 token (subseq token 1)))
+           (let ((maybe-token (subseq token 1)))
+             (unless (zerop (length maybe-token))
+               (setf minusp t
+                     token maybe-token))))
           ((char= #\+ first-char)
-           (setf token (subseq token 1))))
+           (let ((maybe-token (subseq token 1)))
+             (unless (zerop (length maybe-token))
+               (setf token maybe-token)))))
     (loop with mantissa = 0
       for char across token
       do (if (digit-char-p char *clutter-read-base*)
@@ -166,7 +170,7 @@
 
 (defun parse-rational-token (token)
   (let ((/-position (position #\/ token)))
-    (when /-position
+    (when (and /-position (plusp /-position))
       (let ((num-str (subseq token 0 /-position))
             (den-str (subseq token (1+ /-position))))
         (let ((numerator (or (parse-integer-token num-str)
