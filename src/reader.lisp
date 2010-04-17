@@ -111,8 +111,8 @@
      do (if (char= end-char char)
             (progn (read-char stream nil nil)
                    (return-from clutter-read-delimited-list (nreverse list)))
-            (progn #+nil(read-char stream nil nil)
-                   (push (clutter-read stream) list)))))
+            (unless (whitespacep char)
+              (push (clutter-read stream) list)))))
 
 (set-clutter-reader-macro-function #\( (lambda (stream char)
                                          (declare (ignore char))
@@ -140,7 +140,9 @@
                     (return-from read-token (values (car result) t)))))
             (progn (vector-push-extend char token)
                    (setf collecting-token t)))
-     finally (return token)))
+     finally (if collecting-token
+                 (return token)
+                 nil)))
 
 (defun parse-token (token)
   (or (parse-integer-token token)
@@ -237,4 +239,5 @@
       (read-token stream)
     (if donep
         token
-        (parse-token token))))
+        (when token
+          (parse-token token)))))
