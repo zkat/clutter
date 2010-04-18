@@ -13,7 +13,6 @@
                                       :function (lambda (args)
                                                   (return-from repl args)))))))
     (loop
-       (princ "> ")
+       (format t "~&> ")
        (with-simple-restart (abort "Return to Clutter's toplevel")
-         (format t "~%=> ~S" (evaluate (clutter-read) *global-env* *global-fenv*)))
-       (fresh-line))))
+         (format t "~&=> ~S" (evaluate (clutter-read) *global-env* *global-fenv*))))))
