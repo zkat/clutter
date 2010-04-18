@@ -17,7 +17,7 @@
   (typecase form
 
     ;; Variable lookup or symbol macro (the latter is unimplemented)
-    (symbol (lookup form env))
+    (clutter-symbol (lookup form env))
 
     ;; Compound form
     (cons

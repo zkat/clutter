@@ -14,7 +14,7 @@
   (if (eq *namespace* (clutter-symbol-namespace o))
       (princ (clutter-symbol-name o) s)
       (format s "~A:~A"
-              (namespace-name (clutter-symbol-namespace o))
+              (clutter-symbol-namespace o)
               (clutter-symbol-name o))))
 
 ;;;
