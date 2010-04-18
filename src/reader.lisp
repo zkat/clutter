@@ -257,7 +257,7 @@
            (when (char= (char symbol-name (1- (length symbol-name))) *keyword-marker*)
              (setf symbol-name (subseq symbol-name (1- (length symbol-name))))))
        (if (not (symbol-illegal-characters-p symbol-name))
-           (clutter-intern symbol-name (make-namespace *keyword-namespace-name*))
+           (clutter-intern symbol-name (ensure-namespace *keyword-namespace-name*))
            (error "Illegal characters in symbol name")))) ; Should find keyword namespace, not create
     ;; Namespaced symbol
     ((find *namespace-marker* token :from-end 't)
@@ -270,7 +270,7 @@
          ;; For now I just use namespace-identifier string to make namespace
          ;; Should split-sequence on *subnamespace-marker* and then find correct namespace through hierarchy
          (if (not (symbol-illegal-characters-p symbol-name))
-             (clutter-intern (car symbol-name) (make-namespace namespace-identifier))
+             (clutter-intern (car symbol-name) (ensure-namespace namespace-identifier))
              (error "Illegal characters in symbol name")))))
     ;; Normal symbol
     (t (if (not (symbol-illegal-characters-p token))
