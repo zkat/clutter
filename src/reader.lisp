@@ -6,6 +6,12 @@
 (defvar *namespace*)
 (defvar *namespace-root* nil)
 
+(defvar *namespace-marker* #\:)
+(defvar *subnamespace-marker* #\:)
+(defvar *keyword-marker* #\:)
+(defvar *keyword-marker-in-front* 't)
+(defvar *keyword-namespace-name* "keyword")
+
 ;;;
 ;;; Symbols
 ;;;
@@ -235,7 +241,21 @@
         nil)))
 
 (defun parse-symbol-token (token)
-  (clutter-intern token))
+  (cond
+    ;; Keyword
+    ((or (and *keyword-marker-in-front*
+              (char= (char token 0) *keyword-marker*))
+         (char= (char token (- (length token) 1)) *keyword-marker*))
+     (clutter-intern token (make-namespace *keyword-namespace-name*))) ;; Should find keyword namespace, not create
+    ;; Namespaced symbol
+    ((find *namespace-marker* token :from-end 't)
+     (multiple-value-bind (symbol-name symbol-end)
+         (split-sequence *namespace-marker* token :from-end 't :count 1)
+       ;(let ((namespaces (split-sequence *subnamespace-marker* (subseq token 0 symbol-end))))
+         ;; For now I just use rest of the stuff to make namespace
+         ;; Let form should be uncommented and used to get proper namespace
+       (clutter-intern symbol-name (make-namespace (subseq token 0 symbol-end)))))
+    (t (clutter-intern token))))
 
 (defun clutter-read (&optional (stream *standard-input*))
   (multiple-value-bind (token donep)
