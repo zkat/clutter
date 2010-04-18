@@ -240,6 +240,9 @@
         (if minusp (- result) result)
         nil)))
 
+(defun symbol-illegal-characters-p (symbol)
+  (or (find *namespace-marker* symbol) (find *subnamespace-marker* symbol) (find *keyword-marker* symbol)))
+
 (defun parse-symbol-token (token)
   (cond
     ;; Keyword
@@ -247,16 +250,32 @@
               (char= (char token 0) *keyword-marker*))
          (and (not *keyword-marker-in-front*)
               (char= (char token (- (length token) 1)) *keyword-marker*)))
-     (clutter-intern token (make-namespace *keyword-namespace-name*))) ;; Should find keyword namespace, not create
+     (let ((symbol-name (subseq token 1)))
+       (if *keyword-marker-in-front*
+           (when (char= (char symbol-name 0) *keyword-marker*)
+             (setf symbol-name (subseq symbol-name 1)))
+           (when (char= (char symbol-name (1- (length symbol-name))) *keyword-marker*)
+             (setf symbol-name (subseq symbol-name (1- (length symbol-name))))))
+       (if (not (symbol-illegal-characters-p symbol-name))
+           (clutter-intern symbol-name (make-namespace *keyword-namespace-name*))
+           (error "Illegal characters in symbol name")))) ; Should find keyword namespace, not create
     ;; Namespaced symbol
     ((find *namespace-marker* token :from-end 't)
      (multiple-value-bind (symbol-name symbol-end)
          (split-sequence *namespace-marker* token :from-end 't :count 1)
-       ;(let ((namespaces (split-sequence *subnamespace-marker* (subseq token 0 symbol-end))))
-         ;; For now I just use rest of the stuff to make namespace
-         ;; Let form should be uncommented and used to get proper namespace
-       (clutter-intern symbol-name (make-namespace (subseq token 0 symbol-end)))))
-    (t (clutter-intern token))))
+       (let ((namespace-identifier (subseq token 0 symbol-end)))
+         (when (char= (char namespace-identifier (1- symbol-end)) *namespace-marker*)
+           ;; Should handle internal symbols here
+           (setf namespace-identifier (subseq namespace-identifier 0 (1- symbol-end))))
+         ;; For now I just use namespace-identifier string to make namespace
+         ;; Should split-sequence on *subnamespace-marker* and then find correct namespace through hierarchy
+         (if (not (symbol-illegal-characters-p symbol-name))
+             (clutter-intern (car symbol-name) (make-namespace namespace-identifier))
+             (error "Illegal characters in symbol name")))))
+    ;; Normal symbol
+    (t (if (not (symbol-illegal-characters-p token))
+           (clutter-intern token)
+           (error "Illegal characters in symbol name")))))
 
 (defun clutter-read (&optional (stream *standard-input*))
   (multiple-value-bind (token donep)
