@@ -245,7 +245,8 @@
     ;; Keyword
     ((or (and *keyword-marker-in-front*
               (char= (char token 0) *keyword-marker*))
-         (char= (char token (- (length token) 1)) *keyword-marker*))
+         (and (not *keyword-marker-in-front*)
+              (char= (char token (- (length token) 1)) *keyword-marker*)))
      (clutter-intern token (make-namespace *keyword-namespace-name*))) ;; Should find keyword namespace, not create
     ;; Namespaced symbol
     ((find *namespace-marker* token :from-end 't)
