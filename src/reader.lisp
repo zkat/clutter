@@ -130,7 +130,7 @@
   (loop with token = (make-array 8 :adjustable t :fill-pointer 0 :element-type 'character)
      with collecting-token = nil
      for char = (read-char stream nil nil t)
-     while (and char (not (whitespacep char)))
+     while char
      do (if (terminating-macro-char-p char)
             (if collecting-token
                 (progn (unread-char char)
@@ -138,11 +138,14 @@
                 (let ((result (multiple-value-list (funcall (reader-macro-function char) stream char))))
                   (when result
                     (return-from read-token (values (car result) t)))))
-            (progn (vector-push-extend char token)
-                   (setf collecting-token t)))
-     finally (if collecting-token
-                 (return token)
-                 nil)))
+            (cond ((and collecting-token (whitespacep char))
+                   (return-from read-token token))
+                  ((and (whitespacep char) (not collecting-token))
+                   (values))
+                  (t
+                   (vector-push-extend char token)
+                   (setf collecting-token t))))
+     finally (return token)))
 
 (defun parse-token (token)
   (or (parse-integer-token token)
@@ -239,5 +242,4 @@
       (read-token stream)
     (if donep
         token
-        (when token
-          (parse-token token)))))
+        (parse-token token))))
