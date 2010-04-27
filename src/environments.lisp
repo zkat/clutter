@@ -9,21 +9,22 @@
 (defparameter *global-env* '())
 (defparameter *global-fenv* '())
 
+(defvar *function-bindings* (make-hash-table :test 'eq))
+(defvar *lexical-bindings* (make-hash-table :test 'eq))
+(defvar *dynamic-bindings* (make-hash-table :test 'eq))
+
 (defun push-initial-binding (name value)
-  (push (cons name value) *global-env*))
+  (setf (lookup name *lexical-bindings*) value))
 
 (defun push-initial-function-binding (name value)
-  (push (cons name value) *global-fenv*))
+  (setf (lookup name *function-bindings*) value))
 
-(defun find-binding (id env)
-  (or (assoc id env)
-      (error "No such binding: ~S" id)))
+(defun lookup (symbol env)
+  (or (gethash symbol env)
+      (error "No such binding: ~S" symbol)))
 
-(defun lookup (id env)
-  (cdr (find-binding id env)))
-
-(defun (setf lookup) (new-value id env)
-  (setf (cdr (find-binding id env)) new-value))
+(defun (setf lookup) (new-value symbol env)
+  (setf (gethash symbol env) new-value))
 
 (defun extend (env variables values)
   (cond ((consp variables)
