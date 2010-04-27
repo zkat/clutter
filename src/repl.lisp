@@ -7,12 +7,7 @@
 ;;;
 
 (defun repl ()
-  (let ((*global-fenv* (extend *global-fenv*
-                               (list '|die|)
-                               (list (make-clutter-function
-                                      :function (lambda (args)
-                                                  (return-from repl args)))))))
-    (loop
-       (format t "~&> ")
-       (with-simple-restart (abort "Return to Clutter's toplevel")
-         (format t "~&=> ~S" (evaluate (clutter-read) *global-env* *global-fenv*))))))
+  (loop
+     (format t "~&> ")
+     (with-simple-restart (abort "Return to Clutter's toplevel")
+       (format t "~&=> ~S" (evaluate (clutter-read) *lexical-bindings* *function-bindings*)))))
