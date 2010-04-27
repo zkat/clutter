@@ -45,7 +45,7 @@
                 ;; Sanity checks -- these should happen at "compile time"
                 (unless (clutter-symbol-p variable)
                   (error "~A is not a valid variable name" variable))
-                (unless (find-binding variable env)
+                (unless (lookup variable env)
                   (error "~A is not a lexically visible variable" variable))
                 (setf (lookup variable env)
                       (evaluate value env fenv))))
@@ -68,7 +68,7 @@
                 ;; Sanity checks -- these should happen at "compile time"
                 (unless (clutter-symbol-p name)
                   (error "~A is not a valid function name" name))
-                (unless (find-binding name fenv)
+                (unless (lookup name fenv)
                   (error "~A is not a lexically visible function" name))
                 (lookup name fenv)))
              ((eq operator (clutter-intern "var"))
@@ -77,7 +77,7 @@
                 ;; Sanity checks -- these should happen at "compile time"
                 (unless (clutter-symbol-p name)
                   (error "~A is not a valid variable name." name))
-                (unless (find-binding name env)
+                (unless (lookup name env)
                   (error "~A is not a visible variable." name))
                 (lookup name env))              )
              ((eq operator (clutter-intern "set-lexical-function"))
@@ -86,7 +86,7 @@
                 ;; Sanity checks -- these should happen at "compile time"
                 (unless (clutter-symbol-p variable)
                   (error "~A is not a valid function name." variable))
-                (unless (find-binding variable env)
+                (unless (lookup variable env)
                   (error "~A is not a lexically visible function." variable))
                 (setf (lookup variable fenv)
                       (evaluate value env fenv))))
@@ -107,12 +107,7 @@
                   argument-forms
                 (unless (clutter-symbol-p name)
                   (error "~A is not a valid variable name." name))
-                (let ((existing-binding (assoc name *global-env*)))
-                  (if existing-binding
-                      (setf (cdr existing-binding)
-                            (evaluate value env fenv))
-                      (let ((relevant-cons (last *global-env*)))
-                        (setf (cdr relevant-cons) (cons (cons name (evaluate value env fenv)) nil)))))
+                (setf (lookup name *lexical-bindings*) (evaluate value env fenv))
                 name))
              ((eq operator (clutter-intern "define-global-function"))
               (destructuring-bind (name value)
@@ -122,12 +117,7 @@
                 (let ((fn (evaluate value env fenv)))
                   (unless (clutter-function-p fn)
                     (error "~A is not a function." fn))
-                  (let ((existing-binding (assoc name *global-fenv*)))
-                    (if existing-binding
-                        (setf (cdr existing-binding)
-                              (evaluate value env fenv))
-                        (let ((relevant-cons (last *global-fenv*)))
-                          (setf (cdr relevant-cons) (cons (cons name (evaluate value env fenv)) nil))))))
+                  (setf (lookup name *function-bindings*) (evaluate value env fenv)))
                 name))
              (t
               ;; TODO: Macros
@@ -138,7 +128,6 @@
                           (lookup operator fenv))
                       (mapcar (lambda (form) (evaluate form env fenv))
                               argument-forms))))))
-  
     ;; Self-evaluating object
     (t form)))
 
