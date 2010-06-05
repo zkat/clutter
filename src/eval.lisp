@@ -43,7 +43,7 @@
               (destructuring-bind (variable value)
                   argument-forms
                 ;; Sanity checks -- these should happen at "compile time"
-                (unless (symbolp variable)
+                (unless (clutter-symbol-p variable)
                   (error "~A is not a valid variable name" variable))
                 (unless (find-binding variable env)
                   (error "~A is not a lexically visible variable" variable))
@@ -66,7 +66,7 @@
               (destructuring-bind (name)
                   argument-forms
                 ;; Sanity checks -- these should happen at "compile time"
-                (unless (symbolp name)
+                (unless (clutter-symbol-p name)
                   (error "~A is not a valid function name" name))
                 (unless (find-binding name fenv)
                   (error "~A is not a lexically visible function" name))
@@ -75,7 +75,7 @@
               (destructuring-bind (name)
                   argument-forms
                 ;; Sanity checks -- these should happen at "compile time"
-                (unless (symbolp name)
+                (unless (clutter-symbol-p name)
                   (error "~A is not a valid variable name." name))
                 (unless (find-binding name env)
                   (error "~A is not a visible variable." name))
@@ -84,7 +84,7 @@
               (destructuring-bind (variable value)
                   argument-forms
                 ;; Sanity checks -- these should happen at "compile time"
-                (unless (symbolp variable)
+                (unless (clutter-symbol-p variable)
                   (error "~A is not a valid function name." variable))
                 (unless (find-binding variable env)
                   (error "~A is not a lexically visible function." variable))
@@ -105,7 +105,7 @@
              ((eq operator (clutter-intern "define-global-variable"))
               (destructuring-bind (name value)
                   argument-forms
-                (unless (symbolp name)
+                (unless (clutter-symbol-p name)
                   (error "~A is not a valid variable name." name))
                 (let ((existing-binding (assoc name *global-env*)))
                   (if existing-binding
@@ -117,7 +117,7 @@
              ((eq operator (clutter-intern "define-global-function"))
               (destructuring-bind (name value)
                   argument-forms
-                (unless (symbolp name)
+                (unless (clutter-symbol-p name)
                   (error "~A is not a valid variable name." name))
                 (let ((fn (evaluate value env fenv)))
                   (unless (clutter-function-p fn)
