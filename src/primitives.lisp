@@ -36,6 +36,8 @@
 
 (defprimitive "symbol?" (x)
   (if (clutter-symbol-p x) *true* *false*))
+(defprimitive "number?" (x)
+  (numberp x))
 
 (defprimitive "<?" (x y)
   (if (< x y) *true* *false*))
