@@ -18,6 +18,8 @@
 
 (defprimitive "not" (x)
   (if (eq x *false*) *true* *false*))
+(defprimitive "null?" (x)
+  (if (eq x nil) *true* *false*))
 
 (defprimitive "cons" (x y)
   (cons x y))
