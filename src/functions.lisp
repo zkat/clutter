@@ -11,10 +11,14 @@
   (print-unreadable-object (o s :identity t)
     (format s "closure")))
 
-(defun make-function (variables body env fenv)
+(defun make-function (variables body &aux
+                      (new-frame (make-stack-frame "lambda" (current-scope))))
   (make-clutter-function
    :function (lambda (values)
-               (eval-do body (extend env variables values) fenv))))
+               (with-frame new-frame
+                 (loop for var in variables for value in values do
+                   (bind var value :lexical))
+                 (eval-do body)))))
 
 (defun invoke (function args)
   (if (clutter-function-p function)
