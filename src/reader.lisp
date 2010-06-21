@@ -2,9 +2,7 @@
 
 (in-package #:clutter)
 
-(defvar *default-namespace*)
-(defvar *namespace*)
-(defvar *namespace-root* nil)
+(defvar *namespace* (lookup nil :namespace))
 
 (defvar *namespace-marker* #\:)
 (defvar *subnamespace-marker* #\:)
@@ -30,8 +28,8 @@
 ;;; Namespaces
 ;;;
 (defstruct (namespace (:predicate namespacep)
-                      (:constructor make-namespace (name)))
-  name (symbols (make-hash-table :test #'equal)))
+                      (:constructor make-namespace))
+  (symbols (make-hash-table :test #'eq)))
 
 (defmethod print-object ((o namespace) s)
   (princ (namespace-name o) s))
@@ -53,23 +51,24 @@
            (namespace-symbols namespace))
   symbol)
 
-(defun find-namespace (name)
-  (find name *namespace-root* :test #'string= :key #'namespace-name))
-
-(defun ensure-namespace (name)
-  (or (find-namespace name)
-      (let ((namespace (make-namespace name)))
-        (push namespace *namespace-root*)
-        namespace)))
-
-(setf *default-namespace* (ensure-namespace "clutter")
-      *namespace* *default-namespace*
-      *namespace-root* (list *default-namespace*))
-
 (defun clutter-intern (name &optional (namespace *namespace*))
   (or (find-clutter-symbol name namespace)
       (add-clutter-symbol (make-clutter-symbol :name name :namespace namespace)
                           namespace)))
+
+(defun find-namespace (name &optional super-namespace-name &aux (separator (position *namespace-marker* name)))
+  (if separator
+      (find-namespace (subseq name (1+ separator)) (concatenate 'string super-namespace-name (when super-namespace-name ":") (subseq name 0 separator)))
+      (lookup (clutter-intern name (ensure-namespace super-namespace-name)) :namespace)))
+
+(defun ensure-namespace (name &optional (super-namespace *namespace*) &aux (separator (position *namespace-marker* name)))
+  (if separator
+      (let ((new-super-namespace (lookup (clutter-intern (subseq name 0 separator) super-namespace) :namespace)))
+        (if new-super-namespace
+            (ensure-namespace (subseq name (1+ separator)) new-super-namespace)
+            nil))
+      (lookup (clutter-intern name super-namespace) :namespace)))
+
 
 ;;;
 ;;; Reader
