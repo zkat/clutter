@@ -18,6 +18,8 @@
 
 (defprimitive "not" (x)
   (if (eq x *false*) *true* *false*))
+(defprimitive "null?" (x)
+  (if (eq x nil) *true* *false*))
 
 (defprimitive "cons" (x y)
   (cons x y))
@@ -36,6 +38,8 @@
 
 (defprimitive "symbol?" (x)
   (if (clutter-symbol-p x) *true* *false*))
+(defprimitive "number?" (x)
+  (numberp x))
 
 (defprimitive "<?" (x y)
   (if (< x y) *true* *false*))
