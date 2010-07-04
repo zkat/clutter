@@ -257,7 +257,12 @@
            (when (char= (char symbol-name (1- (length symbol-name))) *keyword-marker*)
              (setf symbol-name (subseq symbol-name (1- (length symbol-name))))))
        (if (not (symbol-illegal-characters-p symbol-name))
-           (clutter-intern symbol-name (ensure-namespace *keyword-namespace-name*))
+           (let* ((symbol (clutter-intern symbol-name (ensure-namespace *keyword-namespace-name*)))
+                  (existing-binding (assoc symbol *global-env*)))
+             (unless existing-binding
+               (let ((relevant-cons (last *global-env*)))
+                 (setf (cdr relevant-cons) (cons (cons symbol symbol) nil))
+                 symbol)))
            (error "Illegal characters in symbol name")))) ; Should find keyword namespace, not create
     ;; Namespaced symbol
     ((find *namespace-marker* token :from-end 't)
