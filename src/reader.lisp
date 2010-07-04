@@ -17,11 +17,14 @@
 ;;;
 (defstruct clutter-symbol name namespace)
 (defmethod print-object ((o clutter-symbol) s)
-  (if (eq *namespace* (clutter-symbol-namespace o))
-      (princ (clutter-symbol-name o) s)
-      (format s "~A:~A"
-              (clutter-symbol-namespace o)
-              (clutter-symbol-name o))))
+  (cond ((eq *namespace* (clutter-symbol-namespace o))
+         (princ (clutter-symbol-name o) s))
+        ((eq (find-namespace "keyword") (clutter-symbol-namespace o))
+         (format s ":~A" (clutter-symbol-name o)))
+        (t
+         (format s "~A:~A"
+                 (clutter-symbol-namespace o)
+                 (clutter-symbol-name o)))))
 
 ;;;
 ;;; Namespaces
@@ -31,8 +34,7 @@
   name (symbols (make-hash-table :test #'equal)))
 
 (defmethod print-object ((o namespace) s)
-  (print-unreadable-object (o s :type t :identity t)
-    (princ (namespace-name o) s)))
+  (princ (namespace-name o) s))
 
 (defun find-clutter-symbol (name &optional (namespace *namespace*))
   (gethash name (namespace-symbols namespace)))
