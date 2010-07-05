@@ -98,8 +98,19 @@
   (with-input-from-string (s "(1 2 3)")
     (eos:finishes (clutter-read s))))
 
-(test read-token)
-(test parse-token)
+(test read-token
+  (with-input-from-string (s "123 456")
+    (is (string= "123" (read-token s))))
+  (with-input-from-string (s "(1 2 3)")
+    (is (equal '(1 2 3) (read-token s)))))
+
+(test parse-token
+  (is (= 1 (parse-integer-token "1")))
+  (is (= 1.2 (parse-float-token "1.2")))
+  (is (eq (clutter-intern "hello") (parse-symbol-token "hello")))
+  (is (= 1/2 (parse-rational-token "1/2")))
+  #+nil(is (= #c(1.4 123) (parse-complex-token "1.4+123i"))))
+
 (test parse-integer-token
   (is (= 1 (parse-integer-token "1")))
   (is (null (parse-integer-token "1.2")))
