@@ -160,7 +160,8 @@
   (or (parse-integer-token token)
       (parse-float-token token)
       (parse-rational-token token)
-      (parse-symbol-token token)))
+      (parse-symbol-token token)
+      (error "How the hell did I ever get here?")))
 
 (defun parse-integer-token (token)
   (let ((minusp nil)
