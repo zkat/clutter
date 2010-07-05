@@ -54,13 +54,50 @@
 ;;;
 ;;; Reader
 ;;;
-(test terminating-macro-char-p)
-(test reader-macro-function)
+(test terminating-macro-char-p
+  (set-clutter-reader-macro-function #\! (lambda (stream char) (declare (ignore stream char)) 'test))
+  (is (terminating-macro-char-p #\!))
+  (is (not (terminating-macro-char-p #\?)))
+  (unset-clutter-reader-macro #\!))
+
+(test reader-macro-function
+  (is (null (reader-macro-function #\!)))
+  (set-clutter-reader-macro-function #\! (lambda (stream char) stream char))
+  (is (eq 'test (funcall (reader-macro-function #\!) 'stream 'char)))
+  (unset-clutter-reader-macro #\!)
+  (is (null (reader-macro-function #\!))))
+
+(test unset-clutter-reader-macro
+  (is (null (unset-clutter-reader-macro #\!)))
+  (set-clutter-reader-macro-function #\! (lambda (stream char) stream char))
+  (is (eql #\! (unset-clutter-reader-macre #\!))))
+
 (test set-clutter-reader-macro-function)
-(test clutter-read-delimited-list)
-(test reader-macro-function/open-paren)
-(test reader-macro-function/quote)
-(test reader-macro-function/unmatched-closed-paren)
+(test clutter-read-delimited-list
+  (with-input-from-string (s "1 2 3 4]")
+    (is (equal '(1 2 3 4) (clutter-read-delimited-list #\] s))))
+  (with-input-from-string (s "1 2 3 4)")
+    (is (equal '(1 2 3 4) (clutter-read-delimited-list #\) s)))))
+
+(test reader-macro-function/open-paren
+  (with-input-from-string (s "(1 2 3)")
+    (is (equal '(1 2 3) (clutter-read s)))))
+
+(test reader-macro-function/quote
+  (with-input-from-string (s "'foo")
+    (is (equal (list (clutter-intern "quote") (clutter-intern "foo"))
+               (clutter-read s))))
+  (with-input-from-string (s "''foo")
+    (is (equal (list (clutter-intern "quote")
+                     (list (clutter-intern "quote") (clutter-intern "foo")))
+               (clutter-read s)))))
+
+(test reader-macro-function/unmatched-closed-paren
+  (with-input-from-string (s ")")
+    (signals error (clutter-read s)))
+  (with-input-from-string (s "(1 2 3)")
+    (eos:finishes (clutter-read s))))
+
 (test read-token)
 (test parse-token)
 (test parse-integer-token)
