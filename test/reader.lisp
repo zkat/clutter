@@ -39,9 +39,17 @@
   (is (namespacep *namespace*))
   (is (eq (lookup nil :namespace) *namespace*)))
 
-;; TODO
-(test find-namespace)
-(test ensure-namespace)
+;; TODO - These need a lot more testing, specially for hierarchical stuff.
+(test find-namespace
+  (is (namespacep (find-namespace nil)))
+  (let ((ns (ensure-namespace "test")))
+    (is (eq ns (find-namespace "test")))
+    (is (namespacep (find-namespace "test")))))
+
+(test ensure-namespace
+  (let ((ns (ensure-namespace "test")))
+    (is (namespacep ns))
+    (is (eq (find-namespace "test") ns))))
 
 ;;;
 ;;; Reader
