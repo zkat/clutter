@@ -22,6 +22,11 @@
                  (clutter-symbol-namespace o)
                  (clutter-symbol-name o)))))
 
+(defun clutter-keyword-p (symbol)
+  (and (clutter-symbol-p symbol)
+       (eq (find-namespace *keyword-namespace-name*)
+           (clutter-symbol-namespace symbol))))
+
 ;;;
 ;;; Namespaces
 ;;;
