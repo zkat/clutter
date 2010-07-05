@@ -100,9 +100,28 @@
 
 (test read-token)
 (test parse-token)
-(test parse-integer-token)
-(test parse-rational-token)
-(test parse-float-token)
+(test parse-integer-token
+  (is (= 1 (parse-integer-token "1")))
+  (is (null (parse-integer-token "1.2")))
+  (is (null (parse-integer-token "hello")))
+  (is (null (parse-integer-token "1/2")))
+  (is (null (parse-integer-token "1.4+123i"))))
+
+(test parse-rational-token
+  (is (null (parse-rational-token "1")))
+  (is (null (parse-rational-token "1.2")))
+  (is (null (parse-rational-token "hello")))
+  (is (= 1/2 (parse-rational-token "1/2")))
+  (is (null (parse-rational-token "1.4+123i"))))
+
+(test parse-float-token
+  (is (null (parse-float-token "1")))
+  (is (= 1.2 (parse-float-token "1.2")))
+  (is (= 1.3e-17 (parse-float-token "1.3e-17")))
+  (is (null (parse-float-token "hello")))
+  (is (null (parse-float-token "1/2")))
+  (is (null (parse-float-token "1.4+123i"))))
+
 (test parse-complex-token)
 (test symbol-illegal-characters-p)
 (test parse-symbol-token/basic)
