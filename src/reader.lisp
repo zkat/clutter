@@ -2,8 +2,6 @@
 
 (in-package #:clutter)
 
-(defvar *namespace* (lookup nil :namespace))
-
 (defvar *namespace-marker* #\:)
 (defvar *subnamespace-marker* #\:)
 (defvar *keyword-marker* #\:)
@@ -29,9 +27,13 @@
 ;;;
 (defstruct (namespace (:predicate namespacep)
                       (:constructor make-namespace))
-  (symbols (make-hash-table :test #'eq)))
+  (symbols (make-hash-table :test #'equal)))
 
-(defmethod print-object ((o namespace) s)
+(unless (ignore-errors (lookup nil :namespace))
+  (bind nil (make-namespace) :namespace :global t))
+(defvar *namespace* (lookup nil :namespace))
+
+#+nil(defmethod print-object ((o namespace) s)
   (princ (namespace-name o) s))
 
 (defun find-clutter-symbol (name &optional (namespace *namespace*))

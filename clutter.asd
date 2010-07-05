@@ -8,8 +8,8 @@
             :components
             ((:file "cl-package")
              (:file "utilities")
-             (:file "reader")
              (:file "environments")
+             (:file "reader")
              (:file "functions")
              (:file "eval")
              (:file "repl")

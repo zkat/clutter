@@ -20,10 +20,23 @@
 
 (defvar *stack* (list (make-stack-frame "global")))
 
+(defun bind (symbol value env &key global &aux (table (if global
+                                                          (car (last (current-env env)))
+                                                          (car (current-env env)))))
+  (multiple-value-bind (old-value exists)
+      (gethash symbol table)
+    (declare (ignore old-value))
+    (when exists
+      (error "~A is already bound." symbol)))
+  (setf (gethash symbol table) value))
+
 (defmacro with-frame (frame &body body)
   `(progn
-     (push ,frame *stack*)
-     (unwind-protect (progn ,@body) (pop *stack*))))
+     (unwind-protect
+          (progn
+            (push ,frame *stack*)
+            ,@body)
+       (pop *stack*))))
 
 (defun push-initial-binding (name value)
   (bind name value :lexical))
@@ -58,28 +71,3 @@
                 (setf (gethash symbol table) new-value)
                 (error "~A is unbound." symbol))))
         tables))
-
-(defun bind (symbol value env &key global &aux (table (if global
-                                                          (car (last (current-env env)))
-                                                          (car (current-env env)))))
-  (multiple-value-bind (old-value exists)
-      (gethash symbol table)
-    (declare (ignore old-value))
-    (when exists
-      (error "~A is already bound." symbol)))
-  (setf (gethash symbol table) value))
-
-;;;
-;;; Primitive Constants
-;;;
-
-(defparameter *true* (clutter-intern "t"))
-(defparameter *false* (clutter-intern "f"))
-
-(defun define-initially (clutter-symbol-name value)
-  (push-initial-binding (clutter-intern clutter-symbol-name) value))
-(define-initially "t" *true*)
-(define-initially "f" *false*)
-(define-initially "nil" nil)
-
-(bind nil (make-namespace) :namespace :global t)

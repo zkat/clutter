@@ -55,8 +55,8 @@
                   (loop for var in vars-and-values by #'cddr
                        for val in (cdr vars-and-values) by #'cddr
                        do (bind var val :lexical))
-                  (eval-do body)
-                  (pop *stack*))))
+                  (prog1 (eval-do body)
+                    (pop *stack*)))))
              ((eq operator (clutter-intern "lambda"))
               (destructuring-bind ((&rest args) &body body)
                   argument-forms
