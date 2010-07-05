@@ -58,16 +58,23 @@
       (add-clutter-symbol (make-clutter-symbol :name name :namespace namespace)
                           namespace)))
 
-(defun find-namespace (name &optional super-namespace-name &aux (separator (position *namespace-marker* name)))
+(defun find-namespace (name &optional super-namespace-name
+                       &aux (separator (position *namespace-marker* name)))
   (if separator
-      (find-namespace (subseq name (1+ separator)) (concatenate 'string super-namespace-name (when super-namespace-name ":") (subseq name 0 separator)))
+      (find-namespace (subseq name (1+ separator))
+                      (concatenate 'string super-namespace-name
+                                   (when super-namespace-name ":")
+                                   (subseq name 0 separator)))
       (lookup (clutter-intern name (ensure-namespace super-namespace-name)) :namespace)))
 
-(defun ensure-namespace (name &optional (super-namespace *namespace*) &aux (separator (position *namespace-marker* name)))
+(defun ensure-namespace (name &optional (super-namespace *namespace*)
+                         &aux (separator (position *namespace-marker* name)))
   (if separator
-      (let ((new-super-namespace (lookup (clutter-intern (subseq name 0 separator) super-namespace) :namespace)))
+      (let ((new-super-namespace (lookup (clutter-intern (subseq name 0 separator) super-namespace)
+                                         :namespace)))
         (if new-super-namespace
-            (ensure-namespace (subseq name (1+ separator)) new-super-namespace)
+            (ensure-namespace (subseq name (1+ separator))
+                              new-super-namespace)
             nil))
       (lookup (clutter-intern name super-namespace) :namespace)))
 
@@ -150,7 +157,8 @@
             (if collecting-token
                 (progn (unread-char char)
                        (return token))
-                (let ((result (multiple-value-list (funcall (reader-macro-function char) stream char))))
+                (let ((result (multiple-value-list
+                               (funcall (reader-macro-function char) stream char))))
                   (when result
                     (return-from read-token (values (car result) t)))))
             (cond ((and collecting-token (whitespacep char))
@@ -251,7 +259,9 @@
         nil)))
 
 (defun symbol-illegal-characters-p (symbol)
-  (or (find *namespace-marker* symbol) (find *subnamespace-marker* symbol) (find *keyword-marker* symbol)))
+  (or (find *namespace-marker* symbol)
+      (find *subnamespace-marker* symbol)
+      (find *keyword-marker* symbol)))
 
 (defun parse-symbol-token (token)
   (cond
@@ -283,7 +293,8 @@
            ;; Should handle internal symbols here
            (setf namespace-identifier (subseq namespace-identifier 0 (1- symbol-end))))
          ;; For now I just use namespace-identifier string to make namespace
-         ;; Should split-sequence on *subnamespace-marker* and then find correct namespace through hierarchy
+         ;; Should split-sequence on *subnamespace-marker* and then find correct
+         ;; namespace through hierarchy
          (if (not (symbol-illegal-characters-p symbol-name))
              (clutter-intern (car symbol-name) (ensure-namespace namespace-identifier))
              (error "Illegal characters in symbol name")))))
