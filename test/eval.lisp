@@ -2,6 +2,7 @@
 
 (def-suite eval :in clutter)
 
+(in-suite eval)
 ;; TODO
 (test eval-do)
 (test evaluate/symbol)

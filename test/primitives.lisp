@@ -2,6 +2,8 @@
 
 (def-suite primitives :in clutter)
 
+(in-suite primitives)
+
 (test bool-true)
 (test bool-false)
 (test null)
