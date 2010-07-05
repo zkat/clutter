@@ -70,7 +70,7 @@
 (test unset-clutter-reader-macro
   (is (null (unset-clutter-reader-macro #\!)))
   (set-clutter-reader-macro-function #\! (lambda (stream char) stream char))
-  (is (eql #\! (unset-clutter-reader-macre #\!))))
+  (is (eql #\! (unset-clutter-reader-macro #\!))))
 
 (test set-clutter-reader-macro-function)
 (test clutter-read-delimited-list
