@@ -111,8 +111,14 @@
 (defun set-clutter-reader-macro-function (char function)
   (check-type char character)
   (check-type function function)
+  (unset-clutter-reader-macro char)
   (pushnew char *terminating-macro-characters*)
   (setf (gethash char *reader-macro-functions*) function))
+
+(defun unset-clutter-reader-macro (char)
+  (setf *terminating-macro-characters* (remove char *terminating-macro-characters*))
+  (remhash char *reader-macro-functions*)
+  char)
 
 (defun clutter-read-delimited-list (end-char stream)
   (loop with list = ()
