@@ -2,6 +2,8 @@
 
 (def-suite environments :in clutter)
 
+(in-suite environments)
+
 (test stack-frame)
 (test *stack*)
 (test bind)

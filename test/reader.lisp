@@ -2,6 +2,8 @@
 
 (def-suite reader :in clutter)
 
+(in-suite reader)
+
 ;;;
 ;;; Symbols
 ;;;

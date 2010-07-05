@@ -10,5 +10,10 @@
             :serial t
             :components
             ((:file "test")
-             (:file "eval")
-             (:file "reader")))))
+             (:file "reader")
+             (:file "environments")
+             (:file "functions")
+             (:file "primitives")
+             (:file "eval")))))
+
+
