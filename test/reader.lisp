@@ -134,8 +134,35 @@
   (is (null (parse-float-token "1.4+123i"))))
 
 (test parse-complex-token)
-(test symbol-illegal-characters-p)
-(test parse-symbol-token/basic)
-(test parse-symbol-token/keywords)
-(test parse-symbol-token/qualified-symbol)
-(test clutter-read)
+
+(test symbol-illegal-characters-p
+  (is (null (symbol-illegal-characters-p "Hello")))
+  (is (symbol-illegal-characters-p (format nil "Hello~AWorld" *keyword-marker*)))
+  (is (symbol-illegal-characters-p (format nil "Hello~AWorld" *namespace-marker*)))
+  (is (symbol-illegal-characters-p (format nil "Hello~AWorld" *subnamespace-marker*))))
+
+(test parse-symbol-token/basic
+  (is (eq (clutter-intern "foo") (parse-symbol-token "foo")))
+  (is (eq (clutter-intern "Foo") (parse-symbol-token "Foo")))
+  (is (not (eq (clutter-intern "Foo") (parse-symbol-token "foo"))))
+  (is (eq *namespace* (clutter-symbol-namespace (parse-symbol-token "foo"))))
+  (let ((*namespace* (make-namespace)))
+    (is (eq *namespace* (clutter-symbol-namespace (parse-symbol-token "foo"))))))
+
+(test parse-symbol-token/keywords
+  (is (clutter-keyword-p (parse-symbol-token ":foo")))
+  (is (string= "foo" (clutter-symbol-name (parse-symbol-token ":foo"))))
+  (is (eq (parse-symbol-token ":foo") (evaluate (parse-symbol-token ":foo")))))
+
+(test parse-symbol-token/qualified-symbol
+  (signals error (parse-symbol-token "foo:bar")) ; it should be an error if namespace foo doesn't exist
+  (ensure-namespace "foo")
+  (let ((symbol (parse-symbol-token "foo:bar")))
+    (is (clutter-symbol-p symbol))
+    (is (eq (find-namespace "foo") (clutter-symbol-namespace symbol)))))
+
+(test clutter-read
+  (with-input-from-string (*standard-input* "foo")
+    (is (clutter-symbol-p (clutter-read))))
+  (with-input-from-string (s "foo")
+    (is (clutter-symbol-p (clutter-read s)))))
