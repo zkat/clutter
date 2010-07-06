@@ -74,8 +74,8 @@
 (defun lookup-binding-table (symbol env)
   "Find the binding table in which the given symbol is defined, if any."
   (some (lambda (table)
-          (multiple-value-bind (old-value exists) (gethash symbol table)
-            (declare (ignore old-value))
+          (multiple-value-bind (value exists) (gethash symbol table)
+            (declare (ignore value))
             (when exists
               table)))
         (current-env env)))
