@@ -31,6 +31,11 @@
       (error "~A is already bound." symbol)))
   (setf (gethash symbol table) value))
 
+(defun unbind (symbol env &key global)
+  (remhash symbol (if global
+                      (car (last (current-env env)))
+                      (car (current-env env)))))
+
 (defmacro with-frame (frame &body body)
   `(progn
      (unwind-protect
