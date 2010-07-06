@@ -34,6 +34,11 @@
 (defun unbind (symbol env)
   (remhash symbol (lookup-binding-table symbol env)))
 
+(defun clutter-boundp (symbol env)
+  (multiple-value-bind (value exists) (gethash symbol (lookup-binding-table symbol env))
+    (declare (ignore value))
+    exists))
+
 (defmacro with-frame (frame &body body)
   `(progn
      (unwind-protect
