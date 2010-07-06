@@ -2,8 +2,6 @@
 
 (in-package #:clutter)
 
-(defvar *namespace* (lookup nil :namespace))
-
 (defvar *namespace-marker* #\:)
 (defvar *subnamespace-marker* #\:)
 (defvar *keyword-marker* #\:)
@@ -38,16 +36,12 @@
 (defun add-clutter-symbol (symbol &optional (namespace *namespace*))
   (check-type symbol clutter-symbol)
   (check-type namespace namespace)
-  (setf (gethash (clutter-symbol-name symbol)
-                 (namespace-symbols namespace))
-        symbol))
+  (error "stub"))
 
 (defun remove-clutter-symbol (symbol &optional (namespace *namespace*))
   (check-type symbol clutter-symbol)
   (check-type namespace namespace)
-  (remhash (clutter-symbol-name symbol)
-           (namespace-symbols namespace))
-  symbol)
+  (error "stub"))
 
 (defun clutter-intern (name &optional (namespace *namespace*))
   (or (find-clutter-symbol name namespace)
@@ -55,17 +49,10 @@
                           namespace)))
 
 (defun find-namespace (name &optional super-namespace-name &aux (separator (position *namespace-marker* name)))
-  (if separator
-      (find-namespace (subseq name (1+ separator)) (concatenate 'string super-namespace-name (when super-namespace-name ":") (subseq name 0 separator)))
-      (lookup (clutter-intern name (ensure-namespace super-namespace-name)) :namespace)))
+  (error "stub"))
 
 (defun ensure-namespace (name &optional (super-namespace *namespace*) &aux (separator (position *namespace-marker* name)))
-  (if separator
-      (let ((new-super-namespace (lookup (clutter-intern (subseq name 0 separator) super-namespace) :namespace)))
-        (if new-super-namespace
-            (ensure-namespace (subseq name (1+ separator)) new-super-namespace)
-            nil))
-      (lookup (clutter-intern name super-namespace) :namespace)))
+  (error "stub"))
 
 
 ;;;
