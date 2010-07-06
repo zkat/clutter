@@ -51,6 +51,10 @@
     (is (namespacep ns))
     (is (eq (find-namespace "test") ns))))
 
+;; TODO
+(test namespace-name)
+(test remove-namespace)
+
 ;;;
 ;;; Reader
 ;;;
