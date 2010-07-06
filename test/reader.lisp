@@ -165,4 +165,7 @@
   (with-input-from-string (*standard-input* "foo")
     (is (clutter-symbol-p (clutter-read))))
   (with-input-from-string (s "foo")
+    (is (clutter-symbol-p (clutter-read s))))
+  ;; BUG - The reader doesn't like it when you use something other than *standard-input*.
+  (with-input-from-string (s "'(foo bar baz)")
     (is (clutter-symbol-p (clutter-read s)))))
