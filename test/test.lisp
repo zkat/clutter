@@ -16,6 +16,10 @@
                           names))))
   (import-Eos-test-macros pass fail skip))
 
+(defun eval-clutter-code (code)
+  (with-input-from-string (*standard-input* code)
+    (evaluate (clutter-read))))
+
 (def-suite clutter)
 
 (defun run-all-tests ()

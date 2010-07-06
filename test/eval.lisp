@@ -4,10 +4,6 @@
 
 (in-suite eval)
 
-(defun eval-clutter-code (code)
-  (with-input-from-string (*standard-input* code)
-    (evaluate (clutter-read))))
-
 (test evaluate/symbol
   (let ((frame (make-stack-frame "lexical binding block" (current-scope))))
     (with-frame frame
