@@ -20,13 +20,14 @@
 
 (defvar *stack* (list (make-stack-frame "global")))
 
-(defun bind (symbol value env &key global &aux (table (if global
-                                                          (car (last (current-env env)))
-                                                          (car (current-env env)))))
+(defun bind (symbol value env &key global (overwritep t)
+             &aux (table (if global
+                             (car (last (current-env env)))
+                             (car (current-env env)))))
   (multiple-value-bind (old-value exists)
       (gethash symbol table)
     (declare (ignore old-value))
-    (when exists
+    (when (and exists (not overwritep))
       (error "~A is already bound." symbol)))
   (setf (gethash symbol table) value))
 
