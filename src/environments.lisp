@@ -31,10 +31,8 @@
       (error "~A is already bound." symbol)))
   (setf (gethash symbol table) value))
 
-(defun unbind (symbol env &key global)
-  (remhash symbol (if global
-                      (car (last (current-env env)))
-                      (car (current-env env)))))
+(defun unbind (symbol env)
+  (remhash symbol (lookup-binding-table symbol env)))
 
 (defmacro with-frame (frame &body body)
   `(progn
@@ -67,6 +65,15 @@
 (defun lookup (symbol env)
   (or (some (lambda (table) (gethash symbol table)) (current-env env))
       (error "No such ~A binding: ~S" (string-downcase (symbol-name env)) symbol)))
+
+(defun lookup-binding-table (symbol env)
+  "Find the binding table in which the given symbol is defined, if any."
+  (some (lambda (table)
+          (multiple-value-bind (old-value exists) (gethash symbol table)
+            (declare (ignore old-value))
+            (when exists
+              table)))
+        (current-env env)))
 
 (defun (setf lookup) (new-value symbol env &aux (tables (current-env env)))
   (some (lambda (table)
