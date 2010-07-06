@@ -63,7 +63,7 @@
 (test reader-macro-function
   (is (null (reader-macro-function #\!)))
   (set-clutter-reader-macro-function #\! (lambda (stream char) stream char))
-  (is (eq 'test (funcall (reader-macro-function #\!) 'stream 'char)))
+  (is (eq 'char (funcall (reader-macro-function #\!) 'stream 'char)))
   (unset-clutter-reader-macro #\!)
   (is (null (reader-macro-function #\!))))
 
