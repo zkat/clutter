@@ -47,28 +47,16 @@
                 (evaluate then)
                 (evaluate else))))
          ("do"
-          (eval-do (cdr form)))
+          (eval-do argument-forms))
          ("set-lexical-variables"
-          (let ((vars (loop for var in argument-forms by #'cddr collect
-                           (progn
-                             (unless (clutter-symbol-p var)
-                               (error "~A is not a valid variable name." var))
-                             (unless (lookup var :lexical)
-                               (error "~A is not a lexically visible variable." var))
-                             var)))
-                (vals (loop for form in (cdr argument-forms) by #'cddr
-                         for value = (evaluate form)
-                         collect value))
-                last-value)
-            (mapc (lambda (var val) (setf last-value (setf (lookup var :lexical) val))) vars vals)
-            last-value)
-          (destructuring-bind (variable value)
-              argument-forms
-            ;; Sanity checks -- these should happen at "compile time"
-            (unless (clutter-symbol-p variable)
-              (error "~A is not a valid variable name" variable))
-            (setf (lookup variable :lexical)
-                  (evaluate value))))
+          (loop for (var form) on argument-forms by #'cddr
+               for last-value = (progn
+                                  (unless (clutter-symbol-p var)
+                                    (error "~A is not a valid variable name." var))
+                                  (unless (lookup var :lexical)
+                                    (error "~A is not a lexically visible variable." var))
+                                  (setf (lookup var :lexical) (evaluate form)))
+               finally (return last-value)))
          ("bind-lexical-variables"
           (destructuring-bind (vars-and-values &body body)
               argument-forms
@@ -87,7 +75,7 @@
               (with-frame new-frame
                 (let ((vars (loop for var in vars-and-funs by #'cddr collect var))
                       (vals (loop for val in (cdr vars-and-funs) by #'cddr
-                               collect 
+                               collect
                                  (let ((new-function (evaluate val)))
                                    (if (clutter-function-p new-function)
                                        new-function
@@ -120,21 +108,17 @@
             (lookup name :lexical)))
          ("set-lexical-functions"
           ;; The sanity checks should happen at 'compile time'
-          (let ((vars (loop for var in argument-forms by #'cddr collect
-                           (progn
-                             (unless (clutter-symbol-p var)
-                               (error "~A is not a valid function name." var))
-                             (unless (lookup var :function)
-                               (error "~A is not a lexically visible function." var))
-                             var)))
-                (vals (loop for form in (cdr argument-forms) by #'cddr
-                         for value = (evaluate form)
-                         collect (if (clutter-function-p value)
-                                     value
-                                     (error "~A is not a function." value))))
-                last-value)
-            (mapc (lambda (var val) (setf last-value (setf (lookup var :function) val))) vars vals)
-            last-value))
+          (loop for (var form) on argument-forms by #'cddr
+             for last-value = (progn
+                                (unless (clutter-symbol-p var)
+                                  (error "~A is not a valid function name." var))
+                                (unless (lookup var :function)
+                                  (error "~A is not a lexically visible function." var))
+                                (let ((func (evaluate form)))
+                                  (if (clutter-function-p func)
+                                      (setf (lookup var :function) func)
+                                      (error "~A is not a function." func))))
+                      finally (return last-value)))
          ("define-global-variable"
           (destructuring-bind (name value)
               argument-forms
