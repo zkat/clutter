@@ -144,13 +144,14 @@
             (bind name (make-namespace) :namespace :global t)
             name))
          (t
-          ;; TODO: Macros
-
-          ;; Function call
-          (invoke (if (listp operator)
-                      (evaluate operator)
-                      (lookup operator :function))
-                  (mapcar (lambda (form) (evaluate form))
-                          argument-forms))))))
+          (if (listp operator)
+              (invoke (evaluate operator) (mapcar #'evaluate argument-forms))
+              (let ((operation (lookup operator :function)))
+                (cond ((clutter-macro-p operation)
+                       (evaluate (invoke operation argument-forms)))
+                      ((clutter-function-p operation)
+                       (invoke operation (mapcar #'evaluate argument-forms)))
+                      (t
+                       (error "this should not happen! only forms, spec-ops, macros, and functions allowed!")))))))))
     ;; Self-evaluating object
     (t form)))
