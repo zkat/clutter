@@ -13,7 +13,7 @@
               (is (not (clutter-boundp symbol env)))
               (is (bind symbol "value" env))
               (is (clutter-boundp symbol env))
-              (is-true (unbind symbol env) "Failed to unbind ~A from ~A." symbol env)))
+              (is (unbind symbol env) "Failed to unbind ~A from ~A." symbol env)))
         '(:function :lexical :dynamic :namespace)))
 (test with-frame)
 (test push-initial-binding)
