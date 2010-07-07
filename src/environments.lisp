@@ -24,11 +24,9 @@
              &aux (table (if global
                              (car (last (current-env env)))
                              (car (current-env env)))))
-  (multiple-value-bind (old-value exists)
-      (gethash symbol table)
-    (declare (ignore old-value))
-    (when (and exists (not overwritep))
-      (error "~A is already bound." symbol)))
+  (when (and (nth-value 1 (gethash symbol table))
+             (not overwritep))
+    (error "~A is already bound." symbol))
   (setf (gethash symbol table) value))
 
 (defun unbind (symbol env)
@@ -73,18 +71,13 @@
 (defun lookup-binding-table (symbol env)
   "Find the binding table in which the given symbol is defined, if any."
   (some (lambda (table)
-          (multiple-value-bind (value exists) (gethash symbol table)
-            (declare (ignore value))
-            (when exists
-              table)))
+          (when (nth-value 1 (gethash symbol table))
+            table))
         (current-env env)))
 
 (defun (setf lookup) (new-value symbol env &aux (tables (current-env env)))
   (some (lambda (table)
-          (multiple-value-bind (old-value exists)
-              (gethash symbol table)
-            (declare (ignore old-value))
-            (if exists
-                (setf (gethash symbol table) new-value)
-                (error "~A is unbound." symbol))))
+          (if (nth-value 1 (gethash symbol table))
+              (setf (gethash symbol table) new-value)
+              (error "~A is unbound." symbol)))
         tables))
