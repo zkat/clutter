@@ -35,12 +35,16 @@
   (is (= 3 (eval-clutter-code "(do 1 2 3)"))))
 
 (test evaluate/bind-lexical-variables
-  (is (= 1 (eval-clutter-code "(bind-lexical-variables (x 1) x)"))))
+  (is (= 1 (eval-clutter-code "(bind-lexical-variables (x 1) x)")))
+  (signals error (eval-clutter-code "(bind-lexical-variables (x 1 y x) y)"))
+  (is (= 1 (eval-clutter-code "(bind-lexical-variables (x 1) (bind-lexical-variables (y x) y))")))
+  (is (= 1 (eval-clutter-code "(bind-lexical-variables (x 1) (bind-lexical-functions (x (lambda (x) (* x x))) x))"))))
 
 (test evaluate/bind-lexical-functions
   (signals error (eval-clutter-code "(bind-lexical-functions (x 1) x)"))
   (is (clutter-function-p (eval-clutter-code "(bind-lexical-functions (x (lambda (x) x)) (fun x))")))
   (is (= 5 (eval-clutter-code "(bind-lexical-functions (x (lambda (x) x)) (x 5))")))
+  (is (= 5 (eval-clutter-code "(bind-lexical-functions (x (lambda (x) x)) (bind-lexical-variables (x 5) (x x)))")))
   (is (= 25 (eval-clutter-code "(bind-lexical-functions (x (lambda (x) (* x x))) (x 5))")))
   (is (= 25 (eval-clutter-code "(bind-lexical-functions (x (lambda (x) (* x x))) ((fun x) 5))"))))
 
@@ -60,9 +64,15 @@
   (is (= 1 (eval-clutter-code "(bind-lexical-variables (x (lambda (x) x)) ((var x) 1))")))
   (is (= 1 (eval-clutter-code "(bind-lexical-functions (x (lambda (x) x)) (bind-lexical-variables (x 1) (x (var x))))"))))
 
-;; TODO
-(test evaluate/set-lexical-variables)
-(test evaluate/set-lexical-functions)
+(test evaluate/set-lexical-variables
+  (is (= 2 (eval-clutter-code "(bind-lexical-variables (x 1) (set-lexical-variables x 2))")))
+  (is (= 2 (eval-clutter-code "(bind-lexical-variables (x 1) (set-lexical-variables x 2) x)")))
+  ;; wtf failure?
+  (is (clutter-function-p (eval-clutter-code "(bind-lexical-variables (x 1) (bind-lexical-functions (x (lambda (x) (* x x))) (set-lexical-variables x 2) (fun x)))"))))
+(test evaluate/set-lexical-functions
+  (is (clutter-function-p (eval-clutter-code "(bind-lexical-functions (x (lambda () 1)) (set-lexical-functions x (lambda () 2)))")))
+  (is (= 2 (eval-clutter-code "(bind-lexical-functions (x (lambda () 1)) (set-lexical-functions x (lambda () 2)) (x))")))
+  (is (= 2 (eval-clutter-code "(bind-lexical-functions (x (lambda () 1)) ((set-lexical-functions x (lambda () 2))))"))))
 
 ;; TODO ... sigh
 (test evaluate/define-global-variable)
