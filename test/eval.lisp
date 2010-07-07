@@ -69,18 +69,18 @@
   (is (= 2 (eval-clutter-code "(bind-lexical-variables (x 1) (set-lexical-variables x 2) x)")))
   ;; Sequential setting
   (is (= 3 (eval-clutter-code "(bind-lexical-variables (x 1) (set-lexical-variables x 2 x 3) x)")))
-  ;; wtf failure?
-  (is (not (clutter-function-p (eval-clutter-code "(bind-lexical-variables (x 1) (bind-lexical-functions (x (lambda (x) (* x x))) (set-lexical-variables x 2) x))")))))
+  (is (not (clutter-function-p (eval-clutter-code "(bind-lexical-variables (x 1) (bind-lexical-functions (x (lambda (x) (* x x))) (set-lexical-variables x 2) x))"))))
+  (is (= 1 (eval-clutter-code "(bind-lexical-variables (x 1) (bind-lexical-variables (x 2) (set-lexical-variables x 3)) x)"))))
 
 (test evaluate/set-lexical-functions
   (is (clutter-function-p (eval-clutter-code "(bind-lexical-functions (x (lambda () 1)) (set-lexical-functions x (lambda () 2)))")))
   (is (= 2 (eval-clutter-code "(bind-lexical-functions (x (lambda () 1)) (set-lexical-functions x (lambda () 2)) (x))")))
   (is (= 2 (eval-clutter-code "(bind-lexical-functions (x (lambda () 1)) ((set-lexical-functions x (lambda () 2))))")))
   ;; Sequential setting
-  (is (= (clutter-intern "yes")
+  (is (eq (clutter-intern "yes")
          (eval-clutter-code "(bind-lexical-functions (x (lambda () 'no)) (set-lexical-functions x (lambda () 'no) x (lambda () 'yes)) (x))")))
-  ;; wtf failure?!?!?!
-  (is (clutter-function-p (eval-clutter-code "(bind-lexical-functions (x (lambda () 'test)) (bind-lexical-variables (x 1) (set-lexical-functions x (lambda () 'test-success)) (fun x)))"))))
+  (is (clutter-function-p (eval-clutter-code "(bind-lexical-functions (x (lambda () 'test)) (bind-lexical-variables (x 1) (set-lexical-functions x (lambda () 'test-success)) (fun x)))")))
+  (is (= 1 (eval-clutter-code "(bind-lexical-functions (x (lambda () 1)) (bind-lexical-functions (x (lambda () 2)) (set-lexical-functions x (lambda () 3))) (x))"))))
 
 ;; TODO ... sigh
 (test evaluate/define-global-variable)
