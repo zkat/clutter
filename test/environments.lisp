@@ -4,8 +4,19 @@
 
 (in-suite environments)
 
-(test stack-frame)
-(test *stack*)
+(test stack-frame
+  (let ((frame (make-stack-frame "test")))
+    (is (typep frame 'stack-frame))
+    (mapc #'(lambda (accessor)
+              (is (typep (funcall accessor frame) 'hash-table)))
+          (list #'stack-frame-lexicals
+                #'stack-frame-dynamics
+                #'stack-frame-functions
+                #'stack-frame-namespaces))
+    (is (listp (stack-frame-scope frame)))))
+(test *stack*
+  (is (listp *stack*))
+  (is (string= (stack-frame-name (car (last *stack*))) "global")))
 (test binding
   (mapc #'(lambda (env)
             (let* ((ns (make-namespace))
@@ -24,7 +35,15 @@
     (is (eq old-head (first *stack*)))))
 (test push-initial-binding)
 (test push-initial-function-binding)
-(test current-scope)
+(test current-scope
+  (let* ((frame1 (make-stack-frame "test1"))
+         (frame2 (make-stack-frame "test2" (list frame1))))
+    (with-frame frame1
+      (with-frame frame2
+       (let ((scope (current-scope)))
+         (is (eq (first scope) frame2))
+         (is (eq (second scope) frame1))
+         (is (eq (car (last scope)) (car (last *stack*)))))))))
 (test current-env)
 (test lookup
   (mapc #'(lambda (env)
