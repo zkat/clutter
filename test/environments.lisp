@@ -15,10 +15,34 @@
               (is (clutter-boundp symbol env))
               (is (unbind symbol env) "Failed to unbind ~A from ~A." symbol env)))
         '(:function :lexical :dynamic :namespace)))
-(test with-frame)
+(test with-frame
+  (let ((old-head (first *stack*))
+        (new-frame (make-stack-frame "test")))
+    (with-frame new-frame
+      (is (eq old-head (second *stack*)))
+      (is (eq new-frame (first *stack*))))
+    (is (eq old-head (first *stack*)))))
 (test push-initial-binding)
 (test push-initial-function-binding)
 (test current-scope)
 (test current-env)
-(test lookup)
-(test setf-lookup)
+(test lookup
+  (mapc #'(lambda (env)
+            (let* ((ns (make-namespace))
+                   (symbol (make-clutter-symbol :name "test" :namespace ns)) ;TODO: clutter-gensym to ensure no collision
+                   (value "value"))
+              (is (bind symbol value env))
+              (is (eq (lookup symbol env) value))
+              (is (unbind symbol env) "Failed to unbind ~A from ~A." symbol env)))
+        '(:function :lexical :dynamic :namespace)))
+(test setf-lookup
+    (mapc #'(lambda (env)
+            (let* ((ns (make-namespace))
+                   (symbol (make-clutter-symbol :name "test" :namespace ns)) ;TODO: clutter-gensym to ensure no collision
+                   (value "value")
+                   (other-value "other-value"))
+              (is (bind symbol value env))
+              (is (eq (setf (lookup symbol env) other-value) other-value))
+              (is (eq (lookup symbol env) other-value))
+              (is (unbind symbol env) "Failed to unbind ~A from ~A." symbol env)))
+        '(:function :lexical :dynamic :namespace)))
