@@ -7,6 +7,7 @@
 (defvar *keyword-marker* #\:)
 (defvar *keyword-marker-in-front* 't)
 (defvar *keyword-namespace-name* "keyword")
+(defvar *namespace*)
 
 ;;;
 ;;; Symbols
@@ -36,7 +37,7 @@
 
 (unless (ignore-errors (lookup nil :namespace))
   (bind nil (make-namespace) :namespace :global t))
-(defvar *namespace* (lookup nil :namespace))
+(setf *namespace* (lookup nil :namespace))
 
 #+nil(defmethod print-object ((o namespace) s)
   (princ (namespace-name o) s))
