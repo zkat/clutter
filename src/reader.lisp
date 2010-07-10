@@ -73,17 +73,20 @@
                                    (subseq name 0 separator)))
       (lookup (clutter-intern name (ensure-namespace super-namespace-name)) :namespace)))
 
+(defun get-or-bind-namespace (name super-namespace)
+  (let ((namespace (clutter-intern name super-namespace)))
+    (if (clutter-boundp namespace :namespace)
+        (lookup namespace :namespace)
+        (bind namespace (make-namespace) :namespace))))
+
 (defun ensure-namespace (name &optional (super-namespace *namespace*)
                          &aux (separator (position *namespace-marker* name)))
-  (if separator
-      (let ((new-super-namespace (lookup (clutter-intern (subseq name 0 separator) super-namespace)
-                                         :namespace)))
-        (if new-super-namespace
-            (ensure-namespace (subseq name (1+ separator))
-                              new-super-namespace)
-            nil))
-      (lookup (clutter-intern name super-namespace) :namespace)))
-
+  (if name
+      (if separator
+          (let ((new-super-namespace (get-or-bind-namespace (subseq name 0 separator) super-namespace)))
+            (ensure-namespace (subseq name (1+ separator)) new-super-namespace))
+          (get-or-bind-namespace name super-namespace))
+      *namespace*))
 
 ;;;
 ;;; Reader
@@ -277,13 +280,10 @@
         (when (char= (char symbol-name (1- (length symbol-name))) *keyword-marker*)
           (setf symbol-name (subseq symbol-name (1- (length symbol-name))))))
     (if (not (symbol-illegal-characters-p symbol-name))
-        ;; TODO - *global-env* doesn't exist anymore.
-        (let* ((symbol (clutter-intern symbol-name (ensure-namespace *keyword-namespace-name*)))
-               (existing-binding (assoc symbol *global-env*)))
-          (unless existing-binding
-            (let ((relevant-cons (last *global-env*)))
-              (setf (cdr relevant-cons) (cons (cons symbol symbol) nil))
-              symbol)))
+        (let* ((symbol (clutter-intern symbol-name (ensure-namespace *keyword-namespace-name*))))
+          (unless (clutter-boundp symbol :lexical)
+            (bind symbol symbol :lexical))
+          symbol)
         (error "Illegal characters in symbol name"))))
 
 (defun parse-qualified-symbol-token (token)
@@ -293,9 +293,6 @@
       (when (char= (char namespace-identifier (1- symbol-end)) *namespace-marker*)
         ;; Should handle internal symbols here
         (setf namespace-identifier (subseq namespace-identifier 0 (1- symbol-end))))
-      ;; For now I just use namespace-identifier string to make namespace
-      ;; Should split-sequence on *subnamespace-marker* and then find correct
-      ;; namespace through hierarchy
       (if (not (symbol-illegal-characters-p symbol-name))
           (clutter-intern (car symbol-name) (ensure-namespace namespace-identifier))
           (error "Illegal characters in symbol name")))))
