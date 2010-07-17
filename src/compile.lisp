@@ -90,7 +90,7 @@
             (llvm:llvmbuildadd *ir-builder* (compile-sexp a function) (compile-sexp b function) "sum")))
        (t (llvm:llvmbuildcall *ir-builder* (gethash (first code) *functions*) (mapcar (lambda (sexp) (compile-sexp sexp function)) (rest code)) "result"))))
     ((symbolp code)
-     (let ((function (print (llvm:llvmgetbasicblockparent (llvm:llvmgetinsertblock *ir-builder*)))))
+     (let ((function (llvm:llvmgetbasicblockparent (llvm:llvmgetinsertblock *ir-builder*))))
        (llvm:llvmgetparam function (gethash code (cdr (assoc function *function-params* :test #'sb-sys:sap=))))))
     ((integerp code)
      (llvm:llvmconstint (llvm:llvmint32type) code))))
