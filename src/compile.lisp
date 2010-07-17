@@ -41,20 +41,6 @@
     (llvm:llvmpositionbuilderatend *ir-builder* continue-block))
   return-value)
 
-(defun compile-sexp (code &optional function)
-  (cond
-    ((listp code)
-     (case (first code)
-       (def (apply #'compile-definer (rest code)))
-       (if (apply #'compile-if function (rest code)))
-       (t (llvm:llvmbuildcall *ir-builder* (gethash (first code) *functions*) nil "result"))))
-    ((integerp code)
-     (llvm:llvmconstint (llvm:llvmint32type) code))))
-
-(defun compile-definer (subenv &rest args)
-  (case subenv
-    (fun (apply #'compile-function args))))
-
 (defun compile-function (name args &rest body &aux (func (llvm:llvmaddfunction *module* (symbol-name name) (llvm:llvmfunctiontype (llvm:llvmint32type) nil nil))))
   (declare (ignore args))
   (setf (gethash name *functions*) func)
@@ -64,3 +50,17 @@
     (let ((last-val))
       (mapc #'(lambda (sexp) (setf last-val (compile-sexp sexp func))) body)
       (llvm:llvmbuildret *ir-builder* last-val))))
+
+(defun compile-definer (subenv &rest args)
+  (case subenv
+    (fun (apply #'compile-function args))))
+
+(defun compile-sexp (code &optional function)
+  (cond
+    ((listp code)
+     (case (first code)
+       (def (apply #'compile-definer (rest code)))
+       (if (apply #'compile-if function (rest code)))
+       (t (llvm:llvmbuildcall *ir-builder* (gethash (first code) *functions*) nil "result"))))
+    ((integerp code)
+     (llvm:llvmconstint (llvm:llvmint32type) code))))
