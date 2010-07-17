@@ -88,7 +88,7 @@
             (llvm:llvmbuildsub *ir-builder* (compile-sexp a function) (compile-sexp b function) "difference")))
        (+ (destructuring-bind (a b) (rest code)
             (llvm:llvmbuildadd *ir-builder* (compile-sexp a function) (compile-sexp b function) "sum")))
-       (t (llvm:llvmbuildcall *ir-builder* (gethash (first code) *functions*) nil "result"))))
+       (t (llvm:llvmbuildcall *ir-builder* (gethash (first code) *functions*) (mapcar (lambda (sexp) (compile-sexp sexp function)) (rest code)) "result"))))
     ((symbolp code)
      (let ((function (print (llvm:llvmgetbasicblockparent (llvm:llvmgetinsertblock *ir-builder*)))))
        (llvm:llvmgetparam function (gethash code (cdr (assoc function *function-params* :test #'sb-sys:sap=))))))
