@@ -1,4 +1,5 @@
 (in-package :clutter)
+(declaim (optimize (debug 3)))
 
 (defvar *ir-builder* (llvm:llvmcreatebuilder))
 
@@ -10,7 +11,7 @@
   (cffi:with-foreign-objects ((error '(:pointer :char)) (error-addr :pointer))
     (setf (cffi:mem-aref error-addr :pointer) error)
     (when (llvm:llvmverifymodule *module* :llvmprintmessageaction error-addr)
-      ;; TODO: Why does llvm kill the lisp here?
+      ;; TODO: Why does llvm sometimes kill the lisp here?
         (error "Module has errors"))
     ;(llvm:llvmdisposemessage error-addr) ;segfaults
 ))
