@@ -71,6 +71,8 @@
      (case (first code)
        (def (apply #'compile-definer (rest code)))
        (if (apply #'compile-if function (rest code)))
+       (= (destructuring-bind (a b) (rest code)
+            (llvm:llvmbuildicmp *ir-builder* :llvminteq (compile-sexp a) (compile-sexp b) "equality")))
        (t (llvm:llvmbuildcall *ir-builder* (gethash (first code) *functions*) nil "result"))))
     ((integerp code)
      (llvm:llvmconstint (llvm:llvmint32type) code))))
