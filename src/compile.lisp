@@ -7,6 +7,8 @@
 
 (defvar *functions* (make-hash-table :test 'eq))
 
+(defvar *function-params* ())
+
 (defun verify ()
   (cffi:with-foreign-objects ((error '(:pointer :char)) (error-addr :pointer))
     (setf (cffi:mem-aref error-addr :pointer) error)
@@ -51,9 +53,14 @@
     (llvm:llvmpositionbuilderatend *ir-builder* continue-block))
   return-value)
 
-(defun compile-function (name args &rest body &aux (func (llvm:llvmaddfunction *module* (symbol-name name) (llvm:llvmfunctiontype (llvm:llvmint32type) nil nil))))
-  (declare (ignore args))
+(defun compile-function (name args &rest body &aux (func (llvm:llvmaddfunction *module* (symbol-name name) (llvm:llvmfunctiontype (llvm:llvmint32type) (loop repeat (length args) collecting (llvm:llvmint32type)) nil))))
   (setf (gethash name *functions*) func)
+  (loop with arg-table = (make-hash-table :test 'eq)
+        for index from 0
+        for arg in args
+        do (setf (gethash arg arg-table) index)
+           (llvm:llvmsetvaluename (llvm:llvmgetparam func index) (symbol-name arg))
+        finally (push (cons func arg-table) *function-params*))
   (llvm:llvmsetfunctioncallconv func :llvmccallconv)
   (let ((entry (llvm:llvmappendbasicblock func "entry")))
     (llvm:llvmpositionbuilderatend *ir-builder* entry)
@@ -74,5 +81,8 @@
        (= (destructuring-bind (a b) (rest code)
             (llvm:llvmbuildicmp *ir-builder* :llvminteq (compile-sexp a) (compile-sexp b) "equality")))
        (t (llvm:llvmbuildcall *ir-builder* (gethash (first code) *functions*) nil "result"))))
+    ((symbolp code)
+     (let ((function (print (llvm:llvmgetbasicblockparent (llvm:llvmgetinsertblock *ir-builder*)))))
+       (llvm:llvmgetparam function (gethash code (cdr (assoc function *function-params* :test #'sb-sys:sap=))))))
     ((integerp code)
      (llvm:llvmconstint (llvm:llvmint32type) code))))
