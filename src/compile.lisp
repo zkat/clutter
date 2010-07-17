@@ -10,6 +10,7 @@
   (cffi:with-foreign-objects ((error '(:pointer :char)) (error-addr :pointer))
     (setf (cffi:mem-aref error-addr :pointer) error)
     (when (llvm:llvmverifymodule *module* :llvmprintmessageaction error-addr)
+      ;; TODO: Why does llvm kill the lisp here?
         (error "Module has errors"))
     ;(llvm:llvmdisposemessage error-addr) ;segfaults
 ))
@@ -24,9 +25,7 @@
         (continue-block (llvm:llvmappendbasicblock function "if-continue")))
     (llvm:llvmpositionbuilderatend *ir-builder* (llvm:llvmgetpreviousbasicblock true-block))
     (llvm:llvmbuildcondbr *ir-builder*
-                          (llvm:llvmbuildicmp *ir-builder* :llvmintne
-                                              (llvm:llvmconstint (llvm:llvmint32type) 0)
-                                              (compile-sexp condition function))
+                          (llvm:llvmbuildtrunc *ir-builder* (compile-sexp condition function) (llvm:llvmint1type) "boolean")
                           true-block
                           false-block)
     (llvm:llvmpositionbuilderatend *ir-builder* continue-block)
