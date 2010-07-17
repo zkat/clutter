@@ -19,23 +19,32 @@
   (llvm:llvmdisposemodule *module*)
   (setf *module* (llvm:llvmmodulecreatewithname "root")))
 
+(defun insert-bb-after (bb name &aux (next (llvm:llvmgetnextbasicblock bb)))
+  ;; TODO: Why is this necessary?
+  (if (cffi:null-pointer-p next)
+      (llvm:llvmappendbasicblock (llvm:llvmgetbasicblockparent bb) name)
+      (llvm:llvminsertbasicblock next name)))
+
 (defun compile-if (function condition true-code false-code &aux return-value)
-  (let ((true-block (llvm:llvmappendbasicblock function "if-true"))
-        (false-block (llvm:llvmappendbasicblock function "if-false"))
-        (continue-block (llvm:llvmappendbasicblock function "if-continue")))
-    (llvm:llvmpositionbuilderatend *ir-builder* (llvm:llvmgetpreviousbasicblock true-block))
+  (let* ((current (llvm:llvmgetinsertblock *ir-builder*))
+         (true-block (insert-bb-after current "if-true"))
+         (false-block (insert-bb-after true-block "if-false"))
+         (continue-block (insert-bb-after false-block "if-continue")))
     (llvm:llvmbuildcondbr *ir-builder*
                           (llvm:llvmbuildtrunc *ir-builder* (compile-sexp condition function) (llvm:llvmint1type) "boolean")
                           true-block
                           false-block)
     (llvm:llvmpositionbuilderatend *ir-builder* continue-block)
     (setf return-value (llvm:llvmbuildphi *ir-builder* (llvm:llvmint32type) "if-result"))
+
     (llvm:llvmpositionbuilderatend *ir-builder* true-block)
-    (llvm:llvmaddincoming return-value (compile-sexp true-code function) true-block)
+    ;; Get insert block in case true-code contains other blocks
+    (llvm:llvmaddincoming return-value (compile-sexp true-code function) (llvm:llvmgetinsertblock *ir-builder*))
     (llvm:llvmbuildbr *ir-builder* continue-block)
 
     (llvm:llvmpositionbuilderatend *ir-builder* false-block)
-    (llvm:llvmaddincoming return-value (compile-sexp false-code function) false-block)
+    ;; Get insert block in case false-code contains other blocks
+    (llvm:llvmaddincoming return-value (compile-sexp false-code function) (llvm:llvmgetinsertblock *ir-builder*))
     (llvm:llvmbuildbr *ir-builder* continue-block)
       
     (llvm:llvmpositionbuilderatend *ir-builder* continue-block))
