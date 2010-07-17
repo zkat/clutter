@@ -79,7 +79,7 @@
        (def (apply #'compile-definer (rest code)))
        (if (apply #'compile-if function (rest code)))
        (= (destructuring-bind (a b) (rest code)
-            (llvm:llvmbuildicmp *ir-builder* :llvminteq (compile-sexp a) (compile-sexp b) "equality")))
+            (llvm:llvmbuildicmp *ir-builder* :llvminteq (compile-sexp a function) (compile-sexp b function) "equality")))
        (* (destructuring-bind (a b) (rest code)
             (llvm:llvmbuildmul *ir-builder* (compile-sexp a function) (compile-sexp b function) "product")))
        (/ (destructuring-bind (a b) (rest code)
