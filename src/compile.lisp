@@ -1,72 +1,76 @@
 (in-package :clutter)
 (declaim (optimize (debug 3)))
 
-(defvar *ir-builder* (llvm:llvmcreatebuilder))
+(defvar *ir-builder* (%llvm:create-builder))
 
-(defvar *module* (llvm:llvmmodulecreatewithname "root"))
+(defvar *module* (%llvm:module-create-with-name "root"))
 
 (defvar *functions* (make-hash-table :test 'eq))
 
 (defvar *function-params* ())
 
+;;; TODO: This shouldn't be O(N) lookup.
+(defvar *function-params* ())
+(defun init-llvm ()
+  (%llvm:link-in-jit)
+  (%llvm:initialize-native-target))
 (defun verify ()
   (cffi:with-foreign-objects ((error '(:pointer :char)) (error-addr :pointer))
     (setf (cffi:mem-aref error-addr :pointer) error)
-    (when (llvm:llvmverifymodule *module* :llvmprintmessageaction error-addr)
+    (when (%llvm:verify-module *module* :print-message-action error-addr)
       ;; TODO: Why does llvm sometimes kill the lisp here?
         (error "Module has errors"))
-    ;(llvm:llvmdisposemessage error-addr) ;segfaults
+    ;(%llvm:disposemessage error-addr) ;segfaults
 ))
 
 (defun reset ()
-  (llvm:llvmdisposemodule *module*)
-  (setf *module* (llvm:llvmmodulecreatewithname "root")))
+  (%llvm:dispose-module *module*)
+  (setf *module* (%llvm:module-create-with-name "root")))
 
-(defun insert-bb-after (bb name &aux (next (llvm:llvmgetnextbasicblock bb)))
+(defun insert-bb-after (bb name &aux (next (%llvm:get-next-basic-block bb)))
   ;; TODO: Why is this necessary?
   (if (cffi:null-pointer-p next)
-      (llvm:llvmappendbasicblock (llvm:llvmgetbasicblockparent bb) name)
-      (llvm:llvminsertbasicblock next name)))
+      (%llvm:append-basic-block (%llvm:get-basic-block-parent bb) name)
+      (%llvm:insert-basic-block next name)))
 
 (defun compile-if (function condition true-code false-code &aux return-value)
-  (let* ((current (llvm:llvmgetinsertblock *ir-builder*))
-         (true-block (insert-bb-after current "if-true"))
+  (let* ((true-block (insert-bb-after (%llvm:get-insert-block *ir-builder*) "if-true"))
          (false-block (insert-bb-after true-block "if-false"))
          (continue-block (insert-bb-after false-block "if-continue")))
-    (llvm:llvmbuildcondbr *ir-builder*
-                          (llvm:llvmbuildtrunc *ir-builder* (compile-sexp condition function) (llvm:llvmint1type) "boolean")
+    (%llvm:build-cond-br *ir-builder*
+                          (%llvm:build-trunc *ir-builder* (compile-sexp condition function) (%llvm:int1-type) "boolean")
                           true-block
                           false-block)
-    (llvm:llvmpositionbuilderatend *ir-builder* continue-block)
-    (setf return-value (llvm:llvmbuildphi *ir-builder* (llvm:llvmint32type) "if-result"))
+    (%llvm:position-builder-at-end *ir-builder* continue-block)
+    (setf return-value (%llvm:build-phi *ir-builder* (%llvm:int32-type) "if-result"))
 
-    (llvm:llvmpositionbuilderatend *ir-builder* true-block)
+    (%llvm:position-builder-at-end *ir-builder* true-block)
     ;; Get insert block in case true-code contains other blocks
-    (llvm:llvmaddincoming return-value (compile-sexp true-code function) (llvm:llvmgetinsertblock *ir-builder*))
-    (llvm:llvmbuildbr *ir-builder* continue-block)
+    (llvm:add-incoming return-value (compile-sexp true-code function) (%llvm:get-insert-block *ir-builder*))
+    (%llvm:build-br *ir-builder* continue-block)
 
-    (llvm:llvmpositionbuilderatend *ir-builder* false-block)
+    (%llvm:position-builder-at-end *ir-builder* false-block)
     ;; Get insert block in case false-code contains other blocks
-    (llvm:llvmaddincoming return-value (compile-sexp false-code function) (llvm:llvmgetinsertblock *ir-builder*))
-    (llvm:llvmbuildbr *ir-builder* continue-block)
+    (llvm:add-incoming return-value (compile-sexp false-code function) (%llvm:get-insert-block *ir-builder*))
+    (%llvm:build-br *ir-builder* continue-block)
       
-    (llvm:llvmpositionbuilderatend *ir-builder* continue-block))
+    (%llvm:position-builder-at-end *ir-builder* continue-block))
   return-value)
 
-(defun compile-function (name args &rest body &aux (func (llvm:llvmaddfunction *module* (symbol-name name) (llvm:llvmfunctiontype (llvm:llvmint32type) (loop repeat (length args) collecting (llvm:llvmint32type)) nil))))
+(defun compile-function (name args &rest body &aux (func (%llvm:add-function *module* (symbol-name name) (llvm:function-type (%llvm:int32-type) (loop repeat (length args) collecting (%llvm:int32-type))))))
   (setf (gethash name *functions*) func)
   (loop with arg-table = (make-hash-table :test 'eq)
         for index from 0
         for arg in args
         do (setf (gethash arg arg-table) index)
-           (llvm:llvmsetvaluename (llvm:llvmgetparam func index) (symbol-name arg))
+           (%llvm:set-value-name (%llvm:get-param func index) (symbol-name arg))
         finally (push (cons func arg-table) *function-params*))
-  (llvm:llvmsetfunctioncallconv func :llvmccallconv)
-  (let ((entry (llvm:llvmappendbasicblock func "entry")))
-    (llvm:llvmpositionbuilderatend *ir-builder* entry)
+  (%llvm:set-function-call-conv func :c)
+  (let ((entry (%llvm:append-basic-block func "entry")))
+    (%llvm:position-builder-at-end *ir-builder* entry)
     (let ((last-val))
       (mapc #'(lambda (sexp) (setf last-val (compile-sexp sexp func))) body)
-      (llvm:llvmbuildret *ir-builder* last-val))))
+      (%llvm:build-ret *ir-builder* last-val))))
 
 (defun compile-definer (subenv &rest args)
   (case subenv
@@ -79,18 +83,18 @@
        (def (apply #'compile-definer (rest code)))
        (if (apply #'compile-if function (rest code)))
        (= (destructuring-bind (a b) (rest code)
-            (llvm:llvmbuildicmp *ir-builder* :llvminteq (compile-sexp a function) (compile-sexp b function) "equality")))
+            (%llvm:build-icmp *ir-builder* :eq (compile-sexp a function) (compile-sexp b function) "equality")))
        (* (destructuring-bind (a b) (rest code)
-            (llvm:llvmbuildmul *ir-builder* (compile-sexp a function) (compile-sexp b function) "product")))
+            (%llvm:build-mul *ir-builder* (compile-sexp a function) (compile-sexp b function) "product")))
        (/ (destructuring-bind (a b) (rest code)
-            (llvm:llvmbuildsdiv *ir-builder* (compile-sexp a function) (compile-sexp b function) "quotient")))
+            (%llvm:build-sdiv *ir-builder* (compile-sexp a function) (compile-sexp b function) "quotient")))
        (- (destructuring-bind (a b) (rest code)
-            (llvm:llvmbuildsub *ir-builder* (compile-sexp a function) (compile-sexp b function) "difference")))
+            (%llvm:build-sub *ir-builder* (compile-sexp a function) (compile-sexp b function) "difference")))
        (+ (destructuring-bind (a b) (rest code)
-            (llvm:llvmbuildadd *ir-builder* (compile-sexp a function) (compile-sexp b function) "sum")))
-       (t (llvm:llvmbuildcall *ir-builder* (gethash (first code) *functions*) (mapcar (lambda (sexp) (compile-sexp sexp function)) (rest code)) "result"))))
+            (%llvm:build-add *ir-builder* (compile-sexp a function) (compile-sexp b function) "sum")))
+       (t (llvm:build-call *ir-builder* (gethash (first code) *functions*) (mapcar (lambda (sexp) (compile-sexp sexp function)) (rest code)) "result"))))
     ((symbolp code)
-     (let ((function (llvm:llvmgetbasicblockparent (llvm:llvmgetinsertblock *ir-builder*))))
-       (llvm:llvmgetparam function (gethash code (cdr (assoc function *function-params* :test #'sb-sys:sap=))))))
+     (let ((function (%llvm:get-basic-block-parent (%llvm:get-insert-block *ir-builder*))))
+       (%llvm:get-param function (gethash code (cdr (assoc function *function-params* :test #'sb-sys:sap=))))))
     ((integerp code)
-     (llvm:llvmconstint (llvm:llvmint32type) code))))
+     (%llvm:const-int (%llvm:int32-type) code nil))))
