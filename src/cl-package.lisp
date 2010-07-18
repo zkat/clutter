@@ -3,4 +3,4 @@
 (cl:in-package "COMMON-LISP")
 
 (defpackage #:clutter
-  (:use #:cl #:llvm))
+  (:use #:cl))
