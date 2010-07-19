@@ -25,10 +25,8 @@
   (%llvm:link-in-jit)
   (%llvm:initialize-native-target))
 
-(defun insert-bb-after (bb name &aux (next (%llvm:get-next-basic-block bb)))
-  (if (cffi:null-pointer-p next)
-      (%llvm:append-basic-block (%llvm:get-basic-block-parent bb) name)
-      (%llvm:insert-basic-block next name)))
+(defun insert-bb-after (bb name)
+  (%llvm:move-basic-block-after (%llvm:append-basic-block (%llvm:get-basic-block-parent bb) name) bb))
 
 (defun compile-if (function condition true-code false-code &aux return-value)
   (let* ((true-block (insert-bb-after (%llvm:get-insert-block *ir-builder*) "if-true"))
