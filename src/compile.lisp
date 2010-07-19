@@ -5,30 +5,23 @@
 
 (defvar *module* (%llvm:module-create-with-name "root"))
 
-(defvar *functions* (make-hash-table :test 'eq))
+(defvar *compiler* (llvm:create-jit-compiler-for-module *module* 2))
 
-(defvar *function-params* ())
+(defvar *functions* (make-hash-table :test 'eq))
 
 ;;; TODO: This shouldn't be O(N) lookup.
 (defvar *function-params* ())
+
+(defun compile-and-eval (expr)
+  (let ((func (compile-sexp `(def fun main () ,expr))))
+    (llvm:verify-module *module*)
+    (%llvm:generic-value-to-int (%llvm:run-function *compiler* func 0 (cffi:null-pointer)) nil)))
+
 (defun init-llvm ()
   (%llvm:link-in-jit)
   (%llvm:initialize-native-target))
-(defun verify ()
-  (cffi:with-foreign-objects ((error '(:pointer :char)) (error-addr :pointer))
-    (setf (cffi:mem-aref error-addr :pointer) error)
-    (when (%llvm:verify-module *module* :print-message-action error-addr)
-      ;; TODO: Why does llvm sometimes kill the lisp here?
-        (error "Module has errors"))
-    ;(%llvm:disposemessage error-addr) ;segfaults
-))
-
-(defun reset ()
-  (%llvm:dispose-module *module*)
-  (setf *module* (%llvm:module-create-with-name "root")))
 
 (defun insert-bb-after (bb name &aux (next (%llvm:get-next-basic-block bb)))
-  ;; TODO: Why is this necessary?
   (if (cffi:null-pointer-p next)
       (%llvm:append-basic-block (%llvm:get-basic-block-parent bb) name)
       (%llvm:insert-basic-block next name)))
@@ -42,7 +35,7 @@
                           true-block
                           false-block)
     (%llvm:position-builder-at-end *ir-builder* continue-block)
-    (setf return-value (%llvm:build-phi *ir-builder* (%llvm:int32-type) "if-result"))
+    (setf return-value (llvm:build-phi *ir-builder* (%llvm:int32-type) "if-result"))
 
     (%llvm:position-builder-at-end *ir-builder* true-block)
     ;; Get insert block in case true-code contains other blocks
@@ -57,8 +50,18 @@
     (%llvm:position-builder-at-end *ir-builder* continue-block))
   return-value)
 
-(defun compile-function (name args &rest body &aux (func (%llvm:add-function *module* (symbol-name name) (llvm:function-type (%llvm:int32-type) (loop repeat (length args) collecting (%llvm:int32-type))))))
-  (setf (gethash name *functions*) func)
+(defun compile-function (name args &rest body &aux func)
+  (let* ((fname (symbol-name name))
+         (old-func (%llvm:get-named-function *module* fname)))
+    (if (cffi:null-pointer-p old-func)
+        (progn (setf func (%llvm:add-function *module* fname
+                                              (llvm:function-type (%llvm:int32-type) (loop repeat (length args) collecting (%llvm:int32-type)))))
+                 (setf (gethash name *functions*) func))
+        (progn (format t "Overriding ~A~%" name)
+               (setf func old-func)
+               (loop for block = (%llvm:get-first-basic-block func)
+                     until (cffi:null-pointer-p block)
+                     do (%llvm:delete-basic-block block)))))
   (loop with arg-table = (make-hash-table :test 'eq)
         for index from 0
         for arg in args
@@ -70,11 +73,12 @@
     (%llvm:position-builder-at-end *ir-builder* entry)
     (let ((last-val))
       (mapc #'(lambda (sexp) (setf last-val (compile-sexp sexp func))) body)
-      (%llvm:build-ret *ir-builder* last-val))))
+      (%llvm:build-ret *ir-builder* last-val)
+      func)))
 
-(defun compile-definer (subenv &rest args)
+(defun compile-definer (subenv name args &rest body)
   (case subenv
-    (fun (apply #'compile-function args))))
+    (fun (apply #'compile-function name args body))))
 
 (defun compile-sexp (code &optional function)
   (cond
