@@ -5,7 +5,9 @@
 
 (defvar *module* (%llvm:module-create-with-name "root"))
 
-(defvar *compiler* (llvm:create-jit-compiler-for-module *module* 2))
+(defvar *compiler* (progn
+                     (%llvm:initialize-native-target)
+                     (llvm:create-jit-compiler-for-module *module* 2)))
 
 (defvar *functions* (make-hash-table :test 'eq))
 
@@ -13,9 +15,11 @@
 (defvar *function-params* ())
 
 (defun compile-and-eval (expr)
-  (let ((func (compile-sexp `(def fun main () ,expr))))
-    (llvm:verify-module *module*)
-    (%llvm:generic-value-to-int (%llvm:run-function *compiler* func 0 (cffi:null-pointer)) nil)))
+  (if (and (listp expr) (eq (first expr) 'def))
+      (apply #'compile-definer (rest expr))
+      (let ((func (compile-sexp `(def fun nil () ,expr))))
+        (llvm:verify-module *module*)
+        (%llvm:generic-value-to-int (%llvm:run-function *compiler* func 0 (cffi:null-pointer)) nil))))
 
 (defun init-llvm ()
   (%llvm:link-in-jit)
@@ -57,7 +61,8 @@
         (progn (setf func (%llvm:add-function *module* fname
                                               (llvm:function-type (%llvm:int32-type) (loop repeat (length args) collecting (%llvm:int32-type)))))
                  (setf (gethash name *functions*) func))
-        (progn (format t "Overriding ~A~%" name)
+        (progn (unless (eq name nil)
+                 (format t "Overriding ~A~%" name))
                (setf func old-func)
                (loop for block = (%llvm:get-first-basic-block func)
                      until (cffi:null-pointer-p block)
@@ -74,7 +79,10 @@
     (let ((last-val))
       (mapc #'(lambda (sexp) (setf last-val (compile-sexp sexp func))) body)
       (%llvm:build-ret *ir-builder* last-val)
-      func)))
+      (when (%llvm:verify-function func :print-message)
+        (error "Invalid function"))))
+  (%llvm:recompile-and-relink-function *compiler* func)
+  func)
 
 (defun compile-definer (subenv name args &rest body)
   (case subenv
