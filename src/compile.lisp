@@ -73,7 +73,7 @@
         (progn (unless (eq name nil)
                  (format t "Overriding ~A~%" name))
                (setf func old-func)
-               (loop for block = (%llvm:get-first-basic-block func)
+               (loop for block = (%llvm:get-last-basic-block func)
                      until (cffi:null-pointer-p block)
                      do (%llvm:delete-basic-block block)))))
   (loop for index from 0
