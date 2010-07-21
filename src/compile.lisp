@@ -65,7 +65,10 @@
   return-value)
 
 (defun lookup-var (name)
-  (%llvm:get-param (insert-func) (gethash name (env-table (gethash (insert-func) *environments*)))))
+  (loop for env in *scope*
+        for value = (gethash name (env-table env))
+        until value
+        finally (return value)))
 
 (defun compile-function (name args &rest body &aux func (env (make-env)))
   (let* ((fname (symbol-name name))
@@ -81,10 +84,11 @@
                      until (cffi:null-pointer-p block)
                      do (%llvm:delete-basic-block block)))))
   (loop for index from 0
+        for param = (%llvm:get-param func index)
         for arg in args
-        do (setf (gethash arg (env-table env)) index)
-           (%llvm:set-value-name (%llvm:get-param func index) (symbol-name arg))
-        finally (setf (gethash func *environments*) (env-table env)))
+        do (setf (gethash arg (env-table env)) param)
+           (%llvm:set-value-name param (symbol-name arg))
+        finally (setf (gethash func *environments*) env))
   (%llvm:set-function-call-conv func :c)
   (let ((entry (%llvm:append-basic-block func "entry")))
     (%llvm:position-builder-at-end *ir-builder* entry)
@@ -117,6 +121,9 @@
             (%llvm:build-add *ir-builder* (compile-sexp a) (compile-sexp b) "sum")))
        (t (llvm:build-call *ir-builder* (gethash (first code) *functions*) (mapcar #'compile-sexp (rest code)) "result"))))
     ((symbolp code)
-     (lookup-var code))
+     (or (lookup-var code)
+         (progn
+           (%llvm:delete-function (insert-func))
+           (error "Undefined variable: ~A" code))))
     ((integerp code)
      (%llvm:const-int (%llvm:int32-type) code nil))))
