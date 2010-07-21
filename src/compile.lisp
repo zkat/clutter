@@ -13,10 +13,10 @@
 
 (defvar *environments* (make-hash-table :hash-function #'cffi:pointer-address
                                            :test #'sb-sys:sap=)
-  "Maps functions to their stack frames, which are hash tables mapping symbols to values.")
+  "Maps functions to their environments, which are hash tables mapping symbols to values.")
 
 (defvar *scope* ()
-  "Keeps track of the stack that will exist when execution is at the insertion point compiled.")
+  "Keeps track of the environments that will be visible when execution is at the insertion point compiled.")
 
 (defun insert-func ()
   (%llvm:get-basic-block-parent (%llvm:get-insert-block *ir-builder*)))
