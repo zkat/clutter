@@ -85,7 +85,7 @@
   (let ((entry (%llvm:append-basic-block func "entry")))
     (%llvm:position-builder-at-end *ir-builder* entry)
     (let ((*stack* (cons stack-frame *stack*)))
-     (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body)))))
+      (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body)))))
     (when (%llvm:verify-function func :print-message)
       (error "Invalid function")))
   (%llvm:recompile-and-relink-function *compiler* func)
