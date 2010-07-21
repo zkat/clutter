@@ -11,11 +11,11 @@
 
 (defvar *functions* (make-hash-table :test 'eq))
 
-(defvar *stack-frames* (make-hash-table :hash-function #'cffi:pointer-address
+(defvar *environments* (make-hash-table :hash-function #'cffi:pointer-address
                                            :test #'sb-sys:sap=)
   "Maps functions to their stack frames, which are hash tables mapping symbols to values.")
 
-(defvar *stack* ()
+(defvar *scope* ()
   "Keeps track of the stack that will exist when execution is at the insertion point compiled.")
 
 (defun insert-func ()
@@ -61,7 +61,7 @@
   return-value)
 
 (defun lookup-var (name)
-  (%llvm:get-param (insert-func) (gethash name (gethash (insert-func) *stack-frames*))))
+  (%llvm:get-param (insert-func) (gethash name (gethash (insert-func) *environments*))))
 
 (defun compile-function (name args &rest body &aux func (stack-frame (make-hash-table :test 'eq)))
   (let* ((fname (symbol-name name))
@@ -80,11 +80,11 @@
         for arg in args
         do (setf (gethash arg stack-frame) index)
            (%llvm:set-value-name (%llvm:get-param func index) (symbol-name arg))
-        finally (setf (gethash func *stack-frames*) stack-frame))
+        finally (setf (gethash func *environments*) stack-frame))
   (%llvm:set-function-call-conv func :c)
   (let ((entry (%llvm:append-basic-block func "entry")))
     (%llvm:position-builder-at-end *ir-builder* entry)
-    (let ((*stack* (cons stack-frame *stack*)))
+    (let ((*scope* (cons stack-frame *scope*)))
       (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body)))))
     (when (%llvm:verify-function func :print-message)
       (error "Invalid function")))
