@@ -11,8 +11,9 @@
 
 (defvar *functions* (make-hash-table :test 'eq))
 
-(defvar *function-params* (make-hash-table :hash-function #'cffi:pointer-address
-                                           :test #'sb-sys:sap=))
+(defvar *stack-frames* (make-hash-table :hash-function #'cffi:pointer-address
+                                           :test #'sb-sys:sap=)
+  "Maps functions to their stack frames, which are hash tables mapping symbols to values.")
 
 (defun insert-func ()
   (%llvm:get-basic-block-parent (%llvm:get-insert-block *ir-builder*)))
@@ -56,6 +57,9 @@
     (%llvm:position-builder-at-end *ir-builder* continue-block))
   return-value)
 
+(defun lookup-var (name)
+  (%llvm:get-param (insert-func) (gethash name (gethash (insert-func) *stack-frames*))))
+
 (defun compile-function (name args &rest body &aux func)
   (let* ((fname (symbol-name name))
          (old-func (%llvm:get-named-function *module* fname)))
@@ -74,7 +78,7 @@
         for arg in args
         do (setf (gethash arg arg-table) index)
            (%llvm:set-value-name (%llvm:get-param func index) (symbol-name arg))
-        finally (setf (gethash func *function-params*) arg-table))
+        finally (setf (gethash func *stack-frames*) arg-table))
   (%llvm:set-function-call-conv func :c)
   (let ((entry (%llvm:append-basic-block func "entry")))
     (%llvm:position-builder-at-end *ir-builder* entry)
@@ -106,6 +110,6 @@
             (%llvm:build-add *ir-builder* (compile-sexp a) (compile-sexp b) "sum")))
        (t (llvm:build-call *ir-builder* (gethash (first code) *functions*) (mapcar #'compile-sexp (rest code)) "result"))))
     ((symbolp code)
-     (%llvm:get-param (insert-func) (gethash code (gethash (insert-func) *function-params*))))
+     (lookup-var code))
     ((integerp code)
      (%llvm:const-int (%llvm:int32-type) code nil))))
