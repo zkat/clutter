@@ -15,6 +15,9 @@
                                            :test #'sb-sys:sap=)
   "Maps functions to their stack frames, which are hash tables mapping symbols to values.")
 
+(defvar *stack* ()
+  "Keeps track of the stack that will exist when execution is at the insertion point compiled.")
+
 (defun insert-func ()
   (%llvm:get-basic-block-parent (%llvm:get-insert-block *ir-builder*)))
 
@@ -60,7 +63,7 @@
 (defun lookup-var (name)
   (%llvm:get-param (insert-func) (gethash name (gethash (insert-func) *stack-frames*))))
 
-(defun compile-function (name args &rest body &aux func)
+(defun compile-function (name args &rest body &aux func (stack-frame (make-hash-table :test 'eq)))
   (let* ((fname (symbol-name name))
          (old-func (%llvm:get-named-function *module* fname)))
     (if (cffi:null-pointer-p old-func)
@@ -73,16 +76,16 @@
                (loop for block = (%llvm:get-first-basic-block func)
                      until (cffi:null-pointer-p block)
                      do (%llvm:delete-basic-block block)))))
-  (loop with arg-table = (make-hash-table :test 'eq)
-        for index from 0
+  (loop for index from 0
         for arg in args
-        do (setf (gethash arg arg-table) index)
+        do (setf (gethash arg stack-frame) index)
            (%llvm:set-value-name (%llvm:get-param func index) (symbol-name arg))
-        finally (setf (gethash func *stack-frames*) arg-table))
+        finally (setf (gethash func *stack-frames*) stack-frame))
   (%llvm:set-function-call-conv func :c)
   (let ((entry (%llvm:append-basic-block func "entry")))
     (%llvm:position-builder-at-end *ir-builder* entry)
-    (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body))))
+    (let ((*stack* (cons stack-frame *stack*)))
+     (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body)))))
     (when (%llvm:verify-function func :print-message)
       (error "Invalid function")))
   (%llvm:recompile-and-relink-function *compiler* func)
