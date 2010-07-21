@@ -11,8 +11,11 @@
 
 (defvar *functions* (make-hash-table :test 'eq))
 
-;;; TODO: This shouldn't be O(N) lookup.
-(defvar *function-params* ())
+(defvar *function-params* (make-hash-table :hash-function #'cffi:pointer-address
+                                           :test #'sb-sys:sap=))
+
+(defun insert-func ()
+  (%llvm:get-basic-block-parent (%llvm:get-insert-block *ir-builder*)))
 
 (defun compile-and-eval (expr)
   (if (and (listp expr) (eq (first expr) 'def))
@@ -25,15 +28,16 @@
   (%llvm:link-in-jit)
   (%llvm:initialize-native-target))
 
-(defun insert-bb-after (bb name)
-  (%llvm:move-basic-block-after (%llvm:append-basic-block (%llvm:get-basic-block-parent bb) name) bb))
+(defun insert-bb-after (bb name &aux (new-bb (%llvm:append-basic-block (%llvm:get-basic-block-parent bb) name)))
+  (%llvm:move-basic-block-after new-bb bb)
+  new-bb)
 
-(defun compile-if (function condition true-code false-code &aux return-value)
+(defun compile-if (condition true-code false-code &aux return-value)
   (let* ((true-block (insert-bb-after (%llvm:get-insert-block *ir-builder*) "if-true"))
          (false-block (insert-bb-after true-block "if-false"))
          (continue-block (insert-bb-after false-block "if-continue")))
     (%llvm:build-cond-br *ir-builder*
-                          (%llvm:build-trunc *ir-builder* (compile-sexp condition function) (%llvm:int1-type) "boolean")
+                          (%llvm:build-trunc *ir-builder* (compile-sexp condition) (%llvm:int1-type) "boolean")
                           true-block
                           false-block)
     (%llvm:position-builder-at-end *ir-builder* continue-block)
@@ -41,12 +45,12 @@
 
     (%llvm:position-builder-at-end *ir-builder* true-block)
     ;; Get insert block in case true-code contains other blocks
-    (llvm:add-incoming return-value (compile-sexp true-code function) (%llvm:get-insert-block *ir-builder*))
+    (llvm:add-incoming return-value (compile-sexp true-code) (%llvm:get-insert-block *ir-builder*))
     (%llvm:build-br *ir-builder* continue-block)
 
     (%llvm:position-builder-at-end *ir-builder* false-block)
     ;; Get insert block in case false-code contains other blocks
-    (llvm:add-incoming return-value (compile-sexp false-code function) (%llvm:get-insert-block *ir-builder*))
+    (llvm:add-incoming return-value (compile-sexp false-code) (%llvm:get-insert-block *ir-builder*))
     (%llvm:build-br *ir-builder* continue-block)
       
     (%llvm:position-builder-at-end *ir-builder* continue-block))
@@ -70,15 +74,13 @@
         for arg in args
         do (setf (gethash arg arg-table) index)
            (%llvm:set-value-name (%llvm:get-param func index) (symbol-name arg))
-        finally (push (cons func arg-table) *function-params*))
+        finally (setf (gethash func *function-params*) arg-table))
   (%llvm:set-function-call-conv func :c)
   (let ((entry (%llvm:append-basic-block func "entry")))
     (%llvm:position-builder-at-end *ir-builder* entry)
-    (let ((last-val))
-      (mapc #'(lambda (sexp) (setf last-val (compile-sexp sexp func))) body)
-      (%llvm:build-ret *ir-builder* last-val)
-      (when (%llvm:verify-function func :print-message)
-        (error "Invalid function"))))
+    (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body))))
+    (when (%llvm:verify-function func :print-message)
+      (error "Invalid function")))
   (%llvm:recompile-and-relink-function *compiler* func)
   func)
 
@@ -86,25 +88,24 @@
   (case subenv
     (fun (apply #'compile-function name args body))))
 
-(defun compile-sexp (code &optional function)
+(defun compile-sexp (code)
   (cond
     ((listp code)
      (case (first code)
        (def (apply #'compile-definer (rest code)))
-       (if (apply #'compile-if function (rest code)))
+       (if (apply #'compile-if (rest code)))
        (= (destructuring-bind (a b) (rest code)
-            (%llvm:build-icmp *ir-builder* :eq (compile-sexp a function) (compile-sexp b function) "equality")))
+            (%llvm:build-icmp *ir-builder* :eq (compile-sexp a) (compile-sexp b) "equality")))
        (* (destructuring-bind (a b) (rest code)
-            (%llvm:build-mul *ir-builder* (compile-sexp a function) (compile-sexp b function) "product")))
+            (%llvm:build-mul *ir-builder* (compile-sexp a) (compile-sexp b) "product")))
        (/ (destructuring-bind (a b) (rest code)
-            (%llvm:build-sdiv *ir-builder* (compile-sexp a function) (compile-sexp b function) "quotient")))
+            (%llvm:build-sdiv *ir-builder* (compile-sexp a) (compile-sexp b) "quotient")))
        (- (destructuring-bind (a b) (rest code)
-            (%llvm:build-sub *ir-builder* (compile-sexp a function) (compile-sexp b function) "difference")))
+            (%llvm:build-sub *ir-builder* (compile-sexp a) (compile-sexp b) "difference")))
        (+ (destructuring-bind (a b) (rest code)
-            (%llvm:build-add *ir-builder* (compile-sexp a function) (compile-sexp b function) "sum")))
-       (t (llvm:build-call *ir-builder* (gethash (first code) *functions*) (mapcar (lambda (sexp) (compile-sexp sexp function)) (rest code)) "result"))))
+            (%llvm:build-add *ir-builder* (compile-sexp a) (compile-sexp b) "sum")))
+       (t (llvm:build-call *ir-builder* (gethash (first code) *functions*) (mapcar #'compile-sexp (rest code)) "result"))))
     ((symbolp code)
-     (let ((function (%llvm:get-basic-block-parent (%llvm:get-insert-block *ir-builder*))))
-       (%llvm:get-param function (gethash code (cdr (assoc function *function-params* :test #'sb-sys:sap=))))))
+     (%llvm:get-param (insert-func) (gethash code (gethash (insert-func) *function-params*))))
     ((integerp code)
      (%llvm:const-int (%llvm:int32-type) code nil))))
