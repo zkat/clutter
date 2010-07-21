@@ -11,9 +11,13 @@
 
 (defvar *functions* (make-hash-table :test 'eq))
 
+(defstruct env
+  (heap-p nil)
+  (table (make-hash-table :test 'eq)))
+
 (defvar *environments* (make-hash-table :hash-function #'cffi:pointer-address
-                                           :test #'sb-sys:sap=)
-  "Maps functions to their environments, which are hash tables mapping symbols to values.")
+                                        :test #'sb-sys:sap=)
+  "Maps functions to their environments")
 
 (defvar *scope* ()
   "Keeps track of the environments that will be visible when execution is at the insertion point compiled.")
@@ -61,9 +65,9 @@
   return-value)
 
 (defun lookup-var (name)
-  (%llvm:get-param (insert-func) (gethash name (gethash (insert-func) *environments*))))
+  (%llvm:get-param (insert-func) (gethash name (env-table (gethash (insert-func) *environments*)))))
 
-(defun compile-function (name args &rest body &aux func (stack-frame (make-hash-table :test 'eq)))
+(defun compile-function (name args &rest body &aux func (env (make-env)))
   (let* ((fname (symbol-name name))
          (old-func (%llvm:get-named-function *module* fname)))
     (if (cffi:null-pointer-p old-func)
@@ -78,13 +82,13 @@
                      do (%llvm:delete-basic-block block)))))
   (loop for index from 0
         for arg in args
-        do (setf (gethash arg stack-frame) index)
+        do (setf (gethash arg (env-table env)) index)
            (%llvm:set-value-name (%llvm:get-param func index) (symbol-name arg))
-        finally (setf (gethash func *environments*) stack-frame))
+        finally (setf (gethash func *environments*) (env-table env)))
   (%llvm:set-function-call-conv func :c)
   (let ((entry (%llvm:append-basic-block func "entry")))
     (%llvm:position-builder-at-end *ir-builder* entry)
-    (let ((*scope* (cons stack-frame *scope*)))
+    (let ((*scope* (cons env *scope*)))
       (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body)))))
     (when (%llvm:verify-function func :print-message)
       (error "Invalid function")))
