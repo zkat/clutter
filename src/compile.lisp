@@ -13,17 +13,23 @@
 
 (defstruct env
   (heap-p nil)
+  (closure-p nil)
+  (function)
   (table (make-hash-table :test 'eq)))
 
+(defvar *global-env* (make-env))
+
 (defvar *environments* (make-hash-table :hash-function #'cffi:pointer-address
-                                        :test #'sb-sys:sap=)
+                                        :test #'cffi:pointer-eq)
   "Maps functions to their environments")
 
 (defvar *scope* ()
   "Keeps track of the environments that will be visible when execution is at the insertion point compiled.")
 
-(defun insert-func ()
-  (%llvm:get-basic-block-parent (%llvm:get-insert-block *ir-builder*)))
+(defun insert-func (&aux (func (%llvm:get-basic-block-parent (%llvm:get-insert-block *ir-builder*))))
+  (if (cffi:null-pointer-p func)
+      nil
+      func))
 
 (defun compile-and-eval (expr)
   (if (and (listp expr) (eq (first expr) 'def))
@@ -31,10 +37,6 @@
       (let ((func (compile-sexp `(def fun nil () ,expr))))
         (llvm:verify-module *module*)
         (%llvm:generic-value-to-int (%llvm:run-function *compiler* func 0 (cffi:null-pointer)) nil))))
-
-(defun init-llvm ()
-  (%llvm:link-in-jit)
-  (%llvm:initialize-native-target))
 
 (defun insert-bb-after (bb name &aux (new-bb (%llvm:append-basic-block (%llvm:get-basic-block-parent bb) name)))
   (%llvm:move-basic-block-after new-bb bb)
@@ -68,7 +70,7 @@
   (loop for env in *scope*
         for value = (gethash name (env-table env))
         until value
-        finally (return value)))
+        finally (return (%llvm:build-load *ir-builder* value (symbol-name name)))))
 
 (defun compile-function (name args &rest body &aux func (env (make-env)))
   (let* ((fname (symbol-name name))
@@ -83,25 +85,36 @@
                (loop for block = (%llvm:get-last-basic-block func)
                      until (cffi:null-pointer-p block)
                      do (%llvm:delete-basic-block block)))))
-  (loop for index from 0
-        for param = (%llvm:get-param func index)
-        for arg in args
-        do (setf (gethash arg (env-table env)) param)
-           (%llvm:set-value-name param (symbol-name arg))
-        finally (setf (gethash func *environments*) env))
   (%llvm:set-function-call-conv func :c)
-  (let ((entry (%llvm:append-basic-block func "entry")))
+  (let ((entry (%llvm:append-basic-block func "entry"))
+        (*scope* (cons env *scope*)))
     (%llvm:position-builder-at-end *ir-builder* entry)
-    (let ((*scope* (cons env *scope*)))
-      (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body)))))
+    ;; Allocate argument stack space and initialize env
+    (loop for index from 0
+          for param = (%llvm:get-param func index)
+          for arg in args
+          for name = (symbol-name arg)
+          for alloca = (%llvm:build-alloca *ir-builder* (%llvm:int32-type) name)
+          do (%llvm:set-value-name param name)
+             (%llvm:build-store *ir-builder* param alloca)
+             (setf (gethash arg (env-table env)) alloca)
+          finally (setf (gethash func *environments*) env))
+    ;; Compile function body and return instruction
+    (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body))))
+    ;; Check for errors (TODO: Informative error message)
     (when (%llvm:verify-function func :print-message)
       (error "Invalid function")))
   (%llvm:recompile-and-relink-function *compiler* func)
   func)
 
-(defun compile-definer (subenv name args &rest body)
+(defun compile-definer (subenv &rest body)
   (case subenv
-    (fun (apply #'compile-function name args body))))
+    (fun (apply #'compile-function body))
+    (var (destructuring-bind (name &optional initializer) body
+           (let* ((value (%llvm:build-alloca *ir-builder* (%llvm:int32-type) (symbol-name name))))
+             (when initializer
+               (%llvm:build-store *ir-builder* (compile-sexp initializer) value))
+             (setf (gethash name (env-table (gethash (insert-func) *environments*))) value))))))
 
 (defun compile-sexp (code)
   (cond
@@ -122,8 +135,6 @@
        (t (llvm:build-call *ir-builder* (gethash (first code) *functions*) (mapcar #'compile-sexp (rest code)) "result"))))
     ((symbolp code)
      (or (lookup-var code)
-         (progn
-           (%llvm:delete-function (insert-func))
-           (error "Undefined variable: ~A" code))))
+         (error "Undefined variable: ~A" code)))
     ((integerp code)
      (%llvm:const-int (%llvm:int32-type) code nil))))
