@@ -17,19 +17,22 @@
   (function)
   (table (make-hash-table :test 'eq)))
 
-(defvar *global-env* (make-env))
+(defvar *global-env* (make-env :heap-p t))
 
 (defvar *environments* (make-hash-table :hash-function #'cffi:pointer-address
                                         :test #'cffi:pointer-eq)
   "Maps functions to their environments")
 
-(defvar *scope* ()
+(defvar *scope* (list *global-env*)
   "Keeps track of the environments that will be visible when execution is at the insertion point compiled.")
 
-(defun insert-func (&aux (func (%llvm:get-basic-block-parent (%llvm:get-insert-block *ir-builder*))))
-  (if (cffi:null-pointer-p func)
+(defun insert-func (&aux (insert-block (%llvm:get-insert-block *ir-builder*)))
+  (if (cffi:null-pointer-p insert-block)
       nil
-      func))
+      (let ((func (%llvm:get-basic-block-parent insert-block)))
+        (if (cffi:null-pointer-p func)
+            nil
+            func))))
 
 (defun compile-and-eval (expr)
   (if (and (listp expr) (eq (first expr) 'def))
@@ -69,8 +72,8 @@
 (defun lookup-var (name)
   (loop for env in *scope*
         for value = (gethash name (env-table env))
-        until value
-        finally (return (%llvm:build-load *ir-builder* value (symbol-name name)))))
+        when value
+          do (return (%llvm:build-load *ir-builder* value (symbol-name name)))))
 
 (defun compile-function (name args &rest body &aux func (env (make-env)))
   (let* ((fname (symbol-name name))
@@ -111,10 +114,17 @@
   (case subenv
     (fun (apply #'compile-function body))
     (var (destructuring-bind (name &optional initializer) body
-           (let* ((value (%llvm:build-alloca *ir-builder* (%llvm:int32-type) (symbol-name name))))
-             (when initializer
-               (%llvm:build-store *ir-builder* (compile-sexp initializer) value))
-             (setf (gethash name (env-table (gethash (insert-func) *environments*))) value))))))
+
+           (let ((value)
+                 (name-str (symbol-name name)))
+             (if (insert-func)
+                 (progn (setf value (%llvm:build-alloca *ir-builder* (%llvm:int32-type) name-str))
+                        (when initializer
+                          (%llvm:build-store *ir-builder* (compile-sexp initializer) value)))
+                 (progn (setf value (%llvm:add-global *module* (%llvm:int32-type) name-str))
+                        (%llvm:set-linkage value :common)
+                        (%llvm:set-initializer value (%llvm:const-int (%llvm:int32-type) 0 0))))
+             (setf (gethash name (env-table (first *scope*))) value))))))
 
 (defun compile-sexp (code)
   (cond
