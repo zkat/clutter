@@ -4,3 +4,5 @@
   (t (:default "libgc")))
 
 (cffi:use-foreign-library boehm-gc)
+
+(cffi:defcfun (gc-init "GC_init") :void)

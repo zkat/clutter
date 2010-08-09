@@ -17,11 +17,36 @@
   (function)
   (table (make-hash-table :test 'eq)))
 
-(defvar *global-env* (make-env :heap-p t))
+(defun env-heapify (env)
+  (unless (env-heap-p env)
+    (let ((builder (%llvm:create-builder))
+          (hash-table (env-table env))
+          (values (list)))
+      (maphash
+       (lambda (key value)
+         (push (cons key value) values))
+       hash-table)
+      (let ((bb (%llvm:get-first-basic-block (env-function env))))
+        (%llvm:position-builder builder bb (%llvm:get-first-instruction bb)))
+      ;; Place env struct allocation
+      (let ((new-frame (%llvm:build-malloc builder
+                                           (llvm:struct-type (mapcar #'%llvm:get-element-type
+                                                                     (mapcar #'%llvm:type-of
+                                                                             (mapcar #'cdr values))))
+                                           "heap-frame")))
+        ;; Replace uses of stack vars with struct members
+        (loop with index = -1
+              for (key . value) in values
+              for new-value = (llvm:build-gep builder new-frame (list (%llvm:const-int (%llvm:int32-type) 0 0)
+                                                                      (%llvm:const-int (%llvm:int32-type) (incf index) 0))
+                                                                (%llvm:get-value-name value))
+              do (%llvm:replace-all-uses-with value new-value)
+                 (print (%llvm:get-value-name value))
+                 (%llvm:delete-instruction value)
+                 (setf (gethash key hash-table) new-value))))
+    (setf (env-heap-p env) t)))
 
-(defvar *environments* (make-hash-table :hash-function #'cffi:pointer-address
-                                        :test #'cffi:pointer-eq)
-  "Maps functions to their environments")
+(defvar *global-env* (make-env :heap-p t))
 
 (defvar *scope* (list *global-env*)
   "Keeps track of the environments that will be visible when execution is at the insertion point compiled.")
@@ -76,19 +101,20 @@
           do (return (%llvm:build-load *ir-builder* value (symbol-name name)))))
 
 (defun compile-function (name args &rest body &aux func (env (make-env)))
+  ;; Get our function handle
   (let* ((fname (symbol-name name))
          (old-func (%llvm:get-named-function *module* fname)))
     (if (cffi:null-pointer-p old-func)
         (progn (setf func (%llvm:add-function *module* fname
                                               (llvm:function-type (%llvm:int32-type) (loop repeat (length args) collecting (%llvm:int32-type)))))
-                 (setf (gethash name *functions*) func))
+               (setf (gethash name *functions*) func))
         (progn (unless (eq name nil)
                  (format t "Overriding ~A~%" name))
                (setf func old-func)
-               (loop for block = (%llvm:get-last-basic-block func)
-                     until (cffi:null-pointer-p block)
-                     do (%llvm:delete-basic-block block)))))
+               (%llvm:delete-function-body func))))
+  ;; Initialization
   (%llvm:set-function-call-conv func :c)
+  (setf (env-function env) func)
   (let ((entry (%llvm:append-basic-block func "entry"))
         (*scope* (cons env *scope*)))
     (%llvm:position-builder-at-end *ir-builder* entry)
@@ -100,8 +126,7 @@
           for alloca = (%llvm:build-alloca *ir-builder* (%llvm:int32-type) name)
           do (%llvm:set-value-name param name)
              (%llvm:build-store *ir-builder* param alloca)
-             (setf (gethash arg (env-table env)) alloca)
-          finally (setf (gethash func *environments*) env))
+             (setf (gethash arg (env-table env)) alloca))
     ;; Compile function body and return instruction
     (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body))))
     ;; Check for errors (TODO: Informative error message)
