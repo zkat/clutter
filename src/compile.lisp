@@ -94,16 +94,12 @@
 
 (defun compile-function (name args &rest body &aux func (env (make-env)))
   ;; Get our function handle
-  (let* ((fname (symbol-name name))
-         (old-func (%llvm:get-named-function *module* fname)))
-    (if (cffi:null-pointer-p old-func)
-        (progn (setf func (%llvm:add-function *module* fname
-                                              (llvm:function-type (%llvm:int32-type) (loop repeat (length args) collecting (%llvm:int32-type)))))
-               (setf (gethash name *functions*) func))
-        (progn (unless (eq name nil)
-                 (format t "Overriding ~A~%" name))
-               (setf func old-func)
-               (%llvm:delete-function-body func))))
+  (let* ((fname (symbol-name name)))
+    (unless (cffi:null-pointer-p (%llvm:get-named-function *module* fname))
+      (error "Redefining function ~A" name))
+    (setf func (%llvm:add-function *module* fname
+                                   (llvm:function-type (%llvm:int32-type) (loop repeat (length args) collecting (%llvm:int32-type)))))
+    (setf (gethash name *functions*) func))
   ;; Initialization
   (%llvm:set-function-call-conv func :c)
   (setf (env-function env) func)
@@ -134,17 +130,23 @@
     (i32 (%llvm:int32-type))
     (i64 (%llvm:int64-type))))
 
-(defun compile-c-binding (name return-type &rest args)
-  (setf (gethash name *functions*)
-        (%llvm:add-function *module* (symbol-name name)
-                            (llvm:function-type (get-llvm-type return-type)
-                                                (mapcar #'get-llvm-type (mapcar #'second args))))))
+(defun compile-c-binding (name return-type &rest args &aux (fname (symbol-name name)))
+  (let ((old-func (%llvm:get-named-function *module* fname)))
+    (unless (cffi:null-pointer-p old-func)
+      (error "Trying to bind existing function ~A" name)))
+  (let ((func (%llvm:add-function *module* (symbol-name name)
+                                  (llvm:function-type (get-llvm-type return-type)
+                                                      (mapcar #'get-llvm-type (mapcar #'second args))))))
+    (%llvm:set-linkage func :external)
+    (setf (gethash name *functions*) func)))
 
 (defun compile-definer (subenv &rest body)
   (case subenv
     (fun (apply #'compile-function body))
     (cfun (apply #'compile-c-binding body))
     (var (destructuring-bind (name &optional initializer) body
+           (when (gethash name (env-table (car *scope*)))
+             (error "Attempting to define existing var ~A" name))
            (let ((value)
                  (name-str (symbol-name name)))
              (if (toplevelp)
