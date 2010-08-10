@@ -140,23 +140,28 @@
     (%llvm:set-linkage func :external)
     (setf (gethash name *functions*) func)))
 
+(defun compile-var-decl (name-and-type &optional initializer)
+  (let* ((value)
+         (name (car name-and-type))
+         (name-str (symbol-name name))
+         (type (get-llvm-type (cdr name-and-type))))
+    (when (gethash name (env-table (car *scope*)))
+      (error "Attempting to define existing var ~A" name))
+    (if (toplevelp)
+        (progn (setf value (%llvm:build-alloca *ir-builder* type name-str))
+               (when initializer
+                 (%llvm:build-store *ir-builder* (compile-sexp initializer) value)))
+        (progn (setf value (%llvm:add-global *module* type name-str))
+               (%llvm:set-linkage value :common)
+               ;; TODO: Non-integer initializers
+               (%llvm:set-initializer value (%llvm:const-int type 0 0))))
+    (setf (gethash name (env-table (first *scope*))) value)))
+
 (defun compile-definer (subenv &rest body)
   (case subenv
     (fun (apply #'compile-function body))
     (cfun (apply #'compile-c-binding body))
-    (var (destructuring-bind (name &optional initializer) body
-           (when (gethash name (env-table (car *scope*)))
-             (error "Attempting to define existing var ~A" name))
-           (let ((value)
-                 (name-str (symbol-name name)))
-             (if (toplevelp)
-                 (progn (setf value (%llvm:build-alloca *ir-builder* (%llvm:int32-type) name-str))
-                        (when initializer
-                          (%llvm:build-store *ir-builder* (compile-sexp initializer) value)))
-                 (progn (setf value (%llvm:add-global *module* (%llvm:int32-type) name-str))
-                        (%llvm:set-linkage value :common)
-                        (%llvm:set-initializer value (%llvm:const-int (%llvm:int32-type) 0 0))))
-             (setf (gethash name (env-table (first *scope*))) value))))))
+    (var (apply #'compile-var-decl body))))
 
 (defun compile-sexp (code)
   (cond
