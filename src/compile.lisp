@@ -126,9 +126,24 @@
       (error "Invalid function")))
   func)
 
+(defun get-llvm-type (clutter-type)
+  (ecase clutter-type
+    (i8* (%llvm:pointer-type (%llvm:int8-type) 0))
+    (i8 (%llvm:int8-type))
+    (i16 (%llvm:int16-type))
+    (i32 (%llvm:int32-type))
+    (i64 (%llvm:int64-type))))
+
+(defun compile-c-binding (name return-type &rest args)
+  (setf (gethash name *functions*)
+        (%llvm:add-function *module* (symbol-name name)
+                            (llvm:function-type (get-llvm-type return-type)
+                                                (mapcar #'get-llvm-type (mapcar #'second args))))))
+
 (defun compile-definer (subenv &rest body)
   (case subenv
     (fun (apply #'compile-function body))
+    (cfun (apply #'compile-c-binding body))
     (var (destructuring-bind (name &optional initializer) body
 
            (let ((value)
