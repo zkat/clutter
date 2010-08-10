@@ -145,7 +145,6 @@
     (fun (apply #'compile-function body))
     (cfun (apply #'compile-c-binding body))
     (var (destructuring-bind (name &optional initializer) body
-
            (let ((value)
                  (name-str (symbol-name name)))
              (if (toplevelp)
