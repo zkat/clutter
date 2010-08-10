@@ -3,7 +3,7 @@
 
 (defvar *ir-builder* (%llvm:create-builder))
 
-(defvar *module* (%llvm:module-create-with-name "root"))
+(defvar *module*)
 
 (defvar *functions* (make-hash-table :test 'eq))
 
@@ -92,13 +92,17 @@
         when value
           do (return (%llvm:build-load *ir-builder* value (symbol-name name)))))
 
-(defun compile-function (name args &rest body &aux func (env (make-env)))
+(defun compile-function (name-and-type args &rest body &aux
+                         func
+                         (env (make-env))
+                         (name (first name-and-type))
+                         (type (second name-and-type)))
   ;; Get our function handle
   (let* ((fname (symbol-name name)))
     (unless (cffi:null-pointer-p (%llvm:get-named-function *module* fname))
       (error "Redefining function ~A" name))
     (setf func (%llvm:add-function *module* fname
-                                   (llvm:function-type (%llvm:int32-type) (loop repeat (length args) collecting (%llvm:int32-type)))))
+                                   (llvm:function-type (get-llvm-type type) (loop repeat (length args) collecting (%llvm:int32-type)))))
     (setf (gethash name *functions*) func))
   ;; Initialization
   (%llvm:set-function-call-conv func :c)
@@ -116,7 +120,9 @@
              (%llvm:build-store *ir-builder* param alloca)
              (setf (gethash arg (env-table env)) alloca))
     ;; Compile function body and return instruction
-    (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body))))
+    (if (eq type 'void)
+        (mapc #'compile-sexp body)
+        (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body)))))
     ;; Check for errors (TODO: Informative error message)
     (when (%llvm:verify-function func :print-message)
       (error "Invalid function")))
@@ -124,11 +130,12 @@
 
 (defun get-llvm-type (clutter-type)
   (ecase clutter-type
-    (i8* (%llvm:pointer-type (%llvm:int8-type) 0))
-    (i8 (%llvm:int8-type))
-    (i16 (%llvm:int16-type))
-    (i32 (%llvm:int32-type))
-    (i64 (%llvm:int64-type))))
+    (|void| (%llvm:void-type))
+    (|i8*| (%llvm:pointer-type (%llvm:int8-type) 0))
+    (|i8| (%llvm:int8-type))
+    (|i16| (%llvm:int16-type))
+    (|i32| (%llvm:int32-type))
+    (|i64| (%llvm:int64-type))))
 
 (defun compile-c-binding (name return-type &rest args &aux (fname (symbol-name name)))
   (let ((old-func (%llvm:get-named-function *module* fname)))
@@ -158,17 +165,17 @@
     (setf (gethash name (env-table (first *scope*))) value)))
 
 (defun compile-definer (subenv &rest body)
-  (case subenv
-    (fun (apply #'compile-function body))
-    (cfun (apply #'compile-c-binding body))
-    (var (apply #'compile-var-decl body))))
+  (ecase subenv
+    (|fun| (apply #'compile-function body))
+    (|cfun| (apply #'compile-c-binding body))
+    (|var| (apply #'compile-var-decl body))))
 
 (defun compile-sexp (code)
   (cond
     ((listp code)
      (case (first code)
-       (def (apply #'compile-definer (rest code)))
-       (if (apply #'compile-if (rest code)))
+       (|def| (apply #'compile-definer (rest code)))
+       (|if| (apply #'compile-if (rest code)))
        (= (destructuring-bind (a b) (rest code)
             (%llvm:build-icmp *ir-builder* :eq (compile-sexp a) (compile-sexp b) "equality")))
        (* (destructuring-bind (a b) (rest code)
@@ -185,3 +192,16 @@
          (error "Undefined variable: ~A" code)))
     ((integerp code)
      (%llvm:const-int (%llvm:int32-type) code nil))))
+
+(defun compile-file (file &optional (output *standard-output*) &aux
+                     (*module* (%llvm:module-create-with-name file)))
+  (setf (readtable-case *readtable*) :preserve)
+  (unwind-protect
+       (progn
+         (with-open-file (stream file)
+           (loop for sexp = (read stream nil)
+                 while sexp
+                 do (compile-sexp sexp)))
+         (write-string (%llvm:dump-module-to-string *module*) output))
+      (setf (readtable-case *readtable*) :upcase))
+  (values))
