@@ -50,7 +50,7 @@
 (defun toplevelp ()
   (cdr *scope*))
 
-(defun insert-func (&aux (insert-block (%llvm:get-insert-block *ir-builder*)))
+(defun current-func (&aux (insert-block (%llvm:get-insert-block *ir-builder*)))
   (if (cffi:null-pointer-p insert-block)
       nil
       (let ((func (%llvm:get-basic-block-parent insert-block)))
