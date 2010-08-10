@@ -148,13 +148,13 @@
     (when (gethash name (env-table (car *scope*)))
       (error "Attempting to define existing var ~A" name))
     (if (toplevelp)
-        (progn (setf value (%llvm:build-alloca *ir-builder* type name-str))
-               (when initializer
-                 (%llvm:build-store *ir-builder* (compile-sexp initializer) value)))
         (progn (setf value (%llvm:add-global *module* type name-str))
                (%llvm:set-linkage value :common)
                ;; TODO: Non-integer initializers
-               (%llvm:set-initializer value (%llvm:const-int type 0 0))))
+               (%llvm:set-initializer value (%llvm:const-int type 0 0)))
+        (progn (setf value (%llvm:build-alloca *ir-builder* type name-str))
+               (when initializer
+                 (%llvm:build-store *ir-builder* (compile-sexp initializer) value))))
     (setf (gethash name (env-table (first *scope*))) value)))
 
 (defun compile-definer (subenv &rest body)
