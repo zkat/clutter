@@ -5,10 +5,6 @@
 
 (defvar *module* (%llvm:module-create-with-name "root"))
 
-(defvar *compiler* (progn
-                     (%llvm:initialize-native-target)
-                     (llvm:create-jit-compiler-for-module *module* 2)))
-
 (defvar *functions* (make-hash-table :test 'eq))
 
 (defstruct env
@@ -34,7 +30,7 @@
                                                                      (mapcar #'%llvm:type-of
                                                                              (mapcar #'cdr values))))
                                            "heap-frame")))
-        ;; Replace uses of stack vars with struct members
+        ;; Replace stack vars with struct members
         (loop with index = -1
               for (key . value) in values
               for new-value = (llvm:build-gep builder new-frame (list (%llvm:const-int (%llvm:int32-type) 0 0)
@@ -58,13 +54,6 @@
         (if (cffi:null-pointer-p func)
             nil
             func))))
-
-(defun compile-and-eval (expr)
-  (if (and (listp expr) (eq (first expr) 'def))
-      (apply #'compile-definer (rest expr))
-      (let ((func (compile-sexp `(def fun nil () ,expr))))
-        (llvm:verify-module *module*)
-        (%llvm:generic-value-to-int (%llvm:run-function *compiler* func 0 (cffi:null-pointer)) nil))))
 
 (defun insert-bb-after (bb name &aux (new-bb (%llvm:append-basic-block (%llvm:get-basic-block-parent bb) name)))
   (%llvm:move-basic-block-after new-bb bb)
@@ -132,7 +121,6 @@
     ;; Check for errors (TODO: Informative error message)
     (when (%llvm:verify-function func :print-message)
       (error "Invalid function")))
-  (%llvm:recompile-and-relink-function *compiler* func)
   func)
 
 (defun compile-definer (subenv &rest body)
