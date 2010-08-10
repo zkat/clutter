@@ -47,6 +47,9 @@
 (defvar *scope* (list *global-env*)
   "Keeps track of the environments that will be visible when execution is at the insertion point compiled.")
 
+(defun toplevelp ()
+  (cdr *scope*))
+
 (defun insert-func (&aux (insert-block (%llvm:get-insert-block *ir-builder*)))
   (if (cffi:null-pointer-p insert-block)
       nil
@@ -130,7 +133,7 @@
 
            (let ((value)
                  (name-str (symbol-name name)))
-             (if (insert-func)
+             (if (toplevelp)
                  (progn (setf value (%llvm:build-alloca *ir-builder* (%llvm:int32-type) name-str))
                         (when initializer
                           (%llvm:build-store *ir-builder* (compile-sexp initializer) value)))
