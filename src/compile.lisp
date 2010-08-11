@@ -105,7 +105,6 @@
                                    (llvm:function-type (get-llvm-type type) (loop repeat (length args) collecting (%llvm:int32-type)))))
     (setf (gethash name *functions*) func))
   ;; Initialization
-  (%llvm:set-function-call-conv func :c)
   (setf (env-function env) func)
   (let ((entry (%llvm:append-basic-block func "entry"))
         (*scope* (cons env *scope*)))
@@ -145,6 +144,7 @@
                                   (llvm:function-type (get-llvm-type return-type)
                                                       (mapcar #'get-llvm-type (mapcar #'second args))))))
     (%llvm:set-linkage func :external)
+    (%llvm:set-function-call-conv func :c)
     (setf (gethash name *functions*) func)))
 
 (defun compile-var-decl (name-and-type &optional initializer)
