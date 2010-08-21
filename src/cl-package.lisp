@@ -3,5 +3,5 @@
 (cl:in-package "COMMON-LISP")
 
 (defpackage #:clutter
-  (:use #:cl)
+  (:use #:cl #:alexandria)
   (:shadow #:compile-file))

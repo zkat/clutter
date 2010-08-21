@@ -26,9 +26,8 @@
         (%llvm:position-builder builder bb (%llvm:get-first-instruction bb)))
       ;; Place env struct allocation
       (let ((new-frame (%llvm:build-malloc builder
-                                           (llvm:struct-type (mapcar #'%llvm:get-element-type
-                                                                     (mapcar #'%llvm:type-of
-                                                                             (mapcar #'cdr values))))
+                                           (llvm:struct-type (mapcar (compose #'%llvm:get-element-type #'%llvm:type-of #'cdr)
+                                                                     values))
                                            "heap-frame")))
         ;; Replace stack vars with struct members
         (loop with index = -1
@@ -142,7 +141,8 @@
       (error "Trying to bind existing function ~A" name)))
   (let ((func (%llvm:add-function *module* (symbol-name name)
                                   (llvm:function-type (get-llvm-type return-type)
-                                                      (mapcar #'get-llvm-type (mapcar #'second args))))))
+                                                      (mapcar (compose #'get-llvm-type #'second)
+                                                              args)))))
     (%llvm:set-linkage func :external)
     (%llvm:set-function-call-conv func :c)
     (setf (gethash name *functions*) func)))
