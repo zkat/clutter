@@ -162,37 +162,3 @@ stopped."
             and sum 1 into nr-elts
             until (>= right end)
             finally (return (values subseqs right))))))
-
-;;; Taken from Alexandria
-
-(defun ensure-function (function-designator)
-  "Returns the function designated by FUNCTION-DESIGNATOR:
-if FUNCTION-DESIGNATOR is a function, it is returned, otherwise
-it must be a function name and its FDEFINITION is returned."
-  (if (functionp function-designator)
-      function-designator
-      (fdefinition function-designator)))
-
-(defun make-gensym-list (length &optional (x "G"))
-  "Returns a list of LENGTH gensyms, each generated as if with a call to MAKE-GENSYM,
-using the second (optional, defaulting to \"G\") argument."
-  (let ((g (if (typep x '(integer 0)) x (string x))))
-    (loop repeat length
-          collect (gensym g))))
-
-(defun curry (function &rest arguments)
-  "Returns a function that applies ARGUMENTS and the arguments
-it is called with to FUNCTION."
-  (declare (optimize (speed 3) (safety 1) (debug 1)))
-  (let ((fn (ensure-function function)))
-    (lambda (&rest more)
-      (declare (dynamic-extent more))
-      ;; Using M-V-C we don't need to append the arguments.
-      (multiple-value-call fn (values-list arguments) (values-list more)))))
-
-(define-compiler-macro curry (function &rest arguments)
-  (let ((curries (make-gensym-list (length arguments) "CURRY")))
-    `(let ,(mapcar #'list curries arguments)
-       (declare (optimize (speed 3) (safety 1) (debug 1)))
-       (lambda (&rest more)
-         (apply ,function ,@curries more)))))
