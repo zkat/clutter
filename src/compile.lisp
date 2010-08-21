@@ -25,20 +25,20 @@
       (let ((bb (%llvm:get-first-basic-block (env-function env))))
         (%llvm:position-builder builder bb (%llvm:get-first-instruction bb)))
       ;; Place env struct allocation
-      (let ((new-frame (%llvm:build-malloc builder
-                                           (llvm:struct-type (mapcar (compose #'%llvm:get-element-type #'%llvm:type-of #'cdr)
-                                                                     values))
-                                           "heap-frame")))
-        ;; Replace stack vars with struct members
-        (loop with index = -1
-              for (key . value) in values
-              for new-value = (llvm:build-gep builder new-frame (list (%llvm:const-int (%llvm:int32-type) 0 0)
-                                                                      (%llvm:const-int (%llvm:int32-type) (incf index) 0))
-                                                                (%llvm:get-value-name value))
-              do (%llvm:replace-all-uses-with value new-value)
-                 (print (%llvm:get-value-name value))
-                 (%llvm:delete-instruction value)
-                 (setf (gethash key hash-table) new-value))))
+      (let ((frame-type (llvm:struct-type (mapcar (compose #'%llvm:get-element-type #'%llvm:type-of #'cdr)
+                                                  values))))
+        (%llvm:add-type-name *module* "heap-frame" frame-type)
+        (let ((new-frame (%llvm:build-malloc builder frame-type "heap-frame")))
+          ;; Replace stack vars with struct members
+          (loop with index = -1
+                for (key . value) in values
+                for new-value = (llvm:build-gep builder new-frame (list (%llvm:const-int (%llvm:int32-type) 0 0)
+                                                                        (%llvm:const-int (%llvm:int32-type) (incf index) 0))
+                                                                  (%llvm:get-value-name value))
+                do (%llvm:replace-all-uses-with value new-value)
+                   (print (%llvm:get-value-name value))
+                   (%llvm:delete-instruction value)
+                   (setf (gethash key hash-table) new-value)))))
     (setf (env-heap-p env) t)))
 
 (defvar *global-env* (make-env :heap-p t))
@@ -91,17 +91,15 @@
         when value
           do (return (%llvm:build-load *ir-builder* value (symbol-name name)))))
 
-(defun compile-function (name-and-type args &rest body &aux
+(defun compile-function (name args &rest body &aux
                          func
-                         (env (make-env))
-                         (name (first name-and-type))
-                         (type (second name-and-type)))
+                         (env (make-env)))
   ;; Get our function handle
   (let* ((fname (symbol-name name)))
     (unless (cffi:null-pointer-p (%llvm:get-named-function *module* fname))
       (error "Redefining function ~A" name))
     (setf func (%llvm:add-function *module* fname
-                                   (llvm:function-type (get-llvm-type type) (loop repeat (length args) collecting (%llvm:int32-type)))))
+                                   (llvm:function-type (%llvm:int32-type) (loop repeat (length args) collecting (%llvm:int32-type)))))
     (setf (gethash name *functions*) func))
   ;; Initialization
   (setf (env-function env) func)
@@ -118,9 +116,7 @@
              (%llvm:build-store *ir-builder* param alloca)
              (setf (gethash arg (env-table env)) alloca))
     ;; Compile function body and return instruction
-    (if (eq type 'void)
-        (mapc #'compile-sexp body)
-        (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body)))))
+    (%llvm:build-ret *ir-builder* (car (last (mapcar #'compile-sexp body))))
     ;; Check for errors (TODO: Informative error message)
     (when (%llvm:verify-function func :print-message)
       (error "Invalid function")))
@@ -147,11 +143,10 @@
     (%llvm:set-function-call-conv func :c)
     (setf (gethash name *functions*) func)))
 
-(defun compile-var-decl (name-and-type &optional initializer)
+(defun compile-var-decl (name &optional initializer)
   (let* ((value)
-         (name (car name-and-type))
          (name-str (symbol-name name))
-         (type (get-llvm-type (cdr name-and-type))))
+         (type (%llvm:int32-type)))
     (when (gethash name (env-table (car *scope*)))
       (error "Attempting to define existing var ~A" name))
     (if (toplevelp)
