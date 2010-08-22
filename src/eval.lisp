@@ -119,14 +119,14 @@
                                       (setf (lookup var :function) func)
                                       (error "~A is not a function." func))))
                       finally (return last-value)))
-         ("define-global-variable"
+         ("define-variable"
           (destructuring-bind (name value)
               argument-forms
             (unless (clutter-symbol-p name)
               (error "~A is not a valid variable name." name))
-            (bind name (evaluate value) :lexical :global t)
+            (bind name (evaluate value) :lexical)
             name))
-         ("define-global-function"
+         ("define-function"
           (destructuring-bind (name value)
               argument-forms
             (unless (clutter-symbol-p name)
@@ -134,14 +134,14 @@
             (let ((fn (evaluate value)))
               (unless (clutter-function-p fn)
                 (error "~A is not a function." fn))
-              (bind name (evaluate value) :function :global t))
+              (bind name (evaluate value) :function))
             name))
-         ("define-global-namespace"
+         ("define-namespace"
           (destructuring-bind (name)
               argument-forms
             (unless (clutter-symbol-p name)
               (error "~A is not a valid namespace name." name))
-            (bind name (make-namespace) :namespace :global t)
+            (bind name (make-namespace) :namespace)
             name))
          (t
           (if (listp operator)
