@@ -7,6 +7,11 @@
 
 (defvar *functions* (make-hash-table :test 'eq))
 
+(defvar *primitives* (make-hash-table :test 'eq))
+
+(defmacro defprimitive (name lambda-list &body body)
+  `(setf (gethash ',name *primitives*) #'(lambda ,lambda-list ,@body)))
+
 (defstruct env
   (heap-p nil)
   (closure-p nil)
@@ -61,7 +66,7 @@
   (%llvm:move-basic-block-after new-bb bb)
   new-bb)
 
-(defun compile-if (condition true-code false-code &aux return-value)
+(defprimitive |if| (condition true-code false-code &aux return-value)
   (let* ((true-block (insert-bb-after (%llvm:get-insert-block *ir-builder*) "if-true"))
          (false-block (insert-bb-after true-block "if-false"))
          (continue-block (insert-bb-after false-block "if-continue")))
@@ -159,7 +164,7 @@
                  (%llvm:build-store *ir-builder* (compile-sexp initializer) value))))
     (setf (gethash name (env-table (first *scope*))) value)))
 
-(defun compile-definer (subenv &rest body)
+(defprimitive |def| (subenv &rest body)
   (ecase subenv
     (|fun| (apply #'compile-function body))
     (|cfun| (apply #'compile-c-binding body))
@@ -168,25 +173,26 @@
 (defun compile-sexp (code)
   (cond
     ((listp code)
-     (case (first code)
-       (|def| (apply #'compile-definer (rest code)))
-       (|if| (apply #'compile-if (rest code)))
-       (= (destructuring-bind (a b) (rest code)
-            (%llvm:build-icmp *ir-builder* :eq (compile-sexp a) (compile-sexp b) "equality")))
-       (* (destructuring-bind (a b) (rest code)
-            (%llvm:build-mul *ir-builder* (compile-sexp a) (compile-sexp b) "product")))
-       (/ (destructuring-bind (a b) (rest code)
-            (%llvm:build-sdiv *ir-builder* (compile-sexp a) (compile-sexp b) "quotient")))
-       (- (destructuring-bind (a b) (rest code)
-            (%llvm:build-sub *ir-builder* (compile-sexp a) (compile-sexp b) "difference")))
-       (+ (destructuring-bind (a b) (rest code)
-            (%llvm:build-add *ir-builder* (compile-sexp a) (compile-sexp b) "sum")))
-       (t (llvm:build-call *ir-builder* (gethash (first code) *functions*) (mapcar #'compile-sexp (rest code)) "result"))))
+     (multiple-value-bind (primitive exists) (gethash (first code) *primitives*)
+       (if exists
+           (apply primitive (rest code))
+           (llvm:build-call *ir-builder* (gethash (first code) *functions*) (mapcar #'compile-sexp (rest code)) "result"))))
     ((symbolp code)
      (or (lookup-var code)
          (error "Undefined variable: ~A" code)))
     ((integerp code)
      (%llvm:const-int (%llvm:int32-type) code nil))))
+
+(defprimitive = (a b)
+  (%llvm:build-icmp *ir-builder* :eq (compile-sexp a) (compile-sexp b) "equality"))
+(defprimitive * (a b)
+  (%llvm:build-mul *ir-builder* (compile-sexp a) (compile-sexp b) "product"))
+(defprimitive / (a b)
+  (%llvm:build-sdiv *ir-builder* (compile-sexp a) (compile-sexp b) "quotient"))
+(defprimitive - (a b)
+  (%llvm:build-sub *ir-builder* (compile-sexp a) (compile-sexp b) "difference"))
+(defprimitive + (a b)
+  (%llvm:build-add *ir-builder* (compile-sexp a) (compile-sexp b) "sum"))
 
 (defun compile-file (file &optional (output *standard-output*) &aux
                      (*module* (%llvm:module-create-with-name file)))
