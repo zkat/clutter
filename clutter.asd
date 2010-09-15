@@ -9,4 +9,5 @@
             ((:file "cl-package")
              (:file "utilities")
              (:file "boehm-gc")
+             (:file "type")
              (:file "compile")))))
