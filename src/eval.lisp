@@ -20,7 +20,7 @@
         (true (pretreat (third expression) env))
         (false (pretreat (fourth expression) env)))
     (lambda ()
-      (if (funcall test)
+      (if (not (eq (funcall test) *false*))
           (funcall true)
           (funcall false)))))
 
