@@ -1,6 +1,7 @@
-(bind-lexical-variables (x "Hello"
-                         y "World")
-  (define-global-function hello-world (lambda () (print x) (print y))))
+(define-function hello-world
+  (bind-lexical-variables (x "Hello"
+                           y "World")
+    (lambda () (print x) (print y))))
 
 ((fun hello-world))
 
@@ -9,10 +10,12 @@
 
 (hello-world)
 
-(define-global-variable hello (quote Hello))
+(define-variable hello (quote Hello))
 
 (bind-lexical-variables (hello-var (lambda () (print "Call me any, any time.")))
   ((var hello-var)))
 
 (print hello)
 (print (quote World!))
+
+(quit)

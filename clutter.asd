@@ -13,5 +13,5 @@
              (:file "reader")
              (:file "functions")
              (:file "eval")
-             (:file "repl")
-             (:file "primitives")))))
+             (:file "primitives")
+             (:file "main")))))
