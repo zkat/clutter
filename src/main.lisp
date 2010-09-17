@@ -14,6 +14,9 @@
 
 #+sbcl
 (defun main ()
+  (defprimitive "http-get" (url)
+    (funcall (fdefinition (intern "HTTP-REQUEST" (find-package 'drakma)))
+             url))
   (defprimitive "quit" ()
     (return-from main))
   (if (cdr sb-ext:*posix-argv*)

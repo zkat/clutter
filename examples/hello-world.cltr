@@ -18,4 +18,10 @@
 (print hello)
 (print (quote World!))
 
+(print "Making GET request to http://clutter-lang.org")
+(bind-lexical-variables (response (http-get "http://clutter-lang.org"))
+  (print "Response length:")
+  (print (length response))
+  (print "Response:")
+  (print response))
 (quit)
