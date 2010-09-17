@@ -140,12 +140,12 @@
 
 (defun clutter-read-delimited-list (end-char stream)
   (loop ;; with list = ()
-     for char = (prin1 (peek-char t stream nil nil))
+     for char = (peek-char t stream nil nil)
      if (char= end-char char)
      do (progn (read-char stream nil nil)
-               (return-from clutter-read-delimited-list (nreverse list)))
+               (return-from clutter-read-delimited-list list))
      else unless (whitespacep char)
-     collect (prin1 (clutter-read stream)) into list))
+     collect (clutter-read stream) into list))
 
 (set-clutter-reader-macro-function #\( (lambda (stream char)
                                          (declare (ignore char))
