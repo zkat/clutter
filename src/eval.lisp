@@ -203,6 +203,10 @@
             (pretreat/application expression env)
             (funcall (find-pretreater operator) expression env)))))
 
+(defun evaluate (form)
+  (let ((pre-treated (pretreat form nil)))
+    (funcall pre-treated)))
+
 (defun eval-do (forms)
   "`Evaluate' each of FORMS in the environments ENV and FENV"
   (when forms
@@ -218,7 +222,7 @@
               else
               collect `(,symbol-name ,@condition-body))))
 
-(defun evaluate (form)
+(defun evaluate/old (form)
   (typecase form
 
     ;; Variable lookup or symbol macro (the latter is unimplemented)
