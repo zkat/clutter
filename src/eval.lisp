@@ -134,7 +134,7 @@
             (let ((fn (evaluate value)))
               (unless (clutter-function-p fn)
                 (error "~A is not a function." fn))
-              (bind name (evaluate value) :function))
+              (bind name fn :function))
             name))
          ("define-namespace"
           (destructuring-bind (name)
