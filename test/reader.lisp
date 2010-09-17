@@ -41,7 +41,7 @@
 
 ;; TODO - These need a lot more testing, specially for hierarchical stuff.
 (test find-namespace
-  (is (namespacep (find-namespace nil)))
+  (is (namespacep (find-namespace "keyword")))
   (let ((ns (ensure-namespace "test")))
     (is (eq ns (find-namespace "test")))
     (is (namespacep (find-namespace "test")))))
