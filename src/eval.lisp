@@ -56,10 +56,12 @@
                 (error "Not a function: " (car expression))))))))
 
 (defun pretreat/symbol (expression env)
+  (declare (ignore env))
   (lambda ()
     (lookup expression :lexical)))
 
 (defun pretreat/function-ref (name env)
+  (declare (ignore env))
   (lambda ()
     (lookup name :function)))
 
