@@ -166,7 +166,7 @@
      while char
      do (if (terminating-macro-char-p char)
             (if collecting-token
-                (progn (unread-char char)
+                (progn (unread-char char stream)
                        (return token))
                 (let ((result (multiple-value-list
                                (funcall (reader-macro-function char) stream char))))
