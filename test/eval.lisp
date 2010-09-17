@@ -83,9 +83,8 @@
   (is (= 1 (eval-clutter-code "(bind-lexical-functions (x (lambda () 1)) (bind-lexical-functions (x (lambda () 2)) (set-lexical-functions x (lambda () 3))) (x))"))))
 
 ;; TODO ... sigh
-(test evaluate/define-global-variable)
-(test evaluate/define-global-function)
-(test evaluate/define-global-namespace)
+(test evaluate/define-variable)
+(test evaluate/define-function)
 
 (test evaluate/function-call
   (is (= 3 (eval-clutter-code "(+ 1 2)"))))
