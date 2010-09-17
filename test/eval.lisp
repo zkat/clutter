@@ -88,3 +88,9 @@
 
 (test evaluate/function-call
   (is (= 3 (eval-clutter-code "(+ 1 2)"))))
+
+(test evaluate/recursion
+  (eval-clutter-code "(define-function factorial (lambda (n) (if (=? n 0) 1 (* n (factorial (- n 1))))))")
+  (is (= 120 (eval-clutter-code "(factorial 5)")))
+  (eval-clutter-code "(define-function fib (lambda (n) (if (<? n 2) n (+ (fib (- n 1)) (fib (- n 2))))))")
+  (is (= 55 (eval-clutter-code "(fib 10)"))))
