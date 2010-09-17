@@ -145,8 +145,12 @@
          finally (return last-value)))))
 
 (defun pretreat/lambda (expression env)
-  ;; TODO
-  )
+  (destructuring-bind ((&rest args) &body body)
+      (cdr expression)
+    (assert (every #'clutter-symbol-p args))
+    (let ((pre-body (pretreat/multi-do body env)))
+      (lambda ()
+        (make-function args pre-body)))))
 
 (defparameter *pretreaters*
   `(("quote" . ,#'pretreat/quote)

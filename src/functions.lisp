@@ -31,7 +31,7 @@
                (with-frame new-frame
                  (loop for var in variables for value in values do
                    (bind var value :lexical))
-                 (eval-do body)))))
+                 (funcall body)))))
 
 (defun invoke (function args)
   (if (clutter-function-p function)
