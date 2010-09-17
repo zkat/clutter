@@ -106,12 +106,43 @@
          finally (return last-value)))))
 
 (defun pretreat/bind-lexical-functions (expression env)
-  ;; TODO
-  )
+  (destructuring-bind (vars-and-values &body body)
+      (cdr expression)
+    (let ((pre-vars (loop for var in vars-and-values by #'cddr collect var))
+          (pre-vals (loop for val in (cdr vars-and-values) by #'cddr
+                       collect (pretreat val env)))
+          (pre-body (pretreat/multi-do body env)))
+      (lambda ()
+        (let ((new-frame (make-stack-frame "lexical function binding block" (current-scope))))
+          (with-frame new-frame
+            (loop for var in pre-vars
+               for val in pre-vals
+               do (bind var (let ((function (funcall val)))
+                              (if (clutter-function-p function)
+                                  function
+                                  (error "~A is not a function." function)))
+                        :function))
+            (funcall pre-body)))))))
 
-(defun pretreat/set-lexical-functions (expression env)
-  ;; TODO
-  )
+(defun pretreat/set-lexical-functions (expression env
+                                       &aux (vars-and-values (cdr expression)))
+  (let ((pre-vars (loop for var in vars-and-values by #'cddr
+                     collect (prog1 var
+                               (unless (clutter-symbol-p var)
+                                 (error "~A is not a valid function name." var)))))
+        (pre-vals (loop for val in (cdr vars-and-values) by #'cddr
+                     collect (pretreat val env))))
+    (lambda ()
+      (loop for var in pre-vars
+         for val in pre-vals
+         for last-value = (progn
+                            (unless (lookup var :function)
+                              (error "~A is not a lexically visible function." var))
+                            (let ((function (funcall val)))
+                              (if (clutter-function-p function)
+                                  (setf (lookup var :function) function)
+                                  (error "~A is not a function." function))))
+         finally (return last-value)))))
 
 (defun pretreat/lambda (expression env)
   ;; TODO
