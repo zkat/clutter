@@ -12,7 +12,8 @@
   (functions (make-hash-table :test 'eq))
   (lexicals (make-hash-table :test 'eq))
   (dynamics (make-hash-table :test 'eq))
-  (namespaces (make-hash-table :test 'eq)))
+  (namespaces (make-hash-table :test 'eq))
+  (blocks (make-hash-table :test 'eq)))
 
 (defmethod print-object ((o stack-frame) s)
   (print-unreadable-object (o s :type t :identity t)
@@ -61,6 +62,7 @@
             (:lexical 'stack-frame-lexicals)
             (:dynamic 'stack-frame-dynamics)
             (:namespace 'stack-frame-namespaces)
+            (:block 'stack-frame-blocks)
             (t (error "Not an environment: ~S" env)))
           (current-scope)))
 

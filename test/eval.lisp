@@ -86,6 +86,11 @@
 (test evaluate/define-variable)
 (test evaluate/define-function)
 
+(test evaluate/block/return-from
+  (is (= 2 (eval-clutter-code "(block x (return-from x 2) 1)")))
+  (is (= 2 (eval-clutter-code "(block x (+ 1 (block x (return-from x 1))))")))
+  (is (= 1 (eval-clutter-code "(block x (+ 1 (block y (return-from x 1))))"))))
+
 (test evaluate/function-call
   (is (= 3 (eval-clutter-code "(+ 1 2)"))))
 
