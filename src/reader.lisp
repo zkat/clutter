@@ -147,6 +147,23 @@
      else unless (whitespacep char)
      collect (clutter-read stream) into list))
 
+;;; Taken from SICL
+(defparameter *single-escape* #\\)
+(defun clutter-read-string (end-char stream)
+  (loop
+     with result = (make-array 0 :element-type 'character :adjustable t :fill-pointer t)
+     for new-char = (read-char stream nil nil)
+     until (eql new-char end-char)
+     do (cond ((null new-char)
+               (error 'end-of-file :stream stream))
+              ((eql new-char *single-escape*)
+               (let ((next-char (read-char stream nil nil)))
+                 (when (null next-char)
+                   (error 'end-of-file :stream stream))
+                 (vector-push-extend next-char result)))
+              (t (vector-push-extend new-char result)))
+     finally (return (copy-seq result))))
+
 (set-clutter-reader-macro-function #\( (lambda (stream char)
                                          (declare (ignore char))
                                          (clutter-read-delimited-list #\) stream)))
@@ -157,7 +174,9 @@
 (set-clutter-reader-macro-function #\) (lambda (stream char)
                                          (declare (ignore stream char))
                                          (error "Unmatched #\).")))
-
+(set-clutter-reader-macro-function #\" (lambda (stream char)
+                                         (declare (ignore char))
+                                         (clutter-read-string #\" stream)))
 
 (defun read-token (stream)
   (loop with token = (make-array 8 :adjustable t :fill-pointer 0 :element-type 'character)
