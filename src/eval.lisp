@@ -55,6 +55,10 @@
                 (invoke func (mapcar #'funcall pretreated-args))
                 (error "Not a function: " (car expression))))))))
 
+(defun pretreat/symbol (expression env)
+  (lambda ()
+    (lookup expression :lexical)))
+
 (defun pretreat/function-ref (name env)
   (lambda ()
     (lookup name :function)))
@@ -64,12 +68,36 @@
     (pretreat/function-ref var env)))
 
 (defun pretreat/bind-lexical-variables (expression env)
-  ;; TODO
-  )
+  (destructuring-bind (vars-and-values &body body)
+      (cdr expression)
+    (let ((pre-vars (loop for var in vars-and-values by #'cddr collect var))
+          (pre-vals (loop for val in (cdr vars-and-values) by #'cddr
+                       collect (pretreat val env)))
+          (pre-body (pretreat/multi-do body env)))
+      (lambda ()
+        (let ((new-frame (make-stack-frame "lexical binding block" (current-scope))))
+          (with-frame new-frame
+            (loop for var in pre-vars
+               for val in pre-vals
+               do (bind var (funcall val) :lexical))
+            (funcall pre-body)))))))
 
-(defun pretreat/set-lexical-variables (expression env)
-  ;; TODO
-  )
+(defun pretreat/set-lexical-variables (expression env
+                                       &aux (vars-and-values (cdr expression)))
+  (let ((pre-vars (loop for var in vars-and-values by #'cddr
+                     collect (prog1 var
+                               (unless (clutter-symbol-p var)
+                                 (error "~A is not a valid variable name." var)))))
+        (pre-vals (loop for val in (cdr vars-and-values) by #'cddr
+                     collect (pretreat val env))))
+    (lambda ()
+      (loop for var in pre-vars
+         for val in pre-vals
+         for last-value = (progn
+                            (unless (lookup var :lexical)
+                              (error "~A is not a lexically visible variable." var))
+                            (setf (lookup var :lexical) (funcall val)))
+         finally (return last-value)))))
 
 (defun pretreat/var (expression env)
   ;; TODO
@@ -103,10 +131,6 @@
   (assert (clutter-symbol-p operator))
   (or (cdr (assoc (clutter-symbol-name operator) *pretreaters* :test #'equal))
       #'pretreat/application))
-
-(defun pretreat/symbol (expression env)
-  ;; TODO
-  )
 
 (defun pretreat (expression env)
   (if (atom expression)
