@@ -174,6 +174,30 @@
           (bind name function :function)
           name)))))
 
+(defstruct (clutter-block (:constructor make-clutter-block (exit))) exit)
+(defun pretreat/block (expression env)
+  (destructuring-bind (name &rest body)
+      (cdr expression)
+    (assert (clutter-symbol-p name) () "~A is not a valid block name." name)
+    (let ((pre-body (pretreat/multi-do body env)))
+      (lambda ()
+        (block nil
+          (let ((new-frame (make-stack-frame "lexical block" (current-scope)))
+                (block (make-clutter-block (lambda (x) (return x)))))
+            (with-frame new-frame
+              (bind name block :block)
+              (funcall pre-body))))))))
+
+(defun pretreat/return-from (expression env)
+  (destructuring-bind (name &optional (form nil formp))
+      (cdr expression)
+    (assert (clutter-symbol-p name) () "~A is not a valid block name." name)
+    (let ((pre-form (when formp (pretreat form env))))
+      (lambda ()
+        (funcall (clutter-block-exit (lookup name :block))
+                 (when pre-form (funcall pre-form)))))))
+
+
 (defparameter *pretreaters*
   `(("quote" . ,#'pretreat/quote)
     ("if" . ,#'pretreat/if)
@@ -186,7 +210,9 @@
     ("fun" . ,#'pretreat/fun)
     ("lambda" . ,#'pretreat/lambda)
     ("define-variable" . ,#'pretreat/define-variable)
-    ("define-function" . ,#'pretreat/define-function)))
+    ("define-function" . ,#'pretreat/define-function)
+    ("block" . ,#'pretreat/block)
+    ("return-from" . ,#'pretreat/return-from)))
 
 (defun find-pretreater (operator)
   (assert (clutter-symbol-p operator))
