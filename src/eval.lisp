@@ -152,6 +152,26 @@
       (lambda ()
         (make-function args pre-body)))))
 
+(defun pretreat/define-variable (expression env)
+  (destructuring-bind (name value)
+      (cdr expression)
+    (assert (clutter-symbol-p name) () "~A is not a valid variable name." name)
+    (let ((pre-value (pretreat value env)))
+      (lambda ()
+        (bind name (funcall pre-value) :lexical)
+        name))))
+
+(defun pretreat/define-function (expression env)
+  (destructuring-bind (name value)
+      (cdr expression)
+    (assert (clutter-symbol-p name) () "~A is not a valid function name." name)
+    (let ((pre-value (pretreat value env)))
+      (lambda ()
+        (let ((function (funcall pre-value)))
+          (assert (clutter-function-p function) () "~A is not a valid function." function)
+          (bind name function :function)
+          name)))))
+
 (defparameter *pretreaters*
   `(("quote" . ,#'pretreat/quote)
     ("if" . ,#'pretreat/if)
@@ -162,7 +182,9 @@
     ("bind-lexical-functions" . ,#'pretreat/bind-lexical-functions)
     ("set-lexical-functions" . ,#'pretreat/set-lexical-functions)
     ("fun" . ,#'pretreat/fun)
-    ("lambda" . ,#'pretreat/lambda)))
+    ("lambda" . ,#'pretreat/lambda)
+    ("define-variable" . ,#'pretreat/define-variable)
+    ("define-function" . ,#'pretreat/define-function)))
 
 (defun find-pretreater (operator)
   (assert (clutter-symbol-p operator))
