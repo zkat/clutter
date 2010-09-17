@@ -178,7 +178,7 @@
         (unless (or (clutter-symbol-p operator) (listp operator))
           (error "~A is not a valid operator." operator))
         (if (listp operator)
-            (pretreat operator env)
+            (pretreat/application expression env)
             (funcall (find-pretreater operator) expression env)))))
 
 (defun eval-do (forms)
