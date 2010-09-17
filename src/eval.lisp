@@ -60,6 +60,10 @@
   (lambda ()
     (lookup expression :lexical)))
 
+(defun pretreat/var (expression env)
+  (let ((var (cadr expression)))
+    (pretreat/symbol var env)))
+
 (defun pretreat/function-ref (name env)
   (declare (ignore env))
   (lambda ()
@@ -100,10 +104,6 @@
                               (error "~A is not a lexically visible variable." var))
                             (setf (lookup var :lexical) (funcall val)))
          finally (return last-value)))))
-
-(defun pretreat/var (expression env)
-  ;; TODO
-  )
 
 (defun pretreat/bind-lexical-functions (expression env)
   ;; TODO
