@@ -338,3 +338,7 @@
     (if donep
         token
         (parse-token token))))
+
+(defun clutter-read-from-string (string)
+  (with-input-from-string (s string)
+    (clutter-read s)))

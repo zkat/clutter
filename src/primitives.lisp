@@ -10,7 +10,7 @@
 (defparameter *false* (clutter-intern "f"))
 
 (defun define-initially (clutter-symbol-name value)
-  (push-initial-binding (clutter-intern clutter-symbol-name) value))
+  (push-initial-binding (clutter-read-from-string clutter-symbol-name) value))
 (define-initially "t" *true*)
 (define-initially "f" *false*)
 (define-initially "nil" nil)
