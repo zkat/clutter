@@ -84,8 +84,8 @@
         (let ((new-frame (make-stack-frame "lexical binding block" (current-scope))))
           (with-frame new-frame
             (loop for var in pre-vars
-               for val in pre-vals
-               do (bind var (funcall val) :lexical))
+               for val in (mapcar #'funcall pre-vals)
+               do (bind var val :lexical))
             (funcall pre-body)))))))
 
 (defun pretreat/set-lexical-variables (expression env
@@ -116,11 +116,10 @@
         (let ((new-frame (make-stack-frame "lexical function binding block" (current-scope))))
           (with-frame new-frame
             (loop for var in pre-vars
-               for val in pre-vals
-               do (bind var (let ((function (funcall val)))
-                              (if (clutter-function-p function)
-                                  function
-                                  (error "~A is not a function." function)))
+               for val in (mapcar #'funcall pre-vals)
+               do (bind var (if (clutter-function-p val)
+                                val
+                                (error "~A is not a function." val))
                         :function))
             (funcall pre-body)))))))
 
