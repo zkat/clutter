@@ -9,7 +9,7 @@
 ;;;
 (test find-clutter-symbol
   (let* ((ns (make-namespace))
-         (symbol (add-clutter-symbol (make-clutter-symbol :name "test" :namespace ns))))
+         (symbol (add-clutter-symbol (make-clutter-symbol :name "test" :namespace ns) ns)))
     (is (eq symbol (find-clutter-symbol "test" ns)))))
 
 (test add-clutter-symbol
