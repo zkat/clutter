@@ -14,13 +14,13 @@
 
 (test add-clutter-symbol
   (let* ((ns (make-namespace))
-         (symbol (add-clutter-symbol (make-clutter-symbol :name "test" :namespace ns))))
+         (symbol (add-clutter-symbol (make-clutter-symbol :name "test" :namespace ns) ns)))
     (is (clutter-symbol-p symbol))
     (is (eq symbol (find-clutter-symbol "test" ns)))))
 
 (test remove-clutter-symbol
   (let* ((ns (make-namespace))
-         (symbol (add-clutter-symbol (make-clutter-symbol :name "test" :namespace ns))))
+         (symbol (add-clutter-symbol (make-clutter-symbol :name "test" :namespace ns) ns)))
     (is (clutter-symbol-p symbol))
     (is (clutter-symbol-p (remove-clutter-symbol symbol ns)))
     (is (null (find-clutter-symbol "test" ns)))))
