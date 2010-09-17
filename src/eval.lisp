@@ -6,6 +6,116 @@
 ;;; Evaluator
 ;;;
 
+(defun pretreat/literal (expression env)
+  (declare (ignore env))
+  (lambda () expression))
+
+(defun pretreat/quote (expression env)
+  (assert (= 2 (length expression)))
+  (pretreat/literal (cadr expression) env))
+
+(defun pretreat/if (expression env)
+  (assert (= 4 (length expression)))
+  (let ((test (pretreat (second expression) env))
+        (true (pretreat (third expression) env))
+        (false (pretreat (fourth expression) env)))
+    (lambda ()
+      (if (funcall test)
+          (funcall true)
+          (funcall false)))))
+
+(defun pretreat/do (expression env)
+  (if (null (cdr expression))
+      (error "Illegal syntax: (do)")
+      (if (null (cddr expression))
+          (pretreat/single-do (second expression) env)
+          (pretreat/multi-do (cdr expression) env))))
+
+(defun pretreat/single-do (expression env)
+  (pretreat expression env))
+
+(defun pretreat/multi-do (expressions env)
+  (let ((pretreated-expressions (mapcar (rcurry #'pretreat env) expressions)))
+    (lambda ()
+      (loop for exp in pretreated-expressions
+         for val = (funcall exp)
+         finally (return val)))))
+
+(defun pretreat/application (expression env)
+  (if (atom (car expression))
+      (let ((pretreated-func (pretreat/function-ref (car expression) env))
+            (pretreated-args (mapcar (rcurry #'pretreat env) (cdr expression))))
+        (lambda ()
+          (invoke (funcall pretreated-func) (mapcar #'funcall pretreated-args))))
+      (let ((func-expression (pretreat (car expression) env))
+            (pretreated-args (mapcar (rcurry #'pretreat env) (cdr expression))))
+        (lambda ()
+          (let ((func (funcall func-expression)))
+            (if (clutter-function-p func)
+                (invoke func (mapcar #'funcall pretreated-args))
+                (error "Not a function: " (car expression))))))))
+
+(defun pretreat/function-ref (name env)
+  (lambda ()
+    (lookup name :function)))
+
+(defun pretreat/fun (expression env)
+  (let ((var (cadr expression)))
+    (pretreat/function-ref var env)))
+
+(defun pretreat/bind-lexical-variables (expression env)
+  ;; TODO
+  )
+
+(defun pretreat/set-lexical-variables (expression env)
+  ;; TODO
+  )
+
+(defun pretreat/var (expression env)
+  ;; TODO
+  )
+
+(defun pretreat/bind-lexical-functions (expression env)
+  ;; TODO
+  )
+
+(defun pretreat/set-lexical-functions (expression env)
+  ;; TODO
+  )
+
+(defun pretreat/lambda (expression env)
+  ;; TODO
+  )
+
+(defparameter *pretreaters*
+  `(("quote" . ,#'pretreat/quote)
+    ("if" . ,#'pretreat/if)
+    ("do" . ,#'pretreat/do)
+    ("bind-lexical-variables" . ,#'pretreat/bind-lexical-variables)
+    #+nil("set-lexical-variables" . ,#'pretreat/set-lexical-variables)
+    #+nil("var" . ,#'pretreat/var)
+    #+nil("bind-lexical-functions" . ,#'pretreat/bind-lexical-functions)
+    #+nil("set-lexical-functions" . ,#'pretreat/set-lexical-functions)
+    ("fun" . ,#'pretreat/fun)
+    #+nil("lambda" . ,#'pretreat/lambda)))
+
+(defun find-pretreater (operator)
+  (assert (clutter-symbol-p operator))
+  (or (cdr (assoc (clutter-symbol-name operator) *pretreaters* :test #'equal))
+      #'pretreat/application))
+
+(defun pretreat (expression env)
+  (if (atom expression)
+      (if (clutter-symbol-p expression)
+          (pretreat/symbol expression env)
+          (pretreat/literal expression env))
+      (destructuring-bind (operator &rest args) expression
+        (unless (or (clutter-symbol-p operator) (listp operator))
+          (error "~A is not a valid operator." operator))
+        (if (listp operator)
+            (pretreat operator env)
+            (funcall (find-pretreater operator) expression env)))))
+
 (defun eval-do (forms)
   "`Evaluate' each of FORMS in the environments ENV and FENV"
   (when forms
