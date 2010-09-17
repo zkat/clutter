@@ -88,6 +88,8 @@
           (get-or-bind-namespace name super-namespace))
       *namespace*))
 
+(ensure-namespace "keyword")
+
 ;;;
 ;;; Reader
 ;;;
