@@ -140,7 +140,7 @@
 
 (defun clutter-read-delimited-list (end-char stream)
   (loop ;; with list = ()
-     for char = (peek-char t stream nil nil)
+     for char = (peek-char t stream)
      if (char= end-char char)
      do (progn (read-char stream nil nil)
                (return-from clutter-read-delimited-list list))

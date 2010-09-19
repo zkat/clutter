@@ -78,10 +78,16 @@
 
 (test set-clutter-reader-macro-function)
 (test clutter-read-delimited-list
-  (with-input-from-string (s "1 2 3 4]")
-    (is (equal '(1 2 3 4) (clutter-read-delimited-list #\] s))))
   (with-input-from-string (s "1 2 3 4)")
-    (is (equal '(1 2 3 4) (clutter-read-delimited-list #\) s)))))
+    (is (equal '(1 2 3 4) (clutter-read-delimited-list #\) s))))
+  ;; FIXME: This fails because CLUTTER-READ uses *terminating-macro-characters*.
+  ;;        When proper reader macros are defined (such as for #\)), *t-m-c* actually
+  ;;        contains the end-char for READ-DELIMITED-LIST, which is why the above example
+  ;;        succeeds. When it is not formally defined, though, CLUTTER-READ chokes, as with
+  ;;        the test case below.
+  (with-input-from-string (s "1 2 3 4]")
+    (is (equal '(1 2 3 4) (clutter-read-delimited-list #\] s)))))
+
 
 (test reader-macro-function/open-paren
   (with-input-from-string (s "(1 2 3)")
