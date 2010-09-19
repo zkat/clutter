@@ -165,11 +165,12 @@
   (is (eq (parse-symbol-token ":foo") (evaluate (parse-symbol-token ":foo")))))
 
 (test parse-symbol-token/qualified-symbol
-  (signals error (parse-symbol-token "foo:bar")) ; it should be an error if namespace foo doesn't exist
   (ensure-namespace "foo")
   (let ((symbol (parse-symbol-token "foo:bar")))
     (is (clutter-symbol-p symbol))
-    (is (eq (find-namespace "foo") (clutter-symbol-namespace symbol)))))
+    (is (eq (find-namespace "foo") (clutter-symbol-namespace symbol))))
+  ;; it should be an error if namespace foo doesn't exist
+  (signals error (parse-symbol-token "foo:bar")))
 
 (test clutter-read
   (with-input-from-string (*standard-input* "foo")
