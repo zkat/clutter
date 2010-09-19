@@ -56,7 +56,7 @@
           (let ((func (funcall func-expression)))
             (if (clutter-function-p func)
                 (invoke func (mapcar #'funcall pretreated-args))
-                (error "Not a function: " (car expression))))))))
+                (error "Not a function: ~A" (car expression))))))))
 
 (defun pretreat/symbol (expression env)
   (declare (ignore env))
