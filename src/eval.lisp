@@ -26,10 +26,8 @@
 
 (defun pretreat/do (expression env)
   (if (null (cdr expression))
-      (error "Illegal syntax: (do)")
-      (if (null (cddr expression))
-          (pretreat/single-do (second expression) env)
-          (pretreat/multi-do (cdr expression) env))))
+      (pretreat/single-do (second expression) env)
+      (pretreat/multi-do (cdr expression) env)))
 
 (defun pretreat/single-do (expression env)
   (pretreat expression env))
