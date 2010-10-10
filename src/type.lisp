@@ -4,30 +4,44 @@
 
 (defstruct basic-type name)
 
+(defvar +clutter-base-type-bottom+ (make-basic-type :name "⊥"))
+(defvar +clutter-base-type-number+ (make-basic-type :name "number"))
+(defvar +clutter-base-type-bool+ (make-basic-type :name "bool"))
+(defvar +clutter-base-type-char+ (make-basic-type :name "char"))
+
 (defun atom-type (atom env)
   (cond
-    ((or (eq atom 't) (eq atom 'f)) (make-basic-type :name "bool"))
-    ((numberp atom) (make-basic-type :name "number"))
+    ((or (eq atom 't) (eq atom 'f)) +clutter-base-type-bool+)
+    ((numberp atom) +clutter-base-type-number+)
+    ((characterp atom) +clutter-base-type-char+)
     (t
-     (get-variable-type atom env))))
+     (lookup-type atom env :variable))))
 
-(defun variable-env (env)
-  (car env))
+(defstruct (type-stack (:constructor make-type-stack ()))
+  (variables (make-hash-table :test 'eq))
+  (functions (make-hash-table :test 'eq))
+  (types (make-hash-table :test 'eq)))
 
-(defun function-env (env)
-  (cdr env))
+(defun make-empty-type-env ()
+  (list (make-type-stack)))
 
-(defun extend-variable-env (env extension)
-  (cons (cons extension (car env)) (cdr env)))
+(defun extend-type-env (env)
+  (cons (make-type-stack) env))
 
-(defun extend-function-env (env extension)
-  (cons (car env) (cons extension (cdr env))))
+(defun get-type-env (env env-type)
+  (mapcar (case env-type
+            (:function 'type-stack-functions)
+            (:variable 'type-stack-variables)
+            (:type 'stack-frame-types)
+            (t (error "Not an type environment: ~S" env-type)))
+          env))
 
-(defun get-variable-type (var env)
-  (cdr (assoc var (variable-env env))))
+(defun lookup-type (symbol env env-type)
+  (or (some (lambda (table) (gethash symbol table)) (get-type-env env env-type))
+      (error "No such ~A binding: ~S" (string-downcase (symbol-name env)) symbol)))
 
-(defun get-function-type (fn env)
-  (cdr (assoc fn (function-env env))))
+(defun bind-type (symbol type env env-type)
+  (setf (gethash symbol (first (get-type-env env env-type))) type))
 
 (defstruct (type-constructor (:conc-name tc-))
   name
@@ -36,38 +50,20 @@
 (defun tc-length (tc)
   (length (tc-types tc)))
 
-(defun make-fn-type (from to)
-  (make-type-constructor :name "function" :types (list from to)))
+(defun make-simple-fn-type (list)
+  (make-type-constructor :name "function" :types list))
 
-(defun make-multiargument-fn-type (list)
-  (if (null (cdr list))
-      (car list)
-      (make-fn-type (car list) (make-multiargument-fn-type (cdr list)))))
+(defun make-fn-type (args return)
+  (make-simple-fn-type (append args (list return))))
 
 (defun fn-type-p (fn-type)
   (and (type-constructor-p fn-type) (eq (tc-name fn-type) "function")))
 
-(defun fn-type-arg (fn-type)
-  (car (tc-types fn-type)))
+(defun fn-type-args (fn-type)
+  (butlast (tc-types fn-type)))
 
 (defun fn-type-return (fn-type)
-  (cadr (tc-types fn-type)))
-
-(defun fn-type-all-args (fn-type)
-  (butlast (fn-type-all-types fn-type)))
-
-(defun fn-type-final-return (fn-type)
-  (car (last (fn-type-all-types fn-type))))
-
-(defun fn-type-all-types (fn-type)
-  (if (eq (tc-name fn-type) "function")
-      (let ((arg (fn-type-arg fn-type))
-            (return (fn-type-return fn-type)))
-        (cons arg
-              (if (fn-type-p return)
-                  (fn-type-all-types return)
-                  (cons return '()))))
-      (error "~S is not a function types" fn-type)))
+  (car (last (tc-types fn-type))))
 
 (defun make-type-variable ()
   (gensym "TYPE-VARIABLE"))
@@ -94,6 +90,28 @@
             (car form)
             (mapcar (lambda (item) (substitute-type-variables item substs)) (car form))))))
 
+(defun substitute-type-variable (var subst constraints)
+  (mapcar #'(lambda (constraint)
+              (cond
+                ((eq var (car constraint)) (cons subst (cdr constraint)))
+                ((eq var (cdr constraint)) (cons (car constraint) subst))
+                ((type-constructor-p (cdr constraint))
+                 (cons (car constraint) (substitute-tc-variables var subst (cdr constraint))))
+                ((type-constructor-p (car constraint))
+                 (cons (substitute-tc-variables var subst (car constraint)) (cdr constraint)))
+                (t constraint)))
+          constraints))
+
+(defun substitute-tc-variables (var subst tc)
+  (let ((name (tc-name tc))
+        (args (tc-types tc)))
+    (make-type-constructor
+     :name name
+     :types (mapcar #'(lambda (arg) (if (eql var arg)
+                                        subst
+                                        arg))
+                    args))))
+
 (defun make-constraints (form env &optional function)
   (let ((actual-form (car form))
         (var (cdr form)))
@@ -105,7 +123,7 @@
           (if
            (make-if-constraints var actual-form env))
           (lambda
-              (make-lambda-constraints var actual-form env))
+           (make-lambda-constraints var actual-form env))
           (fun
            (make-env-constraints var actual-form env 't))
           (var
@@ -119,7 +137,7 @@
 
 (defun make-atom-constraints (var atom env &optional function)
   (list (cons var (if function
-                      (get-function-type atom env)
+                      (lookup-type atom env :function)
                       (atom-type atom env)))))
 
 (defun make-do-constraints (var form env)
@@ -144,12 +162,14 @@
 
 (defun make-lambda-constraints (var form env)
   (let* ((arg-vars (mapcar #'cdr (car (second form))))
-         (new-env (reduce #'(lambda (env new) (extend-variable-env env new)) (car (second form)) :initial-value env))
+         (new-env (let ((frame (extend-type-env env)))
+                    (mapc #'(lambda (new) (bind-type (car new) (cdr new) frame :variable)) (car (second form)))
+                    frame))
          (body-var (cdr (third form)))
          (body-constraints (make-constraints (third form) new-env)))
     (append
      (list
-      (cons var (make-multiargument-fn-type (append arg-vars (list body-var)))))
+      (cons var (make-simple-fn-type (append arg-vars (list body-var)))))
      body-constraints)))
 
 (defun make-env-constraints (var form env &optional function)
@@ -171,10 +191,9 @@
          (value-computed-constraints (mappend #'(lambda (item) (make-constraints item env)) value-constraints))
          (envs (mapcar #'(lambda (name constraint) (cons name (cdr constraint))) names
                        (remove-if-not #'(lambda (item) (member (car item) value-vars)) value-computed-constraints)))
-         (new-env (reduce #'(lambda (env new) (if function
-                                                  (extend-function-env env new)
-                                                  (extend-variable-env env new)))
-                          envs :initial-value env))
+         (new-env (let ((frame (extend-type-env env)))
+                    (mapc #'(lambda (new) (bind-type (car new) (cdr new) frame (if function :function :variable))) envs)
+                    frame))
          (body-var (make-type-variable))
          (body (cddr form))
          (body-with-do (cons (cons (cons 'do (make-type-variable)) body) body-var))
@@ -195,8 +214,8 @@
          (function-type (cdr (assoc function-var function-constraints))))
     (append
      (list
-      (cons function-var (make-multiargument-fn-type (append arg-vars (list (make-type-variable)))))
-      (cons var (fn-type-final-return function-type)))
+      (cons function-var (make-simple-fn-type (append arg-vars (list (make-type-variable)))))
+      (cons var (fn-type-return function-type)))
      function-constraints
      arg-constraints)))
 
@@ -226,25 +245,11 @@
                      (t (error "Can't unify ~S ~S" left right)))))))
     (unify-h constraints '())))
 
-(defun substitute-type-variable (var subst constraints)
-  (mapcar #'(lambda (constraint)
-              (cond
-                ((eq var (car constraint)) (cons subst (cdr constraint)))
-                ((eq var (cdr constraint)) (cons (car constraint) subst))
-                ((fn-type-p (cdr constraint))
-                 (cons (car constraint) (substitute-function-type-variables var subst (cdr constraint))))
-                ((fn-type-p (car constraint))
-                 (cons (substitute-function-type-variables var subst (car constraint)) (cdr constraint)))
-                (t constraint)))
-          constraints))
-
-(defun substitute-function-type-variables (var subst function)
-  (let ((args (fn-type-all-types function)))
-    (make-multiargument-fn-type
-     (mapcar #'(lambda (arg) (if (eql var arg)
-                                 subst
-                                 arg))
-             args))))
+(defun type-identical-p (l r)
+  "Checks if two types or type variables are identical"
+  (if (or (eq l +clutter-base-type-bottom+) (eq r +clutter-base-type-bottom+))
+      t
+      (equalp l r)))
 
 (defun unify-tc (left right)
   (let ((left-t (tc-types left))
