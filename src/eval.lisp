@@ -1,234 +1,95 @@
 ;;;; -*- Mode: Lisp; indent-tabs-mode: nil -*-
 
-(in-package #:clutter)
+(defpackage #:fexpr-clutter (:use :cl :alexandria))
+(in-package #:fexpr-clutter)
 
-;;;
-;;; Evaluator
-;;;
+(defun clutter-eval (expression environment)
+  (cond ((symbolp expression) (eval/symbol expression environment))
+        ((consp expression) (eval/combiner expression environment))
+        (t expression)))
 
-(defun pretreat/literal (expression env)
-  (declare (ignore env))
-  (lambda () expression))
+(defun eval/symbol (symbol env)
+  (lookup symbol env))
 
-(defun pretreat/quote (expression env)
-  (assert (= 2 (length expression)))
-  (pretreat/literal (cadr expression) env))
+(defun eval/combiner (expression env)
+  (let ((f (clutter-eval (car expression) env)))
+    (if (clutter-operator-p f)
+        (invoke f env (cdr expression))
+        (error "Not an operator: ~A." f))))
 
-(defun pretreat/if (expression env)
-  (assert (= 4 (length expression)))
-  (let ((test (pretreat (second expression) env))
-        (true (pretreat (third expression) env))
-        (false (pretreat (fourth expression) env)))
-    (lambda ()
-      (if (not (eq (funcall test) *false*))
-          (funcall true)
-          (funcall false)))))
+(defun lookup (symbol env)
+  (if (consp env)
+      (if (eq (caar env) symbol)
+          (cdar env)
+          (lookup symbol (cdr env)))
+      (error "No binding for ~A." symbol)))
 
-(defun pretreat/do (expression env)
-  (if (null (cdr expression))
-      (pretreat/single-do (second expression) env)
-      (pretreat/multi-do (cdr expression) env)))
+(defun (setf lookup) (new-value symbol env)
+  (if (consp env)
+      (if (eq (caar env) symbol)
+          (setf (cdr (car env)) new-value)
+          (setf (lookup symbol (cdr env)) new-value))
+      (error "No binding for ~A." symbol)))
 
-(defun pretreat/single-do (expression env)
-  (pretreat expression env))
+(defun extend (env variables values)
+  (cond ((consp variables)
+         (if (consp values)
+             (cons (cons (car variables) (car values))
+                   (extend env (cdr variables) (cdr values)))
+             (error "Not enough values.")))
+        ((null variables)
+         (if (null values)
+             env
+             (error "Too many values.")))
+        ((symbolp variables)
+         (cons (cons variables values) env))))
 
-(defun pretreat/multi-do (expressions env)
-  (let ((pretreated-expressions (mapcar (rcurry #'pretreat env) expressions)))
-    (lambda ()
-      (loop for exp in pretreated-expressions
-         for val = (funcall exp)
-         finally (return val)))))
+(defvar *denv* nil)
+(defstruct clutter-operator function)
+(defun make-operator (variables body env)
+  (make-clutter-operator 
+   :function
+   (lambda (*denv* values)
+     (let ((env (extend env variables values)))
+       (loop for sexp in body
+          for last-value = (clutter-eval sexp env)
+          finally (return last-value))))))
 
-(defun pretreat/function-application (expression env)
-  (let ((pretreated-func (pretreat/function-ref (car expression) env))
-        (pretreated-args (mapcar (rcurry #'pretreat env) (cdr expression))))
-    (lambda ()
-      (invoke (funcall pretreated-func) (mapcar #'funcall pretreated-args)))))
+(defun get-current-env () *denv*)
 
-(defun pretreat/application (expression env)
-  (if (atom (car expression))
-      (pretreat/function-application expression env)
-      (let ((func-expression (pretreat (car expression) env))
-            (pretreated-args (mapcar (rcurry #'pretreat env) (cdr expression))))
-        (lambda ()
-          (let ((func (funcall func-expression)))
-            (if (clutter-function-p func)
-                (invoke func (mapcar #'funcall pretreated-args))
-                (error "Not a function: ~A" (car expression))))))))
+(defun invoke (operator env args)
+  (if (clutter-operator-p operator)
+      (funcall (clutter-operator-function operator) env args)
+      (error "Not a function: ~A." operator)))
 
-(defun pretreat/symbol (expression env)
-  (declare (ignore env))
-  (lambda ()
-    (lookup expression :lexical)))
-
-(defun pretreat/var (expression env)
-  (let ((var (cadr expression)))
-    (pretreat/symbol var env)))
-
-(defun pretreat/function-ref (name env)
-  (declare (ignore env))
-  (lambda ()
-    (lookup name :function)))
-
-(defun pretreat/fun (expression env)
-  (let ((var (cadr expression)))
-    (pretreat/function-ref var env)))
-
-(defun pretreat/bind-lexical-variables (expression env)
-  (destructuring-bind (vars-and-values &body body)
-      (cdr expression)
-    (let ((pre-vars (loop for var in vars-and-values by #'cddr collect var))
-          (pre-vals (loop for val in (cdr vars-and-values) by #'cddr
-                       collect (pretreat val env)))
-          (pre-body (pretreat/multi-do body env)))
-      (lambda ()
-        (let ((new-frame (make-stack-frame "lexical binding block" (current-scope))))
-          (with-frame new-frame
-            (loop for var in pre-vars
-               for val in (mapcar #'funcall pre-vals)
-               do (bind var val :lexical))
-            (funcall pre-body)))))))
-
-(defun pretreat/set-lexical-variables (expression env
-                                       &aux (vars-and-values (cdr expression)))
-  (let ((pre-vars (loop for var in vars-and-values by #'cddr
-                     collect (prog1 var
-                               (unless (clutter-symbol-p var)
-                                 (error "~A is not a valid variable name." var)))))
-        (pre-vals (loop for val in (cdr vars-and-values) by #'cddr
-                     collect (pretreat val env))))
-    (lambda ()
-      (loop for var in pre-vars
-         for val in pre-vals
-         for last-value = (progn
-                            (unless (lookup var :lexical)
-                              (error "~A is not a lexically visible variable." var))
-                            (setf (lookup var :lexical) (funcall val)))
-         finally (return last-value)))))
-
-(defun pretreat/bind-lexical-functions (expression env)
-  (destructuring-bind (vars-and-values &body body)
-      (cdr expression)
-    (let ((pre-vars (loop for var in vars-and-values by #'cddr collect var))
-          (pre-vals (loop for val in (cdr vars-and-values) by #'cddr
-                       collect (pretreat val env)))
-          (pre-body (pretreat/multi-do body env)))
-      (lambda ()
-        (let ((new-frame (make-stack-frame "lexical function binding block" (current-scope))))
-          (with-frame new-frame
-            (loop for var in pre-vars
-               for val in (mapcar #'funcall pre-vals)
-               do (bind var (if (clutter-function-p val)
-                                val
-                                (error "~A is not a function." val))
-                        :function))
-            (funcall pre-body)))))))
-
-(defun pretreat/set-lexical-functions (expression env
-                                       &aux (vars-and-values (cdr expression)))
-  (let ((pre-vars (loop for var in vars-and-values by #'cddr
-                     collect (prog1 var
-                               (unless (clutter-symbol-p var)
-                                 (error "~A is not a valid function name." var)))))
-        (pre-vals (loop for val in (cdr vars-and-values) by #'cddr
-                     collect (pretreat val env))))
-    (lambda ()
-      (loop for var in pre-vars
-         for val in pre-vals
-         for last-value = (progn
-                            (unless (lookup var :function)
-                              (error "~A is not a lexically visible function." var))
-                            (let ((function (funcall val)))
-                              (if (clutter-function-p function)
-                                  (setf (lookup var :function) function)
-                                  (error "~A is not a function." function))))
-         finally (return last-value)))))
-
-(defun pretreat/lambda (expression env)
-  (destructuring-bind ((&rest args) &body body)
-      (cdr expression)
-    (assert (every #'clutter-symbol-p args))
-    (let ((pre-body (pretreat/multi-do body env)))
-      (lambda ()
-        (make-function args pre-body)))))
-
-(defun pretreat/define-variable (expression env)
-  (destructuring-bind (name value)
-      (cdr expression)
-    (assert (clutter-symbol-p name) () "~A is not a valid variable name." name)
-    (let ((pre-value (pretreat value env)))
-      (lambda ()
-        (bind name (funcall pre-value) :lexical)
-        name))))
-
-(defun pretreat/define-function (expression env)
-  (destructuring-bind (name value)
-      (cdr expression)
-    (assert (clutter-symbol-p name) () "~A is not a valid function name." name)
-    (let ((pre-value (pretreat value env)))
-      (lambda ()
-        (let ((function (funcall pre-value)))
-          (assert (clutter-function-p function) () "~A is not a valid function." function)
-          (bind name function :function)
-          name)))))
-
-(defstruct (clutter-block (:constructor make-clutter-block (exit))) exit)
-(defun pretreat/block (expression env)
-  (destructuring-bind (name &rest body)
-      (cdr expression)
-    (assert (clutter-symbol-p name) () "~A is not a valid block name." name)
-    (let ((pre-body (pretreat/multi-do body env)))
-      (lambda ()
-        (block nil
-          (let ((new-frame (make-stack-frame "lexical block" (current-scope)))
-                (block (make-clutter-block (lambda (x) (return x)))))
-            (with-frame new-frame
-              (bind name block :block)
-              (funcall pre-body))))))))
-
-(defun pretreat/return-from (expression env)
-  (destructuring-bind (name &optional (form nil formp))
-      (cdr expression)
-    (assert (clutter-symbol-p name) () "~A is not a valid block name." name)
-    (let ((pre-form (when formp (pretreat form env))))
-      (lambda ()
-        (funcall (clutter-block-exit (lookup name :block))
-                 (when pre-form (funcall pre-form)))))))
-
-
-(defparameter *pretreaters*
-  `(("quote" . ,#'pretreat/quote)
-    ("if" . ,#'pretreat/if)
-    ("do" . ,#'pretreat/do)
-    ("bind-lexical-variables" . ,#'pretreat/bind-lexical-variables)
-    ("set-lexical-variables" . ,#'pretreat/set-lexical-variables)
-    ("var" . ,#'pretreat/var)
-    ("bind-lexical-functions" . ,#'pretreat/bind-lexical-functions)
-    ("set-lexical-functions" . ,#'pretreat/set-lexical-functions)
-    ("fun" . ,#'pretreat/fun)
-    ("lambda" . ,#'pretreat/lambda)
-    ("define-variable" . ,#'pretreat/define-variable)
-    ("define-function" . ,#'pretreat/define-function)
-    ("block" . ,#'pretreat/block)
-    ("return-from" . ,#'pretreat/return-from)))
-
-(defun find-pretreater (operator)
-  (assert (clutter-symbol-p operator))
-  (or (cdr (assoc (clutter-symbol-name operator) *pretreaters* :test #'equal))
-      #'pretreat/application))
-
-(defun pretreat (expression env)
-  (if (atom expression)
-      (if (clutter-symbol-p expression)
-          (pretreat/symbol expression env)
-          (pretreat/literal expression env))
-      (let ((operator (car expression)))
-        (unless (or (clutter-symbol-p operator) (listp operator))
-          (error "~A is not a valid operator." operator))
-        (if (listp operator)
-            (pretreat/application expression env)
-            (funcall (find-pretreater operator) expression env)))))
-
-(defun evaluate (form)
-  (let ((pre-treated (pretreat form nil)))
-    (funcall pre-treated)))
+(defparameter *initial-env*
+  (list (cons '+ (make-clutter-operator
+                  :function (lambda (*denv* values)
+                              (reduce #'+ (mapcar (rcurry #'clutter-eval *denv*)
+                                                  values)))))
+        (cons 'car (make-clutter-operator
+                    :function (lambda (*denv* values)
+                                (car (clutter-eval (car values) *denv*)))))
+        (cons 'eval (make-clutter-operator
+                     :function (lambda (*denv* values)
+                                 (let ((values (mapcar (rcurry #'clutter-eval *denv*)
+                                                       values)))
+                                   (clutter-eval (car values) (cadr values))))))
+        (cons 'get-current-env
+              (make-clutter-operator
+               :function (lambda (*denv* values)
+                           *denv*)))
+        (cons 'vau
+              (make-clutter-operator
+               :function (lambda (static-env values)
+                           (destructuring-bind (env-var lambda-var &rest body)
+                               values
+                             (make-clutter-operator
+                              :function
+                              (lambda (*denv* values)
+                                (let ((env (extend static-env
+                                                   (list env-var lambda-var)
+                                                   (list *denv* values))))
+                                  (loop for sexp in body
+                                     for last-value = (clutter-eval sexp env)
+                                     finally (return last-value)))))))))))
