@@ -1,6 +1,6 @@
 ;;;; -*- Mode: Lisp; indent-tabs-mode: nil -*-
 
-(defpackage #:fexpr-clutter (:use :cl :alexandria))
+(defpackage #:fexpr-clutter (:use :cl :alexandria :anaphora))
 (in-package #:fexpr-clutter)
 
 (defstruct env
@@ -40,11 +40,10 @@
 
 (defun make-child-env (env variables values)
   (make-env :parent env
-            :bindings (loop :for name :in variables
-                            :for binding :in values
-                            :with table = (make-hash-table :test 'eq)
-                            :do (setf (gethash name table) binding)
-                            :finally (return table))))
+            :bindings (aprog1 (make-hash-table :test 'eq)
+                        (mapc (lambda (name value)
+                                (setf (gethash name it) value))
+                              variables values))))
 
 (defvar *denv* nil)
 (defstruct clutter-operator function)
