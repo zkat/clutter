@@ -93,5 +93,18 @@
                                                      (list *denv* values))))
                                     (loop for sexp in body
                                           for last-value = (clutter-eval sexp env)
-                                          finally (return last-value))))))))))
+                                          finally (return last-value)))))))))
+          (cons 'def!
+                (make-clutter-operator
+                 :function (lambda (*denv* values)
+                             (destructuring-bind (var value)
+                                 values
+                               (extend *denv* var value)
+                               var))))
+          (cons 'set!
+                (make-clutter-operator
+                 :function (lambda (*denv* values)
+                             (destructuring-bind (var value)
+                                 values
+                               (setf (lookup var *denv*) value))))))
     :test 'eq)))
