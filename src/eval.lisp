@@ -16,9 +16,14 @@
 
 (defun eval/combiner (expression env)
   (let ((f (clutter-eval (car expression) env)))
-    (if (clutter-operator-p f)
-        (invoke f env (cdr expression))
-        (error "Not an operator: ~A." f))))
+    (cond ((clutter-operator-p f)
+           (invoke f env (cdr expression)))
+          ((clutter-function-p f)
+           (let ((op (clutter-function-operator f))
+                 (values (mapcar (rcurry #'clutter-eval env) (cdr expression))))
+             (clutter-eval (cons op values) env)))
+          (t
+           (error "Not an operator: ~A." f)))))
 
 (defun lookup (symbol &optional (env *global-env*))
   (if env
@@ -56,6 +61,10 @@
           for last-value = (clutter-eval sexp env)
           finally (return last-value))))))
 
+(defstruct clutter-function operator)
+(defun make-function (operator)
+  (make-clutter-function :operator operator))
+
 (defun get-current-env () *denv*)
 
 (defun invoke (operator env args)
@@ -68,13 +77,29 @@
    :parent nil
    :bindings
    (alist-hash-table 
-    (list (cons '+ (make-clutter-operator
-                    :function (lambda (*denv* values)
-                                (reduce #'+ (mapcar (rcurry #'clutter-eval *denv*)
-                                                    values)))))
-          (cons 'car (make-clutter-operator
-                      :function (lambda (*denv* values)
-                                  (car (clutter-eval (car values) *denv*)))))
+    (list (cons '+
+                (make-function
+                 (make-clutter-operator
+                  :function (lambda (*denv* values)
+                              (reduce #'+ values)))))
+          (cons 'car
+                (make-function
+                 (make-clutter-operator
+                  :function (lambda (*denv* values)
+                              (caar values)))))
+          (cons 'cdr
+                (make-function
+                 (make-clutter-operator
+                  :function (lambda (*denv* values)
+                              (cadr values)))))
+          (cons 'list (make-function
+                       (make-clutter-operator
+                        :function (lambda (*denv* values)
+                                    values))))
+          (cons 'list* (make-function
+                        (make-clutter-operator
+                         :function (lambda (*denv* values)
+                                     (apply #'list* values)))))
           (cons 'eval (make-clutter-operator
                        :function (lambda (*denv* values)
                                    (let ((values (mapcar (rcurry #'clutter-eval *denv*)
@@ -94,12 +119,22 @@
                                     (loop for sexp in body
                                           for last-value = (clutter-eval sexp env)
                                           finally (return last-value)))))))))
+          (cons 'wrap
+                (make-function
+                 (make-clutter-operator
+                  :function (lambda (*denv* values)
+                              (make-function (car values))))))
+          (cons 'unwrap
+                (make-function
+                 (make-clutter-operator
+                  :function (lambda (*denv* values)
+                              (clutter-function-operator (car values))))))
           (cons 'def!
                 (make-clutter-operator
                  :function (lambda (*denv* values)
                              (destructuring-bind (var value)
                                  values
-                               (extend *denv* var value)
+                               (extend *denv* var (clutter-eval value *denv*))
                                var))))
           (cons 'set!
                 (make-clutter-operator
