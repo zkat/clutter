@@ -141,5 +141,16 @@
                  :function (lambda (*denv* values)
                              (destructuring-bind (var value)
                                  values
-                               (setf (lookup var *denv*) value))))))
+                               (setf (lookup var *denv*) value)))))
+          (cons 'if
+                (make-clutter-operator
+                 :function (lambda (*denv* values)
+                             (destructuring-bind (test if-true if-false)
+                                 values
+                               (if (clutter-true-p (clutter-eval test *denv*))
+                                   (clutter-eval if-true *denv*)
+                                   (clutter-eval if-false *denv*)))))))
     :test 'eq)))
+
+(defun clutter-true-p (exp)
+  (if exp t nil))
