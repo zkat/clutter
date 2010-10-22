@@ -80,11 +80,6 @@
                                    (let ((values (mapcar (rcurry #'clutter-eval *denv*)
                                                          values)))
                                      (clutter-eval (first values) (second values))))))
-          (cons 'get-current-env
-                (make-clutter-operator
-                 :function (lambda (*denv* values)
-                             (declare (ignore values))
-                             *denv*)))
           (cons 'vau
                 (make-clutter-operator
                  :function (lambda (static-env values)
