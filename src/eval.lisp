@@ -78,6 +78,7 @@
         (cons 'get-current-env
               (make-clutter-operator
                :function (lambda (*denv* values)
+                           (declare (ignore values))
                            *denv*)))
         (cons 'vau
               (make-clutter-operator
