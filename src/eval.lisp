@@ -6,7 +6,7 @@
 (defstruct env
   parent bindings)
 
-(defun clutter-eval (expression environment)
+(defun clutter-eval (expression &optional (environment *global-env*))
   (cond ((symbolp expression) (eval/symbol expression environment))
         ((consp expression) (eval/combiner expression environment))
         (t expression)))
