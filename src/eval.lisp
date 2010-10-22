@@ -70,6 +70,9 @@
         (cons 'car (make-clutter-operator
                     :function (lambda (*denv* values)
                                 (car (clutter-eval (car values) *denv*)))))
+        (cons 'quote (make-clutter-operator
+                      :function (lambda (*denv* values)
+                                  (car values))))
         (cons 'eval (make-clutter-operator
                      :function (lambda (*denv* values)
                                  (let ((values (mapcar (rcurry #'clutter-eval *denv*)
