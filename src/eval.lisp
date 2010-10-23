@@ -143,6 +143,10 @@
                      (make-clutter-operator
                       :function (lambda (*denv* values)
                                   (apply #'list* values)))))
+(defprimitive random (make-function
+                      (make-clutter-operator
+                       :function (lambda (*denv* values)
+                                   (random (car values))))))
 
 (defprimitive def!
     (make-clutter-operator
