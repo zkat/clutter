@@ -13,7 +13,10 @@
         (t expression)))
 
 (defun eval/symbol (symbol env)
-  (lookup symbol env))
+  (let ((val (lookup symbol env)))
+    (if (clutter-symbol-operator-p val)
+        (invoke (clutter-symbol-operator-operator val) env nil)
+        val)))
 
 (defun eval/combiner (expression env)
   (let ((f (clutter-eval (car expression) env)))
@@ -65,6 +68,10 @@
 (defstruct clutter-function operator)
 (defun make-function (operator)
   (make-clutter-function :operator operator))
+
+(defstruct clutter-symbol-operator operator)
+(defun make-symbol-operator (operator)
+  (make-clutter-symbol-operator :operator operator))
 
 (defun get-current-env () *denv*)
 
@@ -159,6 +166,14 @@
                        (clutter-eval if-true *denv*)
                        (clutter-eval if-false *denv*))))))
 
+(defprimitive symbolize!
+    (make-clutter-operator
+     :function (lambda (*denv* values)
+                 (destructuring-bind (var value)
+                     values
+                   (let ((val (clutter-eval value *denv*)))
+                     (assert (clutter-operator-p val))
+                     (extend *denv* var (make-symbol-operator val)))))))
 
 (defun clutter-true-p (exp)
   (if exp t nil))
