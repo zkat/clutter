@@ -151,12 +151,14 @@
                      values
                    (extend *denv* var (clutter-eval value *denv*))
                    var))))
+
 (defprimitive set!
     (make-clutter-operator
      :function (lambda (*denv* values)
                  (destructuring-bind (var value)
                      values
-                   (setf (lookup var *denv*) value)))))
+                   (setf (lookup var *denv*) (clutter-eval value *denv*))))))
+
 (defprimitive if
     (make-clutter-operator
      :function (lambda (*denv* values)
