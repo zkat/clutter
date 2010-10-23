@@ -181,5 +181,12 @@
                      (assert (clutter-operator-p val))
                      (extend *denv* var (make-symbol-operator val)))))))
 
+(defprimitive symbolize
+    (make-function
+     (make-clutter-operator
+      :function (lambda (*denv* values)
+                  (assert (clutter-operator-p (car values)))
+                  (make-symbol-operator (car values))))))
+
 (defun clutter-true-p (exp)
   (if exp t nil))
