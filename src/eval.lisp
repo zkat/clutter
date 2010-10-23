@@ -7,6 +7,9 @@
   parent
   (bindings (make-hash-table :test 'eq)))
 
+(defparameter *global-env*
+  (make-env :parent nil))
+
 (defun clutter-eval (expression &optional (environment *global-env*))
   (cond ((symbolp expression) (eval/symbol expression environment))
         ((consp expression) (eval/combiner expression environment))
@@ -79,9 +82,6 @@
   (if (clutter-operator-p operator)
       (funcall (clutter-operator-function operator) env args)
       (error "Not a function: ~A." operator)))
-
-(defparameter *global-env*
-  (make-env :parent nil))
 
 (defmacro defprimitive (name value)
   `(extend *global-env* ',name ,value))
