@@ -4,7 +4,8 @@
 (in-package #:fexpr-clutter)
 
 (defstruct env
-  parent bindings)
+  parent
+  (bindings (make-hash-table :test 'eq)))
 
 (defun clutter-eval (expression &optional (environment *global-env*))
   (cond ((symbolp expression) (eval/symbol expression environment))
