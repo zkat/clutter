@@ -3,6 +3,12 @@
 (in-package :clutter)
 ;;; Utilities for clutter
 
+;;; Clutter reader reader macro
+(set-dispatch-macro-character #\# #\$
+                              (lambda (stream subchar arg)
+                                (declare (ignore subchar arg))
+                                (clutter-read stream)))
+
 ;;; Derived from Alexandria
 
 (defun parse-vau-list (lambda-list &key (normalize t)
