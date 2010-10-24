@@ -71,6 +71,6 @@
           (error "Subenv ~A does not exist." subenv))))
 
 (defun add-subenv (env subenv)
-  (if (nth-value 1 (gethash subenv (env-subenvs env)))
-      (warn "Redefinition of subenv ~A in ~A" subenv env)
-      (setf (gethash subenv (env-subenvs env)) (make-hash-table :test 'eq))))
+  (when (nth-value 1 (gethash subenv (env-subenvs env)))
+    (warn "Redefinition of subenv ~A in ~A" subenv env))
+  (setf (gethash subenv (env-subenvs env)) (make-hash-table :test 'eq)))
