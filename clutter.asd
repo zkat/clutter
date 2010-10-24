@@ -2,7 +2,7 @@
 
 (asdf:defsystem clutter
   :serial t
-  :depends-on (alexandria)
+  :depends-on (alexandria anaphora)
   :components
   ((:module "src"
             :serial t
