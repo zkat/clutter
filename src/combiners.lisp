@@ -11,7 +11,10 @@
   (make-clutter-operator 
    :function
    (lambda (*denv* &rest values)
-     (let ((env (make-child-env env variables values)))
+     (let ((env (make-env env)))
+       (loop for var in variables
+             for value in values
+             do (extend env (cs "var") var value))
        (loop for sexp in body
           for last-value = (clutter-eval sexp env)
           finally (return last-value))))))

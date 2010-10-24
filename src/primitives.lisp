@@ -2,6 +2,8 @@
 
 (in-package #:clutter)
 
+(declaim (optimize debug))
+
 ;;;
 ;;; Primitive Constants
 ;;;
@@ -14,7 +16,7 @@
 ;;;
 
 (defmacro defprimitive (name value)
-  `(extend *global-env* (clutter-symbol ,name) ,value))
+  `(extend *global-env* (cs "fun") (clutter-symbol ,name) ,value))
 
 (defmacro defprimop (name vau-list &body body)
   `(defprimitive ,name
@@ -40,11 +42,12 @@
        (unless (or (= (length values) (length vau-list))
                    (and rest (>= (length values) (1- (length vau-list))))
                    (error "Wrong number of arguments")))
-       (let ((env (make-child-env static-env
-                                  (list* env-var rest required)
-                                  (list* *denv*
-                                         (nthcdr (length required) values)
-                                         (subseq values 0 (length required))))))
+       (let ((env (make-env static-env)))
+         (loop for var in (list* env-var rest required)
+               for value in (list* *denv*
+                                   (nthcdr (length required) values)
+                                   (subseq values 0 (length required)))
+               do (extend env (cs "var") var value))
          (loop for sexp in body
                for last-value = (clutter-eval sexp env)
                finally (return last-value)))))))
@@ -55,26 +58,30 @@
 (defprimfun "unwrap" (function)
   (clutter-function-operator function))
 
-(defprimfun "eval" (expression environment)
-  (clutter-eval expression environment))
+(defprimfun "eval" (expression environment &optional (subenv (cs "var")))
+  (clutter-eval expression environment subenv))
 
-(defprimop "lookup" (*denv* symbol environment)
-  (lookup symbol (clutter-eval environment *denv*)))
+(defprimop "lookup" (*denv* subenv symbol environment)
+  (lookup subenv symbol (clutter-eval environment *denv*)))
 
-(defprimop "set-lookup!" (*denv* value symbol environment)
-  (setf (lookup symbol (clutter-eval environment *denv*)) (clutter-eval value *denv*)))
+(defprimop "set-lookup!" (*denv* value subenv symbol environment)
+  (setf (lookup subenv symbol (clutter-eval environment *denv*)) (clutter-eval value *denv*)))
 
-(defprimop "def-lookup!" (*denv* value symbol environment)
-  (extend (clutter-eval environment *denv*) symbol (clutter-eval value *denv*)))
+(defprimop "def-lookup!" (*denv* value subenv symbol environment)
+  (extend (clutter-eval environment *denv*) subenv symbol (clutter-eval value *denv*)))
 
 (defprimfun "make-env" (&optional parent)
-  (make-env :parent parent))
+  (make-env parent))
 
-(defprimop "set-var!" (*denv* var value)
-  (setf (lookup var *denv*) (clutter-eval value *denv*)))
+;;; TODO: Make subenv a subenv
+(defprimop "def-subenv!" (*denv* name)
+  (add-subenv *denv* name))
 
-(defprimop "def-var!" (*denv* var value)
-  (extend *denv* var (clutter-eval value *denv*))
+(defprimop "direct-set!" (*denv* subenv var value)
+  (setf (lookup subenv var *denv*) (clutter-eval value *denv*)))
+
+(defprimop "direct-def!" (*denv* subenv var value)
+  (extend *denv* subenv var (clutter-eval value *denv*))
   var)
 
 (defun clutter-true-p (exp)
@@ -88,7 +95,7 @@
 (defprimop "symbolize!" (*denv* var value)
   (let ((val (clutter-eval value *denv*)))
     (assert (clutter-operator-p val))
-    (extend *denv* var (make-symbol-operator val))))
+    (extend *denv* (cs "var") var (make-symbol-operator val))))
 
 (defprimfun "symbolize" (&rest values)
   (assert (clutter-operator-p (car values)))
