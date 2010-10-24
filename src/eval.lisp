@@ -103,6 +103,9 @@
                     (multiple-value-bind (required optional rest)
                         (parse-ordinary-lambda-list lambda-list)
                       (declare (ignore optional))
+                      (unless (or (= (length values) (length lambda-list))
+                                  (and rest (>= (length values) (1- (length lambda-list))))
+                                  (error "Wrong number of arguments")))
                      (let ((env (make-child-env static-env
                                                 (list* env-var rest required)
                                                 (list* *denv*
