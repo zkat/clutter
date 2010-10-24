@@ -1,6 +1,6 @@
 (def! lambda
-    (vau (lambda-list &rest body) env
-         (wrap (eval (list* vau lambda-list :ignore body) env))))
+    (vau env (vau-list &rest body)
+         (wrap (eval (list* vau :ignore vau-list body) env))))
 
 (def! mapcar
     (lambda (function values)
@@ -9,7 +9,7 @@
           (cons (function (car values)) (mapcar function (cdr values))))))
 
 (def! let
-    (vau (clauses &rest body) env
+    (vau env (clauses &rest body)
          (eval (list* (list* lambda (mapcar car clauses) body)
                       (mapcar (lambda (x) (car (cdr x))) clauses))
                env)))
@@ -25,12 +25,12 @@
 (def! %set-specials (list))
 
 (def! def-set-special!
-    (vau (variable function) env
+    (vau env (variable function)
          (set! %set-specials (cons (cons variable (eval function env))
                                    %set-specials))))
 
 (def! set!
-    (vau (variable value) env
+    (vau env (variable value)
          (let ((special (assoc variable %set-specials)))
            (if special
                ((cdr special) (eval value env))

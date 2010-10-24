@@ -81,29 +81,29 @@
 (defmacro defprimitive (name value)
   `(extend *global-env* ',name ,value))
 
-(defmacro defprimop (name lambda-list &body body)
+(defmacro defprimop (name vau-list &body body)
   `(defprimitive ,name
        (make-clutter-operator
         :name ',name
-        :function (lambda ,lambda-list ,@body))))
+        :function (lambda ,vau-list ,@body))))
 
-(defmacro defprimfun (name lambda-list &body body)
+(defmacro defprimfun (name vau-list &body body)
   `(defprimitive ,name
        (make-function
         (make-clutter-operator
          :name ',name
-         :function (lambda (*denv* ,@lambda-list)
+         :function (lambda (*denv* ,@vau-list)
                      ,@body)))))
 
-(defprimop vau (static-env lambda-list env-var &rest body)
+(defprimop vau (static-env env-var vau-list &rest body)
   (make-clutter-operator
    :function
    (lambda (*denv* &rest values)
      (multiple-value-bind (required optional rest)
-         (parse-ordinary-lambda-list lambda-list)
+         (parse-ordinary-lambda-list vau-list)
        (declare (ignore optional))
-       (unless (or (= (length values) (length lambda-list))
-                   (and rest (>= (length values) (1- (length lambda-list))))
+       (unless (or (= (length values) (length vau-list))
+                   (and rest (>= (length values) (1- (length vau-list))))
                    (error "Wrong number of arguments")))
        (let ((env (make-child-env static-env
                                   (list* env-var rest required)
