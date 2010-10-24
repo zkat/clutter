@@ -8,6 +8,30 @@
                  (eval (car (cdr forms)) env)
                  (eval (list* cond (cdr (cdr forms))) env)))))
 
+(def-var! lambda
+    (vau env (vau-list &rest body)
+         (wrap (eval (list* vau #ignore vau-list body) env))))
+
+(def-var! assoc
+    (lambda (key alist)
+      (if (eql? alist (list))
+          #f
+          (if (eql? key (car (car alist)))
+              (car alist)
+              (assoc key (cdr alist))))))
+
+(def-var! mapcar
+    (lambda (function values)
+      (if (eql? (list) values)
+          (list)
+          (cons (function (car values)) (mapcar function (cdr values))))))
+
+(def-var! let
+    (vau env (clauses &rest body)
+         (eval (list* (list* lambda (mapcar car clauses) body)
+                      (mapcar (lambda (x) (car (cdr x))) clauses))
+               env)))
+
 (def-var! def!
     (vau env (place value)
          (cond
@@ -16,6 +40,27 @@
            (let ((expander (assoc (car place) %def!-expanders)))
              (eval (list* (cdr expander) (eval value env) (cdr place))
                    env)))))
+
+(def! %set!-specials (list))
+(def! %set!-expanders (list))
+
+(def! set!
+    (vau env (variable value)
+         (cond
+           (symbol? variable)
+           (let ((special (assoc variable %set!-specials)))
+             (if special
+                 ((cdr special) (eval value env))
+                 (eval (list set-var! variable value) env)))
+
+           (cons? variable)
+           (let ((expander (assoc (car variable) %set!-expanders)))
+             (eval (list* (cdr expander) (eval value env) (cdr variable)) env)))))
+
+(def! push!
+    (vau env (value place)
+         (eval (list set! place (list cons value place))
+               env)))
 
 (def! def-def!-expander!
     (vau env (name combiner)
@@ -37,41 +82,9 @@
     (vau env (ns &rest body)
          (eval (list (list* lambda () body)) (eval ns env))))
 
-(def! lambda
-    (vau env (vau-list &rest body)
-         (wrap (eval (list* vau #ignore vau-list body) env))))
-
-(def! mapcar
-    (lambda (function values)
-      (if (eql? (list) values)
-          (list)
-          (cons (function (car values)) (mapcar function (cdr values))))))
-
-(def! push!
-    (vau env (value place)
-         (eval (list set! place (list cons value place))
-               env)))
-
-(def! let
-    (vau env (clauses &rest body)
-         (eval (list* (list* lambda (mapcar car clauses) body)
-                      (mapcar (lambda (x) (car (cdr x))) clauses))
-               env)))
-
 (def! apply
     (vau env (combiner args)
          (eval (list* combiner (eval args env)) env)))
-
-(def! assoc
-    (lambda (key alist)
-      (if (eql? alist (list))
-          #f
-          (if (eql? key (car (car alist)))
-              (car alist)
-              (assoc key (cdr alist))))))
-
-(def! %set!-specials (list))
-(def! %set!-expanders (list))
 
 (def! def-set!-special!
     (vau env (variable function)
@@ -85,16 +98,3 @@
     (vau env (value symbol target-env)
          (eval (list set-lookup! (eval value env) symbol (eval target-env env))
                env)))
-
-(def! set!
-    (vau env (variable value)
-         (cond
-           (symbol? variable)
-           (let ((special (assoc variable %set!-specials)))
-             (if special
-                 ((cdr special) (eval value env))
-                 (eval (list set-var! variable value) env)))
-
-           (cons? variable)
-           (let ((expander (assoc (car variable) %set!-expanders)))
-             (eval (list* (cdr expander) (eval value env) (cdr variable)) env)))))
