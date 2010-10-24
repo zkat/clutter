@@ -60,13 +60,15 @@
           (clutter-bound? symbol (env-parent env)))
       nil))
 
-(defun extend (env subenv symbol value)
-  (if (nth-value 1 (gethash subenv (env-subenvs env)))
-      (progn
-       (if (nth-value 1 (gethash symbol (gethash subenv (env-subenvs env))))
-           (warn "Redefinition of ~A." symbol))
-       (setf (gethash symbol (gethash subenv (env-subenvs env))) value))
-      (error "Subenv ~A does not exist." subenv)))
+(defun extend (env subenv symbol &optional value)
+  (if (eq subenv (cs "subenv"))
+      (add-subenv env symbol)
+      (if (nth-value 1 (gethash subenv (env-subenvs env)))
+          (progn
+            (if (nth-value 1 (gethash symbol (gethash subenv (env-subenvs env))))
+                (warn "Redefinition of ~A." symbol))
+            (setf (gethash symbol (gethash subenv (env-subenvs env))) value))
+          (error "Subenv ~A does not exist." subenv))))
 
 (defun add-subenv (env subenv)
   (if (nth-value 1 (gethash subenv (env-subenvs env)))
