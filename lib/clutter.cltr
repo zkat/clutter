@@ -1,0 +1,36 @@
+(def! lambda
+    (vau (lambda-list &rest body) env
+         (wrap (eval (list* vau lambda-list :ignore body) env))))
+
+(def! mapcar
+    (lambda (function values)
+      (if (eq (list) values)
+          (list)
+          (cons (function (car values)) (mapcar function (cdr values))))))
+
+(def! let
+    (vau (clauses &rest body) env
+         (eval (list* (list* lambda (mapcar car clauses) body)
+                      (mapcar (lambda (x) (car (cdr x))) clauses))
+               env)))
+
+(def! assoc
+    (lambda (key alist)
+      (if (eq alist (list))
+          :f
+          (if (eq key (car (car alist)))
+              (car alist)
+              (assoc key (cdr alist))))))
+
+(def! %set-specials (list))
+
+(def! def-set-special!
+    (vau (variable function) env
+         (set! %set-specials (cons (cons variable (eval function env))
+                                   %set-specials))))
+
+(def! set (vau (variable value) env
+               (let ((special (assoc variable %set-specials)))
+                 (if special
+                     ((cdr special) (eval value env))
+                     (eval (list set! variable value) env)))))
