@@ -58,6 +58,12 @@
 (defprimfun "eval" (expression environment)
   (clutter-eval expression environment))
 
+(defprimop "lookup" (*denv* symbol environment)
+  (lookup symbol (clutter-eval environment *denv*)))
+
+(defprimfun "make-env" ()
+  (make-env :parent *global-env*))
+
 (defprimop "set-var!" (*denv* var value)
   (setf (lookup var *denv*) (clutter-eval value *denv*)))
 
@@ -89,6 +95,8 @@
 
 (defprimfun "cons" (x y)
   (cons x y))
+(defprimfun "cons?" (x)
+  (consp x))
 (defprimfun "car" (cons)
   (car cons))
 (defprimfun "cdr" (cons)
