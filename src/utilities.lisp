@@ -3,196 +3,147 @@
 (in-package :clutter)
 ;;; Utilities for clutter
 
-;;;; SPLIT-SEQUENCE
-;;;
-;;; This code was based on Arthur Lemmens'
+;;; Derived from Alexandria
 
-(defun split-sequence (delimiter seq &key (count nil) (remove-empty-subseqs nil) (from-end nil) (start 0) (end nil) (test nil test-supplied) (test-not nil test-not-supplied) (key nil key-supplied))
-  "Return a list of subsequences in seq delimited by delimiter.
+(defun parse-vau-list (lambda-list &key (normalize t)
+                                  allow-specializers
+                                  (normalize-optional normalize)
+                                  (normalize-keyword normalize)
+                                  (normalize-auxilary normalize)
+                       &aux
+                       (coptional (cs "&optional"))
+                       (crest (cs "&rest"))
+                       (ckey (cs "&key"))
+                       (callow-other-keys (cs "&allow-other-keys"))
+                       (caux (cs "&aux")))
+  "Parses a vau-list, returning:
 
-If :remove-empty-subseqs is NIL, empty subsequences will be included
-in the result; otherwise they will be discarded.  All other keywords
-work analogously to those for CL:SUBSTITUTE.  In particular, the
-behaviour of :from-end is possibly different from other versions of
-this function; :from-end values of NIL and T are equivalent unless
-:count is supplied. The second return value is an index suitable as an
-argument to CL:SUBSEQ into the sequence indicating where processing
-stopped."
-  (let ((len (length seq))
-        (other-keys (nconc (when test-supplied 
-                             (list :test test))
-                           (when test-not-supplied 
-                             (list :test-not test-not))
-                           (when key-supplied 
-                             (list :key key)))))
-    (unless end (setq end len))
-    (if from-end
-        (loop for right = end then left
-              for left = (max (or (apply #'position delimiter seq 
-					 :end right
-					 :from-end t
-					 other-keys)
-				  -1)
-			      (1- start))
-              unless (and (= right (1+ left))
-                          remove-empty-subseqs) ; empty subseq we don't want
-              if (and count (>= nr-elts count))
-              ;; We can't take any more. Return now.
-              return (values (nreverse subseqs) right)
-              else 
-              collect (subseq seq (1+ left) right) into subseqs
-              and sum 1 into nr-elts
-              until (< left start)
-              finally (return (values (nreverse subseqs) (1+ left))))
-      (loop for left = start then (+ right 1)
-            for right = (min (or (apply #'position delimiter seq 
-					:start left
-					other-keys)
-				 len)
-			     end)
-            unless (and (= right left) 
-                        remove-empty-subseqs) ; empty subseq we don't want
-            if (and count (>= nr-elts count))
-            ;; We can't take any more. Return now.
-            return (values subseqs left)
-            else
-            collect (subseq seq left right) into subseqs
-            and sum 1 into nr-elts
-            until (>= right end)
-            finally (return (values subseqs right))))))
+\(values requireds optionals rest keywords allow-other-keys? auxiliaries)
 
-(defun split-sequence-if (predicate seq &key (count nil) (remove-empty-subseqs nil) (from-end nil) (start 0) (end nil) (key nil key-supplied))
-  "Return a list of subsequences in seq delimited by items satisfying
-predicate.
+ 1. Required parameters.
+ 2. Optional parameter specifications, normalized into form (NAME INIT SUPPLIEDP)
+    where SUPPLIEDP is NIL if not present.
+ 3. Name of the rest parameter, or NIL.
+ 4. Keyword parameter specifications, normalized into form ((KEYWORD-NAME NAME) INIT SUPPLIEDP)
+    where SUPPLIEDP is NIL if not present.
+ 5. Boolean indicating &ALLOW-OTHER-KEYS presence.
+ 6. &AUX parameter specifications, normalized into form (NAME INIT).
 
-If :remove-empty-subseqs is NIL, empty subsequences will be included
-in the result; otherwise they will be discarded.  All other keywords
-work analogously to those for CL:SUBSTITUTE-IF.  In particular, the
-behaviour of :from-end is possibly different from other versions of
-this function; :from-end values of NIL and T are equivalent unless
-:count is supplied. The second return value is an index suitable as an
-argument to CL:SUBSEQ into the sequence indicating where processing
-stopped."
-  (let ((len (length seq))
-        (other-keys (when key-supplied 
-		      (list :key key))))
-    (unless end (setq end len))
-    (if from-end
-        (loop for right = end then left
-              for left = (max (or (apply #'position-if predicate seq 
-					 :end right
-					 :from-end t
-					 other-keys)
-				  -1)
-			      (1- start))
-              unless (and (= right (1+ left))
-                          remove-empty-subseqs) ; empty subseq we don't want
-              if (and count (>= nr-elts count))
-              ;; We can't take any more. Return now.
-              return (values (nreverse subseqs) right)
-              else 
-              collect (subseq seq (1+ left) right) into subseqs
-              and sum 1 into nr-elts
-              until (< left start)
-              finally (return (values (nreverse subseqs) (1+ left))))
-      (loop for left = start then (+ right 1)
-            for right = (min (or (apply #'position-if predicate seq 
-					:start left
-					other-keys)
-				 len)
-			     end)
-            unless (and (= right left) 
-                        remove-empty-subseqs) ; empty subseq we don't want
-            if (and count (>= nr-elts count))
-            ;; We can't take any more. Return now.
-            return (values subseqs left)
-            else
-            collect (subseq seq left right) into subseqs
-            and sum 1 into nr-elts
-            until (>= right end)
-            finally (return (values subseqs right))))))
-
-(defun split-sequence-if-not (predicate seq &key (count nil) (remove-empty-subseqs nil) (from-end nil) (start 0) (end nil) (key nil key-supplied))
-  "Return a list of subsequences in seq delimited by items satisfying
-  (CL:COMPLEMENT predicate).
-
-  If :remove-empty-subseqs is NIL, empty subsequences will be included
-  in the result; otherwise they will be discarded.  All other keywords
-  work analogously to those for CL:SUBSTITUTE-IF-NOT.  In particular,
-  the behaviour of :from-end is possibly different from other versions
-  of this function; :from-end values of NIL and T are equivalent unless
-  :count is supplied. The second return value is an index suitable as an
-  argument to CL:SUBSEQ into the sequence indicating where processing
-  stopped."
-  (let ((len (length seq))
-	(other-keys (when key-supplied 
-		      (list :key key))))
-    (unless end (setq end len))
-    (if from-end
-        (loop for right = end then left
-              for left = (max (or (apply #'position-if-not predicate seq 
-					 :end right
-					 :from-end t
-					 other-keys)
-				  -1)
-			      (1- start))
-              unless (and (= right (1+ left))
-                          remove-empty-subseqs) ; empty subseq we don't want
-              if (and count (>= nr-elts count))
-              ;; We can't take any more. Return now.
-              return (values (nreverse subseqs) right)
-              else 
-              collect (subseq seq (1+ left) right) into subseqs
-              and sum 1 into nr-elts
-              until (< left start)
-              finally (return (values (nreverse subseqs) (1+ left))))
-      (loop for left = start then (+ right 1)
-            for right = (min (or (apply #'position-if-not predicate seq 
-					:start left
-					other-keys)
-				 len)
-			     end)
-            unless (and (= right left) 
-                        remove-empty-subseqs) ; empty subseq we don't want
-            if (and count (>= nr-elts count))
-            ;; We can't take any more. Return now.
-            return (values subseqs left)
-            else
-            collect (subseq seq left right) into subseqs
-            and sum 1 into nr-elts
-            until (>= right end)
-            finally (return (values subseqs right))))))
-
-;;; Taken from Alexandria
-
-(defun ensure-function (function-designator)
-  "Returns the function designated by FUNCTION-DESIGNATOR:
-if FUNCTION-DESIGNATOR is a function, it is returned, otherwise
-it must be a function name and its FDEFINITION is returned."
-  (if (functionp function-designator)
-      function-designator
-      (fdefinition function-designator)))
-
-(defun make-gensym-list (length &optional (x "G"))
-  "Returns a list of LENGTH gensyms, each generated as if with a call to MAKE-GENSYM,
-using the second (optional, defaulting to \"G\") argument."
-  (let ((g (if (typep x '(integer 0)) x (string x))))
-    (loop repeat length
-          collect (gensym g))))
-
-(defun curry (function &rest arguments)
-  "Returns a function that applies ARGUMENTS and the arguments
-it is called with to FUNCTION."
-  (declare (optimize (speed 3) (safety 1) (debug 1)))
-  (let ((fn (ensure-function function)))
-    (lambda (&rest more)
-      (declare (dynamic-extent more))
-      ;; Using M-V-C we don't need to append the arguments.
-      (multiple-value-call fn (values-list arguments) (values-list more)))))
-
-(define-compiler-macro curry (function &rest arguments)
-  (let ((curries (make-gensym-list (length arguments) "CURRY")))
-    `(let ,(mapcar #'list curries arguments)
-       (declare (optimize (speed 3) (safety 1) (debug 1)))
-       (lambda (&rest more)
-         (apply ,function ,@curries more)))))
+Signals a PROGRAM-ERROR is the lambda-list is malformed."
+  (let ((state :required)
+        (allow-other-keys nil)
+        (auxp nil)
+        (required nil)
+        (optional nil)
+        (rest nil)
+        (keys nil)
+        (aux nil))
+    (labels ((fail (elt)
+               (simple-program-error "Misplaced ~S in ordinary lambda-list:~%  ~S"
+                                     elt lambda-list))
+             (check-variable (elt what &optional (allow-specializers allow-specializers))
+               (unless (or (clutter-symbol-p elt)
+                           (symbolp elt)
+                           (and allow-specializers
+                                (consp elt) (= 2 (length elt)) (clutter-symbol-p (first elt))))
+                 (simple-program-error "Invalid ~A ~S in ordinary lambda-list:~%  ~S"
+                                       what elt lambda-list)))
+             (check-spec (spec what)
+               (destructuring-bind (init suppliedp) spec
+                 (declare (ignore init))
+                 (check-variable suppliedp what nil))))
+      (dolist (elt lambda-list)
+        (cond
+          ((eq elt coptional)
+           (if (eq state :required)
+               (setf state elt)
+               (fail elt)))
+          ((eq elt crest)
+           (if (member state '(:required coptional))
+               (setf state elt)
+               (fail elt)))
+          ((eq elt ckey)
+           (if (member state '(:required coptional :after-rest))
+               (setf state elt)
+               (fail elt)))
+          ((eq elt callow-other-keys)
+           (if (eq state ckey)
+               (setf allow-other-keys t
+                     state elt)
+               (fail elt)))
+          ((eq elt caux)
+           (cond ((eq state crest)
+                  (fail elt))
+                 (auxp
+                  (simple-program-error "Multiple ~S in ordinary lambda-list:~%  ~S"
+                                        elt lambda-list))
+                 (t
+                  (setf auxp t
+                        state elt))
+                 ))
+          (t
+           (when (member elt '#.(set-difference lambda-list-keywords
+                                                '(&optional &rest &key &allow-other-keys &aux)))
+             (simple-program-error
+              "Bad lambda-list keyword ~S in ordinary lambda-list:~%  ~S"
+              elt lambda-list))
+           (cond
+             ((eq state :required)
+              (check-variable elt "required parameter")
+              (push elt required))
+             ((eq state coptional)
+              (cond ((consp elt)
+                     (destructuring-bind (name &rest tail) elt
+                       (check-variable name "optional parameter")
+                       (cond ((cdr tail)
+                              (check-spec tail "optional-supplied-p parameter"))
+                             (normalize-optional
+                              (setf elt (append elt '(nil)))))))
+                    (t
+                     (check-variable elt "optional parameter")
+                     (when normalize-optional
+                       (setf elt (cons elt '(nil nil))))))
+              (push (ensure-list elt) optional))
+             ((eq state crest)
+              (check-variable elt "rest parameter")
+              (setf rest elt
+                    state :after-rest))
+             ((eq state ckey)
+              (cond ((consp elt)
+                     (destructuring-bind (var-or-kv &rest tail) elt
+                       (cond ((consp var-or-kv)
+                              (destructuring-bind (keyword var) var-or-kv
+                                (unless (clutter-symbol-p keyword)
+                                  (simple-program-error "Invalid keyword name ~S in ordinary ~
+                                                         lambda-list:~%  ~S"
+                                                        keyword lambda-list))
+                                (check-variable var "keyword parameter")))
+                             (t
+                              (check-variable var-or-kv "keyword parameter")
+                              (when normalize-keyword
+                                (setf var-or-kv (list (make-keyword var-or-kv) var-or-kv)))))
+                       (if (cdr tail)
+                           (check-spec tail "keyword-supplied-p parameter")
+                           (when normalize-keyword
+                             (setf tail (append tail '(nil)))))
+                       (setf elt (cons var-or-kv tail))))
+                    (t
+                     (check-variable elt "keyword parameter")
+                     (setf elt (if normalize-keyword
+                                   (list (list (make-keyword elt) elt) nil nil)
+                                   elt))))
+              (push elt keys))
+             ((eq state caux)
+              (if (consp elt)
+                  (destructuring-bind (var &optional init) elt
+                    (declare (ignore init))
+                    (check-variable var "&aux parameter"))
+                  (progn
+                    (check-variable elt "&aux parameter")
+                    (setf elt (list* elt (when normalize-auxilary
+                                           '(nil))))))
+              (push elt aux))
+             (t
+              (simple-program-error "Invalid ordinary lambda-list:~%  ~S" lambda-list)))))))
+    (values (nreverse required) (nreverse optional) rest (nreverse keys)
+            allow-other-keys (nreverse aux))))

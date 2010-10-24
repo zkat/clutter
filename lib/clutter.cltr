@@ -1,6 +1,6 @@
 (def! lambda
     (vau env (vau-list &rest body)
-         (wrap (eval (list* vau :ignore vau-list body) env))))
+         (wrap (eval (list* vau ignore vau-list body) env))))
 
 (def! mapcar
     (lambda (function values)

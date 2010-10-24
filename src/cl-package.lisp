@@ -3,4 +3,4 @@
 (cl:in-package "COMMON-LISP")
 
 (defpackage #:clutter
-  (:use #:cl #:alexandria #:anaphora))
+  (:use #:cl #:alexandria #:anaphora #:split-sequence))

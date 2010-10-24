@@ -10,7 +10,7 @@
   (loop
      (format t "~&> ")
      (with-simple-restart (abort "Return to Clutter's toplevel")
-       (format t "~&=> ~S" (evaluate (clutter-read))))))
+       (format t "~&=> ~S" (clutter-eval (clutter-read))))))
 
 #+sbcl
 (defun main ()

@@ -6,17 +6,17 @@
 
 (defun clutter-load (filespec)
   (with-open-file (stream filespec)
-    (loop for expr = (read stream nil)
+    (loop for expr = (clutter-read stream)
           while expr
           do (clutter-eval expr))))
 
 (defun clutter-eval (expression &optional (environment *global-env*))
-  (cond ((symbolp expression) (eval/symbol expression environment))
+  (cond ((clutter-symbol-p expression) (eval/symbol expression environment))
         ((consp expression) (eval/combiner expression environment))
         (t expression)))
 
 (defun eval/symbol (symbol env)
-  (if (keywordp symbol)
+  (if (eq symbol (cs "ignore"))
       symbol
       (let ((val (lookup symbol env)))
         (if (clutter-symbol-operator-p val)
@@ -79,7 +79,7 @@
       (error "Not a function: ~A." operator)))
 
 (defmacro defprimitive (name value)
-  `(extend *global-env* ',name ,value))
+  `(extend *global-env* (clutter-symbol ,name) ,value))
 
 (defmacro defprimop (name vau-list &body body)
   `(defprimitive ,name
@@ -95,12 +95,12 @@
          :function (lambda (*denv* ,@vau-list)
                      ,@body)))))
 
-(defprimop vau (static-env env-var vau-list &rest body)
+(defprimop "vau" (static-env env-var vau-list &rest body)
   (make-clutter-operator
    :function
    (lambda (*denv* &rest values)
      (multiple-value-bind (required optional rest)
-         (parse-ordinary-lambda-list vau-list)
+         (parse-vau-list vau-list)
        (declare (ignore optional))
        (unless (or (= (length values) (length vau-list))
                    (and rest (>= (length values) (1- (length vau-list))))
@@ -114,63 +114,63 @@
                for last-value = (clutter-eval sexp env)
                finally (return last-value)))))))
 
-(defprimfun wrap (operative)
+(defprimfun "wrap" (operative)
   (make-function operative))
 
-(defprimfun unwrap (function)
+(defprimfun "unwrap" (function)
   (clutter-function-operator function))
 
-(defprimfun eval (expression environment)
+(defprimfun "eval" (expression environment)
   (clutter-eval expression environment))
 
-(defprimfun + (&rest values)
+(defprimfun "+" (&rest values)
   (reduce #'+ values))
 
-(defprimfun cons (car cdr)
+(defprimfun "cons" (car cdr)
   (cons car cdr))
 
-(defprimfun car (cons)
+(defprimfun "car" (cons)
   (car cons))
 
-(defprimfun cdr (cons)
+(defprimfun "cdr" (cons)
   (cdr cons))
 
-(defprimfun list (&rest values)
+(defprimfun "list" (&rest values)
   values)
 
-(defprimfun list* (&rest values)
+(defprimfun "list*" (&rest values)
   (apply #'list* values))
 
-(defprimfun random (max)
+(defprimfun "random" (max)
   (random max))
 
-(defprimop def! (*denv* var value)
+(defprimop "def!" (*denv* var value)
   (extend *denv* var (clutter-eval value *denv*))
   var)
 
-(defprimop set-var! (*denv* var value)
+(defprimop "set-var!" (*denv* var value)
   (setf (lookup var *denv*) (clutter-eval value *denv*)))
 
-(defprimop if (*denv* test if-true if-false)
+(defprimop "if" (*denv* test if-true if-false)
   (if (clutter-true-p (clutter-eval test *denv*))
       (clutter-eval if-true *denv*)
       (clutter-eval if-false *denv*)))
 
-(defprimop symbolize! (*denv* var value)
+(defprimop "symbolize!" (*denv* var value)
   (let ((val (clutter-eval value *denv*)))
     (assert (clutter-operator-p val))
     (extend *denv* var (make-symbol-operator val))))
 
-(defprimfun symbolize (&rest values)
+(defprimfun "symbolize" (&rest values)
   (assert (clutter-operator-p (car values)))
   (make-symbol-operator (car values)))
 
-(defprimfun eq (obj1 obj2)
+(defprimfun "eq" (obj1 obj2)
     (if (eq obj1 obj2)
         :t
         :f))
 
-(defprimfun print (obj)
+(defprimfun "print" (obj)
   (print obj))
 
 (defun clutter-true-p (exp)

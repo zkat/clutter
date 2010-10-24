@@ -6,96 +6,33 @@
 (defvar *subnamespace-marker* #\:)
 (defvar *keyword-marker* #\:)
 (defvar *keyword-marker-in-front* 't)
-(defvar *keyword-namespace-name* "keyword")
-(defvar *namespace*)
 
 ;;;
 ;;; Symbols
 ;;;
-(defstruct clutter-symbol name namespace)
+(defstruct (clutter-symbol (:constructor %make-clutter-symbol (name))) name)
+
+(defvar *symbol-table* (make-hash-table :test 'equal))
+
+(defun clutter-symbol (name)
+  "Return the symbol corresponding to string NAME"
+  (or (gethash name *symbol-table*)
+      (setf (gethash name *symbol-table*) (%make-clutter-symbol name))))
+
+(defun cs (name)
+  "Shorthand for clutter-symbol"
+  (clutter-symbol name))
+
 (defmethod print-object ((o clutter-symbol) s)
-  (cond ((eq *namespace* (clutter-symbol-namespace o))
-         (princ (clutter-symbol-name o) s))
-        ((eq (find-namespace "keyword") (clutter-symbol-namespace o))
-         (format s ":~A" (clutter-symbol-name o)))
-        (t
-         (format s "~A:~A"
-                 (clutter-symbol-namespace o)
-                 (clutter-symbol-name o)))))
-
-(defun clutter-keyword-p (symbol)
-  (and (clutter-symbol-p symbol)
-       (eq (find-namespace *keyword-namespace-name*)
-           (clutter-symbol-namespace symbol))))
-
-;;;
-;;; Namespaces
-;;;
-(defstruct (namespace (:predicate namespacep)
-                      (:constructor make-namespace))
-  (symbols (make-hash-table :test #'equal)))
-
-(unless (ignore-errors (lookup nil :namespace))
-  (bind nil (make-namespace) :namespace :global t))
-(setf *namespace* (lookup nil :namespace))
-
-#+nil(defmethod print-object ((o namespace) s)
-  (princ (namespace-name o) s))
-
-(defun find-clutter-symbol (name &optional (namespace *namespace*))
-  (gethash name (namespace-symbols namespace)))
-
-(defun add-clutter-symbol (symbol &optional (namespace *namespace*))
-  (check-type symbol clutter-symbol)
-  (check-type namespace namespace)
-  (setf (gethash (clutter-symbol-name symbol)
-                 (namespace-symbols namespace))
-        symbol))
-
-(defun remove-clutter-symbol (symbol &optional (namespace *namespace*))
-  (check-type symbol clutter-symbol)
-  (check-type namespace namespace)
-  (remhash (clutter-symbol-name symbol)
-           (namespace-symbols namespace))
-  symbol)
-
-(defun clutter-intern (name &optional (namespace *namespace*))
-  (or (find-clutter-symbol name namespace)
-      (add-clutter-symbol (make-clutter-symbol :name name :namespace namespace)
-                          namespace)))
-
-(defun find-namespace (name &optional super-namespace-name
-                       &aux (separator (position *namespace-marker* name)))
-  (if separator
-      (find-namespace (subseq name (1+ separator))
-                      (concatenate 'string super-namespace-name
-                                   (when super-namespace-name ":")
-                                   (subseq name 0 separator)))
-      (lookup (clutter-intern name (ensure-namespace super-namespace-name)) :namespace)))
-
-(defun get-or-bind-namespace (name super-namespace)
-  (let ((namespace (clutter-intern name super-namespace)))
-    (if (clutter-boundp namespace :namespace)
-        (lookup namespace :namespace)
-        (bind namespace (make-namespace) :namespace))))
-
-(defun ensure-namespace (name &optional (super-namespace *namespace*)
-                         &aux (separator (position *namespace-marker* name)))
-  (if name
-      (if separator
-          (let ((new-super-namespace (get-or-bind-namespace (subseq name 0 separator) super-namespace)))
-            (ensure-namespace (subseq name (1+ separator)) new-super-namespace))
-          (get-or-bind-namespace name super-namespace))
-      *namespace*))
-
-(ensure-namespace "keyword")
+  (princ (clutter-symbol-name o) s))
 
 ;;;
 ;;; Reader
 ;;;
 (defparameter *clutter-read-base* 10)
 (defparameter *whitespace-chars* '(#\Space #\Return #\Tab #\Newline #\Page #\Linefeed))
-(defun whitespacep (char)
+(defparameter *single-escape* #\\)
+(defun whitespace? (char)
   (if (member char *whitespace-chars*) t nil))
 
 ;; (defun invalid-char-p (char)
@@ -144,11 +81,10 @@
      if (char= end-char char)
      do (progn (read-char stream nil nil)
                (return-from clutter-read-delimited-list list))
-     else unless (whitespacep char)
+     else unless (whitespace? char)
      collect (clutter-read stream) into list))
 
 ;;; Taken from SICL
-(defparameter *single-escape* #\\)
 (defun clutter-read-string (end-char stream)
   (loop
      with result = (make-array 0 :element-type 'character :adjustable t :fill-pointer t)
@@ -169,7 +105,7 @@
                                          (clutter-read-delimited-list #\) stream)))
 (set-clutter-reader-macro-function #\' (lambda (stream char)
                                          (declare (ignore char))
-                                         `(,(clutter-intern "quote")
+                                         `(,(clutter-symbol "quote")
                                             ,(clutter-read stream))))
 (set-clutter-reader-macro-function #\) (lambda (stream char)
                                          (declare (ignore stream char))
@@ -191,9 +127,9 @@
                                (funcall (reader-macro-function char) stream char))))
                   (when result
                     (return-from read-token (values (car result) t)))))
-            (cond ((and collecting-token (whitespacep char))
+            (cond ((and collecting-token (whitespace? char))
                    (return-from read-token token))
-                  ((and (whitespacep char) (not collecting-token))
+                  ((and (whitespace? char) (not collecting-token))
                    (values))
                   (t
                    (vector-push-extend char token)
@@ -289,48 +225,51 @@
         nil)))
 
 (defun symbol-illegal-characters-p (symbol)
-  (or (find *namespace-marker* symbol)
-      (find *subnamespace-marker* symbol)
-      (find *keyword-marker* symbol)))
+  (find *keyword-marker* symbol))
 
-(defun parse-keyword-token (token)
-  (let ((symbol-name (subseq token 1)))
-    (if *keyword-marker-in-front*
-        (when (char= (char symbol-name 0) *keyword-marker*)
-          (setf symbol-name (subseq symbol-name 1)))
-        (when (char= (char symbol-name (1- (length symbol-name))) *keyword-marker*)
-          (setf symbol-name (subseq symbol-name (1- (length symbol-name))))))
-    (if (not (symbol-illegal-characters-p symbol-name))
-        (let* ((symbol (clutter-intern symbol-name (ensure-namespace *keyword-namespace-name*))))
-          (unless (clutter-boundp symbol :lexical)
-            (bind symbol symbol :lexical))
-          symbol)
-        (error "Illegal characters in symbol name"))))
+;; (defun parse-keyword-token (token)
+;;   (let ((symbol-name (subseq token 1)))
+;;     (if *keyword-marker-in-front*
+;;         (when (char= (char symbol-name 0) *keyword-marker*)
+;;           (setf symbol-name (subseq symbol-name 1)))
+;;         (when (char= (char symbol-name (1- (length symbol-name))) *keyword-marker*)
+;;           (setf symbol-name (subseq symbol-name (1- (length symbol-name))))))
+;;     (if (not (symbol-illegal-characters-p symbol-name))
+;;         (let* ((symbol (clutter-intern symbol-name *keyword-env*)))
+;;           (unless (clutter-bound? symbol :lexical)
+;;             (bind symbol symbol :lexical))
+;;           symbol)
+;;         (error "Illegal characters in symbol name"))))
 
-(defun parse-qualified-symbol-token (token)
-  (multiple-value-bind (symbol-name symbol-end)
-      (split-sequence *namespace-marker* token :from-end 't :count 1)
-    (let ((namespace-identifier (subseq token 0 symbol-end)))
-      (when (char= (char namespace-identifier (1- symbol-end)) *namespace-marker*)
-        ;; Should handle internal symbols here
-        (setf namespace-identifier (subseq namespace-identifier 0 (1- symbol-end))))
-      (if (not (symbol-illegal-characters-p symbol-name))
-          (clutter-intern (car symbol-name) (ensure-namespace namespace-identifier))
-          (error "Illegal characters in symbol name")))))
+(defun build-namespace-lookup (token)
+  (reduce (lambda (accum arg) (list (clutter-symbol "lookup") arg accum))
+          (split-sequence *namespace-marker* token)
+          :key #'clutter-symbol))
+
+;; (defun parse-qualified-symbol-token (token)
+;;   (multiple-value-bind (symbol-name symbol-end)
+;;       (split-sequence *namespace-marker* token :from-end t :count 1)
+;;     (let ((namespace-identifier (subseq token 0 symbol-end)))
+;;       (when (char= (char namespace-identifier (1- symbol-end)) *namespace-marker*)
+;;         ;; Should handle internal symbols here
+;;         (setf namespace-identifier (subseq namespace-identifier 0 (1- symbol-end))))
+;;       (if (not (symbol-illegal-characters-p symbol-name))
+;;           `(,(clutter-symbol "lookup") ,(clutter-symbol (car symbol-name)) ,namespace-identifier)
+;;           (error "Illegal characters in symbol name")))))
 
 (defun parse-symbol-token (token)
   (cond
-    ((or (and *keyword-marker-in-front*
-              (char= (char token 0) *keyword-marker*))
-         (and (not *keyword-marker-in-front*)
-              (char= (char token (- (length token) 1)) *keyword-marker*)))
-     (parse-keyword-token token))
+    ;; ((or (and *keyword-marker-in-front*
+    ;;           (char= (char token 0) *keyword-marker*))
+    ;;      (and (not *keyword-marker-in-front*)
+    ;;           (char= (char token (- (length token) 1)) *keyword-marker*)))
+    ;;  (parse-keyword-token token))
     ((find *namespace-marker* token :from-end t)
-     (parse-qualified-symbol-token token))
+     (build-namespace-lookup token))
     ;; Normal, unqualified symbol
     (t (if (symbol-illegal-characters-p token)
            (error "Illegal characters in symbol name")
-           (clutter-intern token)))))
+           (clutter-symbol token)))))
 
 (defun clutter-read (&optional (stream *standard-input*))
   (multiple-value-bind (token donep)
