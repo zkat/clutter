@@ -180,7 +180,7 @@
   (extend *denv* var (clutter-eval value *denv*))
   var)
 
-(defprimop set! (*denv* var value)
+(defprimop set-var! (*denv* var value)
   (setf (lookup var *denv*) (clutter-eval value *denv*)))
 
 (defprimop if (*denv* test if-true if-false)
