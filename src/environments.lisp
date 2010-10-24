@@ -6,6 +6,8 @@
 ;;; Environments
 ;;;
 
+(declaim (optimize debug))
+
 (defstruct env
   parent
   (bindings (make-hash-table :test 'eq)))
