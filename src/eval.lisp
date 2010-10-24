@@ -18,8 +18,8 @@
 
 (defun eval/symbol (symbol env)
   (if (or (eq symbol (cs "#ignore"))
-          (eq symbol (cs *true*))
-          (eq symbol (cs *false*)))
+          (eq symbol *true*)
+          (eq symbol *false*))
       symbol
       (let ((val (lookup symbol env)))
         (if (clutter-symbol-operator-p val)
