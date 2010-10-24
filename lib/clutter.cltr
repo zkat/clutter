@@ -1,18 +1,22 @@
-(def-var! %def!-expanders (list))
+(direct-def! fun fun
+             (vau env (form)
+                  (eval form env ((vau env (x) x) fun))))
 
-(def-var! cond
+(direct-def! var %def!-expanders (list))
+
+(direct-def! fun cond
     (vau env (&rest forms)
          (if (eql? forms (list))
              #f
              (if (eval (car forms) env)
                  (eval (car (cdr forms)) env)
-                 (eval (list* cond (cdr (cdr forms))) env)))))
+                 (eval (list* (fun cond) (cdr (cdr forms))) env)))))
 
-(def-var! lambda
+(direct-def! fun lambda
     (vau env (vau-list &rest body)
-         (wrap (eval (list* vau #ignore vau-list body) env))))
+         (wrap (eval (list* (fun vau) #ignore vau-list body) env))))
 
-(def-var! assoc
+(direct-def! fun assoc
     (lambda (key alist)
       (if (eql? alist (list))
           #f
@@ -20,117 +24,121 @@
               (car alist)
               (assoc key (cdr alist))))))
 
-(def-var! mapcar
+(direct-def! fun call
+             (vau env (function &rest args)
+                  (eval (list* (eval function env) args) env)))
+
+(direct-def! fun mapcar
     (lambda (function values)
       (if (eql? (list) values)
           (list)
-          (cons (function (car values)) (mapcar function (cdr values))))))
+          (cons (call function (car values)) (mapcar function (cdr values))))))
 
-(def-var! let
+(direct-def! fun let
     (vau env (clauses &rest body)
-         (eval (list* (list* lambda (mapcar car clauses) body)
+         (eval (list* (list* (fun lambda) (mapcar (fun car) clauses) body)
                       (mapcar (lambda (x) (car (cdr x))) clauses))
                env)))
 
-(def-var! def!
-    (vau env (place value)
+(direct-def! fun def!
+    (vau env (subenv place value)
          (cond
-           (symbol? place) (eval (list def-var! place value) env)
+           (symbol? place) (eval (list (fun direct-def!) subenv place value) env)
            (cons? place)
            (let ((expander (assoc (car place) %def!-expanders)))
              (eval (list* (cdr expander) (eval value env) (cdr place))
                    env)))))
 
-(def! %set!-specials (list))
-(def! %set!-expanders (list))
+(def! var %set!-specials (list))
+(def! var %set!-expanders (list))
 
-(def! set!
+(def! fun set!
     (vau env (variable value)
          (cond
            (symbol? variable)
            (let ((special (assoc variable %set!-specials)))
              (if special
                  ((cdr special) (eval value env))
-                 (eval (list set-var! variable value) env)))
+                 (eval (list (fun direct-set!) ((vau env (x) x) var) variable value) env)))
 
            (cons? variable)
            (let ((expander (assoc (car variable) %set!-expanders)))
              (eval (list* (cdr expander) (eval value env) (cdr variable)) env)))))
 
-(def! push!
+(def! fun push!
     (vau env (value place)
-         (eval (list set! place (list cons value place))
+         (eval (list (fun set!) place (list (fun cons) value place))
                env)))
 
-(def! def-def!-expander!
+(def! fun def-def!-expander!
     (vau env (name combiner)
          (push! (cons name (eval combiner env)) %def!-expanders)))
 
 (def-def!-expander! lookup
     (vau env (value symbol target-env)
-         (eval (list def-lookup! (eval value env) symbol (eval target-env env))
+         (eval (list (fun def-lookup!) (eval value env) symbol (eval target-env env))
                env)))
 
-(def! current-env
+(def! fun current-env
     (vau env () env))
 
-(def! def-ns!
+(def! fun def-ns!
     (vau env (name)
-         (eval (list def! name (make-env env)) env)))
+         (eval (list (fun def!) name (make-env env)) env)))
 
-(def! with-ns
+(def! fun with-ns
     (vau env (ns &rest body)
-         (eval (list (list* lambda () body)) (eval ns env))))
+         (eval (list (list* (fun lambda) () body)) (eval ns env))))
 
-(def! apply
+(def! fun apply
     (vau env (combiner args)
-         (eval (list* combiner (eval args env)) env)))
+         (eval (list* (fun combiner) (eval args env)) env)))
 
-(def! def-set!-special!
+(def! fun def-set!-special!
     (vau env (variable function)
          (push! (cons variable (eval function env)) %set!-specials)))
 
-(def! def-set!-expander!
+(def! fun def-set!-expander!
     (vau env (name combiner)
          (push! (cons name (eval combiner env)) %set!-expanders)))
 
 (def-set!-expander! lookup
     (vau env (value symbol target-env)
-         (eval (list set-lookup! (eval value env) symbol (eval target-env env))
+         (eval (list (fun set-lookup!) (eval value env) symbol (eval target-env env))
                env)))
 
-(def! do
+(def! fun do
     (vau env (&rest body)
          (let ((last-value ()))
            (mapcar (lambda (exp) (set! last-value (eval exp env))) body)
            last-value)))
 
-(def! when
+(def! fun when
     (vau env (test &rest body)
          (if (eval test env)
-             (eval (list* do body) env)
+             (eval (list* (fun do) body) env)
              #f)))
 
-(def! unless
+(def! fun unless
     (vau env (test &rest body)
          (if (eval test env)
              #f
-             (eval (list* do body) env))))
+             (eval (list* (fun do) body) env))))
 
-(def! anaphoric
+(def! fun anaphoric
     (vau env (var op test &rest body)
-         (eval (list let (list (list var (eval test env)))
+         (eval (list (fun let) (list (list var (eval test env)))
                      (list* op var body))
                env)))
 
-(def! aif
+(def! fun aif
     (vau env (var test then else)
-         (eval (list anaphoric var if test then else) env)))
+         (eval (list (fun anaphoric) var if test then else) env)))
 
-(def! awhen
+(def! fun awhen
     (vau env (var test &rest body)
-         (eval (list* anaphoric var when test body) env)))
+         (eval (list* (fun anaphoric) var when test body) env)))
 
-(def! aunless
+(def! fun aunless
     (vau env (var test &rest body)
-         (eval (list* anaphoric var unless test body) env)))
+         (eval (list* (fun anaphoric) var unless test body) env)))

@@ -9,8 +9,8 @@
             :components
             ((:file "cl-package")
              (:file "utilities")
-             (:file "environments")
              (:file "reader")
+             (:file "environments")
              (:file "combiners")
              (:file "eval")
              (:file "primitives")

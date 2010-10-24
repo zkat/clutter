@@ -11,23 +11,23 @@
           do (clutter-eval expr)))
   t)
 
-(defun clutter-eval (expression &optional (environment *global-env*))
-  (cond ((clutter-symbol-p expression) (eval/symbol expression environment))
+(defun clutter-eval (expression &optional (environment *global-env*) (subenv (cs "var")))
+  (cond ((clutter-symbol-p expression) (eval/symbol subenv expression environment))
         ((consp expression) (eval/combiner expression environment))
         (t expression)))
 
-(defun eval/symbol (symbol env)
+(defun eval/symbol (subenv symbol env)
   (if (or (eq symbol (cs "#ignore"))
           (eq symbol *true*)
           (eq symbol *false*))
       symbol
-      (let ((val (lookup symbol env)))
+      (let ((val (lookup subenv symbol env)))
         (if (clutter-symbol-operator-p val)
             (invoke (clutter-symbol-operator-operator val) env nil)
             val))))
 
 (defun eval/combiner (expression env)
-  (let ((f (clutter-eval (car expression) env)))
+  (let ((f (clutter-eval (car expression) env (cs "fun"))))
     (cond ((clutter-operator-p f)
            (invoke f env (cdr expression)))
           ((clutter-function-p f)

@@ -8,48 +8,67 @@
 
 (declaim (optimize debug))
 
-(defstruct env
+(defvar *mandatory-subenvs* (list (cs "var") (cs "fun")))
+
+(defun mandatory-subenv-table ()
+  (alist-hash-table
+   (mapcar (lambda (subenv) (cons subenv (make-hash-table :test 'eq)))
+           *mandatory-subenvs*)
+   :test 'eq))
+
+(defstruct (env (:constructor %make-env))
   parent
-  (bindings (make-hash-table :test 'eq)))
+  (subenvs (mandatory-subenv-table)))
 
 (defvar *global-env*
-  (make-env :parent nil))
+  (%make-env :parent nil))
+
+(defun make-env (&optional (parent *global-env*))
+  "Creates a child environment to PARENT.  Child environments have at least the subenvs of their parents."
+  (%make-env :parent parent
+             :subenvs (aprog1 (mandatory-subenv-table)
+                        (maphash (lambda (name bindings)
+                                   (declare (ignore bindings))
+                                   (setf (gethash name it)
+                                         (make-hash-table :test 'eq)))
+                                 it))))
 
 (defvar *denv* nil)
 
 (defun get-current-env () *denv*)
 
-(defun lookup (symbol &optional (env *global-env*))
-  (if env
+(defun lookup (subenv symbol &optional (env *global-env*))
+  (if (and env (nth-value 1 (gethash subenv (env-subenvs env))))
       (multiple-value-bind (value exists)
-          (gethash symbol (env-bindings env))
+          (gethash symbol (gethash subenv (env-subenvs env)))
         (if exists
             value
-            (lookup symbol (env-parent env))))
-      (error "No binding for ~A." symbol)))
+            (lookup subenv symbol (env-parent env))))
+      (error "No binding for ~A ~A." subenv symbol)))
 
-(defun (setf lookup) (new-value symbol &optional (env *global-env*))
-  (if env
-      (if (nth-value 1 (gethash symbol (env-bindings env)))
-          (setf (gethash symbol (env-bindings env)) new-value)
-          (setf (lookup symbol (env-parent env)) new-value))
-      (error "No binding for ~A." symbol)))
+(defun (setf lookup) (new-value subenv symbol &optional (env *global-env*))
+  (if (and env (nth-value 1 (gethash subenv (env-subenvs env))))
+      (if (nth-value 1 (gethash symbol (gethash subenv (env-subenvs env))))
+          (setf (gethash symbol (gethash subenv (env-subenvs env))) new-value)
+          (setf (lookup subenv symbol (env-parent env)) new-value))
+      (error "No binding for ~A ~A." subenv symbol)))
 
-(defun clutter-bound? (symbol &optional (env *global-env*))
-  (if env
-      (if (nth-value 1 (gethash symbol (env-bindings env)))
+(defun clutter-bound? (subenv symbol &optional (env *global-env*))
+  (if (and env (nth-value 1 (gethash subenv (env-subenvs env))))
+      (if (nth-value 1 (gethash symbol (gethash subenv (env-subenvs env))))
           t
           (clutter-bound? symbol (env-parent env)))
       nil))
 
-(defun extend (env symbol value)
-  (if (nth-value 1 (gethash symbol (env-bindings env)))
-      (warn "Redefinition of ~A." symbol))
-  (setf (gethash symbol (env-bindings env)) value))
+(defun extend (env subenv symbol value)
+  (if (nth-value 1 (gethash subenv (env-subenvs env)))
+      (progn
+       (if (nth-value 1 (gethash symbol (gethash subenv (env-subenvs env))))
+           (warn "Redefinition of ~A." symbol))
+       (setf (gethash symbol (gethash subenv (env-subenvs env))) value))
+      (error "Subenv ~A does not exist." subenv)))
 
-(defun make-child-env (env variables values)
-  (make-env :parent env
-            :bindings (aprog1 (make-hash-table :test 'eq)
-                        (mapc (lambda (name value)
-                                (setf (gethash name it) value))
-                              variables values))))
+(defun add-subenv (env subenv)
+  (if (nth-value 1 (gethash subenv (env-subenvs env)))
+      (warn "Redefinition of subenv ~A in ~A" subenv env)
+      (setf (gethash subenv (env-subenvs env)) (make-hash-table :test 'eq))))
