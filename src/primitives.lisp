@@ -66,7 +66,7 @@
   var)
 
 (defun clutter-true-p (exp)
-  (if (not (eq exp (cs "f"))) t nil))
+  (not (eq exp (cs "f"))))
 
 (defprimop "if" (*denv* test if-true if-false)
   (if (clutter-true-p (clutter-eval test *denv*))
