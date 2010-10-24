@@ -99,12 +99,18 @@
                  (make-clutter-operator
                   :function
                   (lambda (*denv* &rest values)
-                    (let ((env (make-child-env static-env
-                                               (cons env-var lambda-list)
-                                               (cons *denv* values))))
-                      (loop for sexp in body
-                            for last-value = (clutter-eval sexp env)
-                            finally (return last-value))))))))
+                    
+                    (multiple-value-bind (required optional rest)
+                        (parse-ordinary-lambda-list lambda-list)
+                      (declare (ignore optional))
+                     (let ((env (make-child-env static-env
+                                                (list* env-var rest required)
+                                                (list* *denv*
+                                                       (nthcdr (length required) values)
+                                                       (subseq values 0 (length required))))))
+                       (loop for sexp in body
+                             for last-value = (clutter-eval sexp env)
+                             finally (return last-value)))))))))
 
 (defprimitive wrap
     (make-function
