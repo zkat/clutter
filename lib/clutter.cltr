@@ -98,3 +98,39 @@
     (vau env (value symbol target-env)
          (eval (list set-lookup! (eval value env) symbol (eval target-env env))
                env)))
+
+(def! do
+    (vau env (&rest body)
+         (let ((last-value ()))
+           (mapcar (lambda (exp) (set! last-value (eval exp env))) body)
+           last-value)))
+
+(def! when
+    (vau env (test &rest body)
+         (if (eval test env)
+             (eval (list* do body) env)
+             #f)))
+
+(def! unless
+    (vau env (test &rest body)
+         (if (eval test env)
+             #f
+             (eval (list* do body) env))))
+
+(def! anaphoric
+    (vau env (var op test &rest body)
+         (eval (list let (list (list var (eval test env)))
+                     (list* op var body))
+               env)))
+
+(def! aif
+    (vau env (var test then else)
+         (eval (list anaphoric var if test then else) env)))
+
+(def! awhen
+    (vau env (var test &rest body)
+         (eval (list* anaphoric var when test body) env)))
+
+(def! aunless
+    (vau env (var test &rest body)
+         (eval (list* anaphoric var unless test body) env)))
