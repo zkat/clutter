@@ -58,6 +58,13 @@
           (setf (lookup symbol (env-parent env)) new-value))
       (error "No binding for ~A." symbol)))
 
+(defun clutter-bound? (symbol &optional (env *global-env*))
+  (if env
+      (if (nth-value 1 (gethash symbol (env-bindings env)))
+          t
+          (clutter-bound? symbol (env-parent env)))
+      nil))
+
 (defun extend (env symbol value)
   (if (nth-value 1 (gethash symbol (env-bindings env)))
       (warn "Redefinition of ~A." symbol))
