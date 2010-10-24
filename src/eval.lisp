@@ -65,7 +65,7 @@
                               variables values))))
 
 (defvar *denv* nil)
-(defstruct clutter-operator function)
+(defstruct clutter-operator function name)
 (defun make-operator (variables body env)
   (make-clutter-operator 
    :function
@@ -83,6 +83,27 @@
 (defun make-symbol-operator (operator)
   (make-clutter-symbol-operator :operator operator))
 
+(defun combiner-name (combiner)
+  (cond
+    ((clutter-operator-p combiner) (clutter-operator-name combiner))
+    ((clutter-function-p combiner) (combiner-name (clutter-function-operator combiner)))
+    ((clutter-symbol-operator-p combiner) (combiner-name (clutter-symbol-operator-operator combiner)))))
+
+(defmethod print-object ((o clutter-operator) s)
+  (let ((name (combiner-name o)))
+    (print-unreadable-object (o s :type t :identity (null name))
+      (princ (combiner-name o) s))))
+
+(defmethod print-object ((o clutter-function) s)
+  (let ((name (combiner-name o)))
+    (print-unreadable-object (o s :type t :identity (null name))
+      (princ (combiner-name o) s))))
+
+(defmethod print-object ((o clutter-symbol-operator) s)
+  (let ((name (combiner-name o)))
+    (print-unreadable-object (o s :type t :identity (null name))
+      (princ (combiner-name o) s))))
+
 (defun get-current-env () *denv*)
 
 (defun invoke (operator env args)
@@ -92,6 +113,19 @@
 
 (defmacro defprimitive (name value)
   `(extend *global-env* ',name ,value))
+
+(defmacro defprimop (name lambda-list &body body)
+  `(defprimitive ,name
+       (make-clutter-operator
+        :name ,name
+        :function (lambda ,lambda-list ,@body))))
+
+(defmacro defprimfun (name lambda-list &body body)
+  `(defprimitive ,name
+       (make-function
+        (make-clutter-operator
+         :name ,name
+         :function (lambda ,lambda-list ,@body)))))
 
 (defprimitive vau
     (make-clutter-operator
