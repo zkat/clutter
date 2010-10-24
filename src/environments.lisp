@@ -6,82 +6,48 @@
 ;;; Environments
 ;;;
 
-(defstruct (stack-frame (:constructor make-stack-frame (name &optional scope)))
-  (name "anonymous")
-  (scope '())
-  (functions (make-hash-table :test 'eq))
-  (lexicals (make-hash-table :test 'eq))
-  (dynamics (make-hash-table :test 'eq))
-  (namespaces (make-hash-table :test 'eq))
-  (blocks (make-hash-table :test 'eq)))
+(defstruct env
+  parent
+  (bindings (make-hash-table :test 'eq)))
 
-(defmethod print-object ((o stack-frame) s)
-  (print-unreadable-object (o s :type t :identity t)
-    (princ (stack-frame-name o) s)))
+(defvar *global-env*
+  (make-env :parent nil))
 
-(defvar *stack* (list (make-stack-frame "global")))
+(defvar *denv* nil)
 
-(defun bind (symbol value env &key global (overwritep t)
-             &aux (table (if global
-                             (car (last (current-env env)))
-                             (car (current-env env)))))
-  (when (and (nth-value 1 (gethash symbol table))
-             (not overwritep))
-    (error "~A is already bound." symbol))
-  (setf (gethash symbol table) value))
+(defun get-current-env () *denv*)
 
-(defun unbind (symbol env)
-  (remhash symbol (lookup-binding-table symbol env)))
+(defun lookup (symbol &optional (env *global-env*))
+  (if env
+      (multiple-value-bind (value exists)
+          (gethash symbol (env-bindings env))
+        (if exists
+            value
+            (lookup symbol (env-parent env))))
+      (error "No binding for ~A." symbol)))
 
-(defun clutter-boundp (symbol env &aux (table (lookup-binding-table symbol env)))
-  (when table
-    (gethash symbol table)))
+(defun (setf lookup) (new-value symbol &optional (env *global-env*))
+  (if env
+      (if (nth-value 1 (gethash symbol (env-bindings env)))
+          (setf (gethash symbol (env-bindings env)) new-value)
+          (setf (lookup symbol (env-parent env)) new-value))
+      (error "No binding for ~A." symbol)))
 
-(defmacro with-frame (frame &body body)
-  `(progn
-     (unwind-protect
-          (progn
-            (push ,frame *stack*)
-            ,@body)
-       (pop *stack*))))
+(defun clutter-bound? (symbol &optional (env *global-env*))
+  (if env
+      (if (nth-value 1 (gethash symbol (env-bindings env)))
+          t
+          (clutter-bound? symbol (env-parent env)))
+      nil))
 
-(defun push-initial-binding (name value)
-  (bind name value :lexical))
+(defun extend (env symbol value)
+  (if (nth-value 1 (gethash symbol (env-bindings env)))
+      (warn "Redefinition of ~A." symbol))
+  (setf (gethash symbol (env-bindings env)) value))
 
-(defun push-initial-function-binding (name value)
-  (bind name value :function))
-
-(defun current-scope ()
-  (list* (car *stack*) (append (stack-frame-scope (car *stack*))
-                               (when (cdr *stack*)
-                                 (list (car (last *stack*)))))))
-
-(defun current-env (env)
-  (mapcar (case env
-            (:function 'stack-frame-functions)
-            (:lexical 'stack-frame-lexicals)
-            (:dynamic 'stack-frame-dynamics)
-            (:namespace 'stack-frame-namespaces)
-            (:block 'stack-frame-blocks)
-            (t (error "Not an environment: ~S" env)))
-          (current-scope)))
-
-(defun lookup (symbol env)
-  (or (some (lambda (table) (gethash symbol table)) (current-env env))
-      (error "No such ~A binding: ~S" (string-downcase (symbol-name env)) symbol)))
-
-(defun lookup-binding-table (symbol env)
-  "Find the binding table in which the given symbol is defined, if any."
-  (some (lambda (table)
-          (when (nth-value 1 (gethash symbol table))
-            table))
-        (current-env env)))
-
-(defun (setf lookup) (new-value symbol env &aux (tables (current-env env)))
-  (or (when (some (lambda (table)
-                    (when (nth-value 1 (gethash symbol table))
-                      (setf (gethash symbol table) new-value)
-                      t))
-                  tables)
-        new-value)
-      (error "~A is unbound." symbol)))
+(defun make-child-env (env variables values)
+  (make-env :parent env
+            :bindings (aprog1 (make-hash-table :test 'eq)
+                        (mapc (lambda (name value)
+                                (setf (gethash name it) value))
+                              variables values))))
