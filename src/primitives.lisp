@@ -64,8 +64,11 @@
 (defprimop "set-lookup!" (*denv* value symbol environment)
   (setf (lookup symbol (clutter-eval environment *denv*)) (clutter-eval value *denv*)))
 
-(defprimfun "make-env" ()
-  (make-env :parent *global-env*))
+(defprimop "def-lookup!" (*denv* value symbol environment)
+  (extend (clutter-eval environment *denv*) symbol (clutter-eval value *denv*)))
+
+(defprimfun "make-env" (&optional parent)
+  (make-env :parent parent))
 
 (defprimop "set-var!" (*denv* var value)
   (setf (lookup var *denv*) (clutter-eval value *denv*)))

@@ -1,6 +1,33 @@
+(def-var! %def!-expanders (list))
+
 (def-var! def!
     (vau env (place value)
-         (eval (list def-var! place value) env)))
+         (cond
+           (symbol? place) (eval (list def-var! place value) env)
+           (cons? place)
+           (let ((expander (assoc (car place) %def!-expanders)))
+             (eval (list* (cdr expander) (eval value env) (cdr place))
+                   env)))))
+
+(def! def-def!-expander!
+    (vau env (name combiner)
+         (push! (cons name (eval combiner env)) %def!-expanders)))
+
+(def-def!-expander! lookup
+    (vau env (value symbol target-env)
+         (eval (list def-lookup! (eval value env) symbol (eval target-env env))
+               env)))
+
+(def! current-env
+    (vau env () env))
+
+(def! def-ns!
+    (vau env (name)
+         (eval (list def! name (make-env env)) env)))
+
+(def! with-ns
+    (vau env (ns &rest body)
+         (eval (list (list* lambda () body)) (eval ns env))))
 
 (def! lambda
     (vau env (vau-list &rest body)
@@ -22,7 +49,7 @@
 
 (def! push!
     (vau env (value place)
-         (eval (list set! place (list cons (eval value env) place))
+         (eval (list set! place (list cons value place))
                env)))
 
 (def! let
@@ -54,6 +81,11 @@
     (vau env (name combiner)
          (push! (cons name (eval combiner env)) %set!-expanders)))
 
+(def-set!-expander! lookup
+    (vau env (value symbol target-env)
+         (eval (list set-lookup! (eval value env) symbol (eval target-env env))
+               env)))
+
 (def! set!
     (vau env (variable value)
          (cond
@@ -65,5 +97,4 @@
 
            (cons? variable)
            (let ((expander (assoc (car variable) %set!-expanders)))
-             (if expander
-                 (eval (list* (cdr expander) (eval value env) (cdr variable)) env))))))
+             (eval (list* (cdr expander) (eval value env) (cdr variable)) env)))))
