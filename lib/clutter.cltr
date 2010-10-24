@@ -1,7 +1,3 @@
-(direct-def! fun fun
-             (vau env (form)
-                  (eval form env ((vau env (x) x) fun))))
-
 (direct-def! var %def!-expanders (list))
 
 (direct-def! fun cond
