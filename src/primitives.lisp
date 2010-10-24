@@ -6,8 +6,8 @@
 ;;; Primitive Constants
 ;;;
 
-(defparameter *true* (cs "t"))
-(defparameter *false* (cs "f"))
+(defparameter *true* (cs "#t"))
+(defparameter *false* (cs "#f"))
 
 ;;;
 ;;; Primitive functions
@@ -66,7 +66,7 @@
   var)
 
 (defun clutter-true-p (exp)
-  (not (eq exp (cs "f"))))
+  (not (eq exp *false*)))
 
 (defprimop "if" (*denv* test if-true if-false)
   (if (clutter-true-p (clutter-eval test *denv*))
@@ -131,11 +131,6 @@
   (apply #'* values))
 (defprimfun "/" (number &rest more-numbers)
   (apply #'/ number more-numbers))
-
-(defprimfun "apply" (function args)
-  (invoke function args))
-(defprimfun "call" (function &rest args)
-  (invoke function args))
 
 (defprimfun "print" (obj)
   (print obj))

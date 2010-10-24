@@ -1,6 +1,6 @@
 (def! lambda
     (vau env (vau-list &rest body)
-         (wrap (eval (list* vau ignore vau-list body) env))))
+         (wrap (eval (list* vau #ignore vau-list body) env))))
 
 (def! mapcar
     (lambda (function values)
@@ -14,10 +14,14 @@
                       (mapcar (lambda (x) (car (cdr x))) clauses))
                env)))
 
+(def! apply
+    (vau env (function args)
+         (eval (list* function (eval args env)) env)))
+
 (def! assoc
     (lambda (key alist)
       (if (eql? alist (list))
-          f
+          #f
           (if (eql? key (car (car alist)))
               (car alist)
               (assoc key (cdr alist))))))
