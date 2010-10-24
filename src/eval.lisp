@@ -146,7 +146,7 @@
     (make-function
      (make-clutter-operator
       :function (lambda (*denv* values)
-                  (cadr values)))))
+                  (cdar values)))))
 
 (defprimitive list (make-function
                     (make-clutter-operator
