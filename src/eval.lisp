@@ -16,10 +16,12 @@
         (t expression)))
 
 (defun eval/symbol (symbol env)
-  (let ((val (lookup symbol env)))
-    (if (clutter-symbol-operator-p val)
-        (invoke (clutter-symbol-operator-operator val) env nil)
-        val)))
+  (if (keywordp symbol)
+      symbol
+      (let ((val (lookup symbol env)))
+        (if (clutter-symbol-operator-p val)
+            (invoke (clutter-symbol-operator-operator val) env nil)
+            val))))
 
 (defun eval/combiner (expression env)
   (let ((f (clutter-eval (car expression) env)))
@@ -125,6 +127,7 @@
      (make-clutter-operator
       :function (lambda (*denv* values)
                   (reduce #'+ values)))))
+
 (defprimitive car
     (make-function
      (make-clutter-operator
@@ -135,6 +138,7 @@
      (make-clutter-operator
       :function (lambda (*denv* values)
                   (cadr values)))))
+
 (defprimitive list (make-function
                     (make-clutter-operator
                      :function (lambda (*denv* values)
@@ -189,4 +193,4 @@
                   (make-symbol-operator (car values))))))
 
 (defun clutter-true-p (exp)
-  (if exp t nil))
+  (if (not (eq exp :false)) t nil))
