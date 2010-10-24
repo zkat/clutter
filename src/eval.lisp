@@ -3,6 +3,8 @@
 (defpackage #:fexpr-clutter (:use :cl :alexandria :anaphora))
 (in-package #:fexpr-clutter)
 
+(declaim (optimize debug))
+
 (defstruct env
   parent
   (bindings (make-hash-table :test 'eq)))
@@ -67,7 +69,7 @@
 (defun make-operator (variables body env)
   (make-clutter-operator 
    :function
-   (lambda (*denv* values)
+   (lambda (*denv* &rest values)
      (let ((env (make-child-env env variables values)))
        (loop for sexp in body
           for last-value = (clutter-eval sexp env)
@@ -85,7 +87,7 @@
 
 (defun invoke (operator env args)
   (if (clutter-operator-p operator)
-      (funcall (clutter-operator-function operator) env args)
+      (apply (clutter-operator-function operator) env args)
       (error "Not a function: ~A." operator)))
 
 (defmacro defprimitive (name value)
@@ -93,34 +95,32 @@
 
 (defprimitive vau
     (make-clutter-operator
-     :function (lambda (static-env values)
-                 (destructuring-bind (env-var lambda-var &rest body)
-                     values
-                   (make-clutter-operator
-                    :function
-                    (lambda (*denv* values)
-                      (let ((env (make-child-env static-env
-                                                 (list env-var lambda-var)
-                                                 (list *denv* values))))
-                        (loop for sexp in body
-                              for last-value = (clutter-eval sexp env)
-                              finally (return last-value)))))))))
+     :function (lambda (static-env lambda-list env-var &rest body)
+                 (make-clutter-operator
+                  :function
+                  (lambda (*denv* &rest values)
+                    (let ((env (make-child-env static-env
+                                               (cons env-var lambda-list)
+                                               (cons *denv* values))))
+                      (loop for sexp in body
+                            for last-value = (clutter-eval sexp env)
+                            finally (return last-value))))))))
 
 (defprimitive wrap
     (make-function
      (make-clutter-operator
-      :function (lambda (*denv* values)
+      :function (lambda (*denv* &rest values)
                   (make-function (car values))))))
 
 (defprimitive unwrap
     (make-function
      (make-clutter-operator
-      :function (lambda (*denv* values)
+      :function (lambda (*denv* &rest values)
                   (clutter-function-operator (car values))))))
 
 (defprimitive eval
     (make-clutter-operator
-     :function (lambda (*denv* values)
+     :function (lambda (*denv* &rest values)
                  (let ((values (mapcar (rcurry #'clutter-eval *denv*)
                                        values)))
                    (clutter-eval (first values) (second values))))))
@@ -128,76 +128,68 @@
 (defprimitive +
     (make-function
      (make-clutter-operator
-      :function (lambda (*denv* values)
+      :function (lambda (*denv* &rest values)
                   (reduce #'+ values)))))
 
 (defprimitive cons
     (make-function
      (make-clutter-operator
-      :function (lambda (*denv* values)
+      :function (lambda (*denv* &rest values)
                   (cons (car values) (cadr values))))))
 
 (defprimitive car
     (make-function
      (make-clutter-operator
-      :function (lambda (*denv* values)
+      :function (lambda (*denv* &rest values)
                   (caar values)))))
 (defprimitive cdr
     (make-function
      (make-clutter-operator
-      :function (lambda (*denv* values)
+      :function (lambda (*denv* &rest values)
                   (cdar values)))))
 
 (defprimitive list (make-function
                     (make-clutter-operator
-                     :function (lambda (*denv* values)
+                     :function (lambda (*denv* &rest values)
                                  values))))
 (defprimitive list* (make-function
                      (make-clutter-operator
-                      :function (lambda (*denv* values)
+                      :function (lambda (*denv* &rest values)
                                   (apply #'list* values)))))
 (defprimitive random (make-function
                       (make-clutter-operator
-                       :function (lambda (*denv* values)
+                       :function (lambda (*denv* &rest values)
                                    (random (car values))))))
 
 (defprimitive def!
     (make-clutter-operator
-     :function (lambda (*denv* values)
-                 (destructuring-bind (var value)
-                     values
-                   (extend *denv* var (clutter-eval value *denv*))
-                   var))))
+     :function (lambda (*denv* var value)
+                 (extend *denv* var (clutter-eval value *denv*))
+                 var)))
 
 (defprimitive set!
     (make-clutter-operator
-     :function (lambda (*denv* values)
-                 (destructuring-bind (var value)
-                     values
-                   (setf (lookup var *denv*) (clutter-eval value *denv*))))))
+     :function (lambda (*denv* var value)
+                 (setf (lookup var *denv*) (clutter-eval value *denv*)))))
 
 (defprimitive if
     (make-clutter-operator
-     :function (lambda (*denv* values)
-                 (destructuring-bind (test if-true if-false)
-                     values
-                   (if (clutter-true-p (clutter-eval test *denv*))
-                       (clutter-eval if-true *denv*)
-                       (clutter-eval if-false *denv*))))))
+     :function (lambda (*denv* test if-true if-false)
+                 (if (clutter-true-p (clutter-eval test *denv*))
+                     (clutter-eval if-true *denv*)
+                     (clutter-eval if-false *denv*)))))
 
 (defprimitive symbolize!
     (make-clutter-operator
-     :function (lambda (*denv* values)
-                 (destructuring-bind (var value)
-                     values
-                   (let ((val (clutter-eval value *denv*)))
-                     (assert (clutter-operator-p val))
-                     (extend *denv* var (make-symbol-operator val)))))))
+     :function (lambda (*denv* var value)
+                 (let ((val (clutter-eval value *denv*)))
+                   (assert (clutter-operator-p val))
+                   (extend *denv* var (make-symbol-operator val))))))
 
 (defprimitive symbolize
     (make-function
      (make-clutter-operator
-      :function (lambda (*denv* values)
+      :function (lambda (*denv* &rest values)
                   (assert (clutter-operator-p (car values)))
                   (make-symbol-operator (car values))))))
 
