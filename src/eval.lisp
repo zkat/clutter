@@ -12,6 +12,12 @@
 (defvar *global-env*
   (make-env :parent nil))
 
+(defun clutter-load (filespec)
+  (with-open-file (stream filespec)
+    (loop for expr = (read stream nil)
+          while expr
+          do (clutter-eval expr))))
+
 (defun clutter-eval (expression &optional (environment *global-env*))
   (cond ((symbolp expression) (eval/symbol expression environment))
         ((consp expression) (eval/combiner expression environment))
