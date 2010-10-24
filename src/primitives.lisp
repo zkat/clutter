@@ -6,79 +6,141 @@
 ;;; Primitive Constants
 ;;;
 
-(defparameter *true* (clutter-intern "t"))
-(defparameter *false* (clutter-intern "f"))
-
-(defun define-initially (clutter-symbol-name value)
-  (push-initial-binding (clutter-read-from-string clutter-symbol-name) value))
-(define-initially "t" *true*)
-(define-initially "f" *false*)
-(define-initially "nil" nil)
+(defparameter *true* (cs "t"))
+(defparameter *false* (cs "f"))
 
 ;;;
 ;;; Primitive functions
 ;;;
 
-(defun define-function-initially (function-name value)
-  (push-initial-function-binding (clutter-intern function-name) value))
+(defmacro defprimitive (name value)
+  `(extend *global-env* (clutter-symbol ,name) ,value))
 
-(defmacro defprimitive (name arglist &body body)
-  (let ((argv (gensym)))
-    `(define-function-initially ,name
-         (make-clutter-function
-          :function (lambda (,argv)
-                      (apply (lambda ,arglist ,@body) ,argv))))))
+(defmacro defprimop (name vau-list &body body)
+  `(defprimitive ,name
+       (make-clutter-operator
+        :name ',name
+        :function (lambda ,vau-list ,@body))))
 
-(defprimitive "not" (x)
+(defmacro defprimfun (name vau-list &body body)
+  `(defprimitive ,name
+       (make-function
+        (make-clutter-operator
+         :name ',name
+         :function (lambda (*denv* ,@vau-list)
+                     ,@body)))))
+
+(defprimop "vau" (static-env env-var vau-list &rest body)
+  (make-clutter-operator
+   :function
+   (lambda (*denv* &rest values)
+     (multiple-value-bind (required optional rest)
+         (parse-vau-list vau-list)
+       (declare (ignore optional))
+       (unless (or (= (length values) (length vau-list))
+                   (and rest (>= (length values) (1- (length vau-list))))
+                   (error "Wrong number of arguments")))
+       (let ((env (make-child-env static-env
+                                  (list* env-var rest required)
+                                  (list* *denv*
+                                         (nthcdr (length required) values)
+                                         (subseq values 0 (length required))))))
+         (loop for sexp in body
+               for last-value = (clutter-eval sexp env)
+               finally (return last-value)))))))
+
+(defprimfun "wrap" (operative)
+  (make-function operative))
+
+(defprimfun "unwrap" (function)
+  (clutter-function-operator function))
+
+(defprimfun "eval" (expression environment)
+  (clutter-eval expression environment))
+
+(defprimop "set-var!" (*denv* var value)
+  (setf (lookup var *denv*) (clutter-eval value *denv*)))
+
+(defprimop "def!" (*denv* var value)
+  (extend *denv* var (clutter-eval value *denv*))
+  var)
+
+(defun clutter-true-p (exp)
+  (if (not (eq exp (cs "f"))) t nil))
+
+(defprimop "if" (*denv* test if-true if-false)
+  (if (clutter-true-p (clutter-eval test *denv*))
+      (clutter-eval if-true *denv*)
+      (clutter-eval if-false *denv*)))
+
+(defprimop "symbolize!" (*denv* var value)
+  (let ((val (clutter-eval value *denv*)))
+    (assert (clutter-operator-p val))
+    (extend *denv* var (make-symbol-operator val))))
+
+(defprimfun "symbolize" (&rest values)
+  (assert (clutter-operator-p (car values)))
+  (make-symbol-operator (car values)))
+
+(defprimfun "not" (x)
   (if (eq x *false*) *true* *false*))
-(defprimitive "null?" (x)
+(defprimfun "null?" (x)
   (if (eq x nil) *true* *false*))
 
-(defprimitive "cons" (x y)
+(defprimfun "cons" (x y)
   (cons x y))
-(defprimitive "head" (cons)
+(defprimfun "car" (cons)
   (car cons))
-(defprimitive "tail" (cons)
+(defprimfun "cdr" (cons)
   (cdr cons))
-(defprimitive "length" (seq)
+(defprimfun "list" (&rest values)
+  values)
+(defprimfun "list*" (&rest values)
+  (apply #'list* values))
+(defprimfun "length" (seq)
   (length seq))
 
-(defprimitive "set-head" (cons new-car)
+(defprimfun "set-head" (cons new-car)
   (rplaca cons new-car))
-(defprimitive "set-tail" (cons new-cdr)
+(defprimfun "set-tail" (cons new-cdr)
   (rplacd cons new-cdr))
 
-(defprimitive "eql?" (x y)
+(defprimfun "eql?" (x y)
   (if (eql x y) *true* *false*))
 
-(defprimitive "symbol?" (x)
+(defprimfun "symbol?" (x)
   (if (clutter-symbol-p x) *true* *false*))
-(defprimitive "number?" (x)
+(defprimfun "number?" (x)
   (numberp x))
 
-(defprimitive "<?" (x y)
+(defprimfun "<?" (x y)
   (if (< x y) *true* *false*))
-(defprimitive ">?" (x y)
+(defprimfun ">?" (x y)
   (if (> x y) *true* *false*))
-(defprimitive "<=?" (x y)
+(defprimfun "<=?" (x y)
   (if (<= x y) *true* *false*))
-(defprimitive ">=?" (x y)
+(defprimfun ">=?" (x y)
   (if (>= x y) *true* *false*))
-(defprimitive "=?" (x y)
+(defprimfun "=?" (x y)
   (if (= x y) *true* *false*))
-(defprimitive "+" (x y)
-  (+ x y))
-(defprimitive "-" (x y)
-  (- x y))
-(defprimitive "*" (x y)
-  (* x y))
-(defprimitive "/" (x y)
-  (/ x y))
+(defprimfun "+" (&rest values)
+  (apply #'+ values))
+(defprimfun "-" (number &rest more-numbers)
+  (apply #'- number more-numbers))
+(defprimfun "*" (&rest values)
+  (apply #'* values))
+(defprimfun "/" (number &rest more-numbers)
+  (apply #'/ number more-numbers))
 
-(defprimitive "apply" (function args)
+(defprimfun "apply" (function args)
   (invoke function args))
-(defprimitive "call" (function &rest args)
+(defprimfun "call" (function &rest args)
   (invoke function args))
 
-(defprimitive "print" (obj)
+(defprimfun "print" (obj)
   (print obj))
+
+;;; For escaping the REPL cleanly.
+(define-condition quit () ())
+(defprimfun "quit" ()
+  (signal (make-condition 'quit)))

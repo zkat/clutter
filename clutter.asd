@@ -11,7 +11,7 @@
              (:file "utilities")
              (:file "environments")
              (:file "reader")
-             (:file "functions")
+             (:file "combiners")
              (:file "eval")
              (:file "primitives")
              (:file "main")))))
