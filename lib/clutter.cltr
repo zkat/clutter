@@ -1,3 +1,7 @@
+(def-var! def!
+    (vau env (place value)
+         (eval (list def-var! place value) env)))
+
 (def! lambda
     (vau env (vau-list &rest body)
          (wrap (eval (list* vau #ignore vau-list body) env))))
@@ -39,16 +43,27 @@
               (car alist)
               (assoc key (cdr alist))))))
 
-(def! %set-specials (list))
+(def! %set!-specials (list))
+(def! %set!-expanders (list))
 
-(def! def-set-special!
+(def! def-set!-special!
     (vau env (variable function)
-         (set! %set-specials (cons (cons variable (eval function env))
-                                   %set-specials))))
+         (push! (cons variable (eval function env)) %set!-specials)))
+
+(def! def-set!-expander!
+    (vau env (name combiner)
+         (push! (cons name (eval combiner env)) %set!-expanders)))
 
 (def! set!
     (vau env (variable value)
-         (let ((special (assoc variable %set-specials)))
-           (if special
-               ((cdr special) (eval value env))
-               (eval (list set-var! variable value) env)))))
+         (cond
+           (symbol? variable)
+           (let ((special (assoc variable %set!-specials)))
+             (if special
+                 ((cdr special) (eval value env))
+                 (eval (list set-var! variable value) env)))
+
+           (cons? variable)
+           (let ((expander (assoc (car variable) %set!-expanders)))
+             (if expander
+                 (eval (list* (cdr expander) (eval value env) (cdr variable)) env))))))
