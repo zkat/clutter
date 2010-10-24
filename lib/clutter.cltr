@@ -1,5 +1,13 @@
 (def-var! %def!-expanders (list))
 
+(def-var! cond
+    (vau env (&rest forms)
+         (if (eql? forms (list))
+             #f
+             (if (eval (car forms) env)
+                 (eval (car (cdr forms)) env)
+                 (eval (list* cond (cdr (cdr forms))) env)))))
+
 (def-var! def!
     (vau env (place value)
          (cond
@@ -32,14 +40,6 @@
 (def! lambda
     (vau env (vau-list &rest body)
          (wrap (eval (list* vau #ignore vau-list body) env))))
-
-(def! cond
-    (vau env (&rest forms)
-         (if (eql? forms (list))
-             #f
-             (if (eval (car forms) env)
-                 (eval (car (cdr forms)) env)
-                 (eval (list* cond (cdr (cdr forms))) env)))))
 
 (def! mapcar
     (lambda (function values)
