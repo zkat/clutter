@@ -210,5 +210,11 @@
                       :t
                       :f)))))
 
+(defprimitive print
+    (make-function
+     (make-clutter-operator
+      :function (lambda (*denv* obj)
+                  (print obj)))))
+
 (defun clutter-true-p (exp)
   (if (not (eq exp :f)) t nil))
