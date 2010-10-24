@@ -128,6 +128,12 @@
       :function (lambda (*denv* values)
                   (reduce #'+ values)))))
 
+(defprimitive cons
+    (make-function
+     (make-clutter-operator
+      :function (lambda (*denv* values)
+                  (cons (car values) (cadr values))))))
+
 (defprimitive car
     (make-function
      (make-clutter-operator
