@@ -152,6 +152,11 @@
 (defprimfun "print" (obj)
   (print obj))
 
+(defprimop "fun" (*denv* form)
+  (clutter-eval form *denv* (cs "fun")))
+(defprimop "var" (*denv* form)
+  (clutter-eval form *denv* (cs "var")))
+
 ;;; For escaping the REPL cleanly.
 (define-condition quit () ())
 (defprimfun "quit" ()

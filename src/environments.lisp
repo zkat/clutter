@@ -73,4 +73,6 @@
 (defun add-subenv (env subenv)
   (when (nth-value 1 (gethash subenv (env-subenvs env)))
     (warn "Redefinition of subenv ~A in ~A" subenv env))
-  (setf (gethash subenv (env-subenvs env)) (make-hash-table :test 'eq)))
+  (setf (gethash subenv (env-subenvs env)) (make-hash-table :test 'eq))
+  (defprimop (clutter-symbol-name subenv) (*denv* form)
+    (clutter-eval form *denv* subenv)))
