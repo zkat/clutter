@@ -20,15 +20,11 @@
               (car alist)
               (assoc key (cdr alist))))))
 
-(direct-def! fun call
-             (vau env (function &rest args)
-                  (eval (list* (eval function env) args) env)))
-
 (direct-def! fun mapcar
     (lambda (function values)
       (if (eql? (list) values)
           (list)
-          (cons (call function (car values)) (mapcar function (cdr values))))))
+          (cons ((var function) (car values)) (mapcar function (cdr values))))))
 
 (direct-def! fun let
     (vau env (clauses &rest body)
