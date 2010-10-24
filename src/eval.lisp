@@ -202,5 +202,13 @@
                   (assert (clutter-operator-p (car values)))
                   (make-symbol-operator (car values))))))
 
+(defprimitive eq
+    (make-function
+     (make-clutter-operator
+      :function (lambda (*denv* obj1 obj2)
+                  (if (eq obj1 obj2)
+                      :t
+                      :f)))))
+
 (defun clutter-true-p (exp)
-  (if (not (eq exp :false)) t nil))
+  (if (not (eq exp :f)) t nil))
