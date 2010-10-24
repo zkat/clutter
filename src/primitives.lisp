@@ -21,14 +21,14 @@
 (defmacro defprimop (name vau-list &body body)
   `(defprimitive ,name
        (make-clutter-operator
-        :name ',name
+        :name ,name
         :function (lambda ,vau-list ,@body))))
 
 (defmacro defprimfun (name vau-list &body body)
   `(defprimitive ,name
        (make-function
         (make-clutter-operator
-         :name ',name
+         :name ,name
          :function (lambda (*denv* ,@vau-list)
                      ,@body)))))
 
