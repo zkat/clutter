@@ -45,7 +45,7 @@
             (lookup symbol (env-parent env))))
       (error "No binding for ~A." symbol)))
 
-(defun (setf lookup) (new-value symbol env)
+(defun (setf lookup) (new-value symbol &optional (env *global-env*))
   (if env
       (if (nth-value 1 (gethash symbol (env-bindings env)))
           (setf (gethash symbol (env-bindings env)) new-value)
