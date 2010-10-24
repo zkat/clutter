@@ -6,9 +6,10 @@
 
 (defun clutter-load (filespec)
   (with-open-file (stream filespec)
-    (loop for expr = (clutter-read stream)
+    (loop for expr = (clutter-read stream nil)
           while expr
-          do (clutter-eval expr))))
+          do (clutter-eval expr)))
+  t)
 
 (defun clutter-eval (expression &optional (environment *global-env*))
   (cond ((clutter-symbol-p expression) (eval/symbol expression environment))
