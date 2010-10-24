@@ -73,10 +73,6 @@
 (defprimfun "make-env" (&optional parent)
   (make-env parent))
 
-;;; TODO: Make subenv a subenv
-(defprimop "def-subenv!" (*denv* name)
-  (add-subenv *denv* name))
-
 (defprimop "direct-set!" (*denv* subenv var value)
   (setf (lookup subenv var *denv*) (clutter-eval value *denv*)))
 
