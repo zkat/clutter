@@ -36,8 +36,11 @@
 
 (defun lookup (symbol &optional (env *global-env*))
   (if env
-      (or (gethash symbol (env-bindings env))
-          (lookup symbol (env-parent env)))
+      (multiple-value-bind (value exists)
+          (gethash symbol (env-bindings env))
+        (if exists
+            value
+            (lookup symbol (env-parent env))))
       (error "No binding for ~A." symbol)))
 
 (defun (setf lookup) (new-value symbol env)
