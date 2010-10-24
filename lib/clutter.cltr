@@ -4,7 +4,7 @@
 
 (def! mapcar
     (lambda (function values)
-      (if (eq (list) values)
+      (if (eql? (list) values)
           (list)
           (cons (function (car values)) (mapcar function (cdr values))))))
 
@@ -16,9 +16,9 @@
 
 (def! assoc
     (lambda (key alist)
-      (if (eq alist (list))
-          :f
-          (if (eq key (car (car alist)))
+      (if (eql? alist (list))
+          f
+          (if (eql? key (car (car alist)))
               (car alist)
               (assoc key (cdr alist))))))
 
