@@ -116,25 +116,28 @@
 
 (defun read-token (stream)
   (loop with token = (make-array 8 :adjustable t :fill-pointer 0 :element-type 'character)
-     with collecting-token = nil
-     for char = (read-char stream nil nil t)
-     while char
-     do (if (terminating-macro-char-p char)
-            (if collecting-token
-                (progn (unread-char char stream)
-                       (return token))
-                (let ((result (multiple-value-list
-                               (funcall (reader-macro-function char) stream char))))
-                  (when result
-                    (return-from read-token (values (car result) t)))))
-            (cond ((and collecting-token (whitespace? char))
-                   (return-from read-token token))
-                  ((and (whitespace? char) (not collecting-token))
-                   (values))
-                  (t
-                   (vector-push-extend char token)
-                   (setf collecting-token t))))
-     finally (return token)))
+        with collecting-token = nil
+        with eof-error = t
+        for char = (read-char stream (prog1 eof-error
+                                       (setf eof-error nil))
+                        nil t)
+        while char
+        do (if (terminating-macro-char-p char)
+               (if collecting-token
+                   (progn (unread-char char stream)
+                          (return token))
+                   (let ((result (multiple-value-list
+                                     (funcall (reader-macro-function char) stream char))))
+                     (when result
+                       (return-from read-token (values (car result) t)))))
+               (cond ((and collecting-token (whitespace? char))
+                      (return-from read-token token))
+                     ((and (whitespace? char) (not collecting-token))
+                      (values))
+                     (t
+                      (vector-push-extend char token)
+                      (setf collecting-token t))))
+        finally (return token)))
 
 (defun parse-token (token)
   (or (parse-integer-token token)
@@ -271,12 +274,14 @@
            (error "Illegal characters in symbol name")
            (clutter-symbol token)))))
 
-(defun clutter-read (&optional (stream *standard-input*))
-  (multiple-value-bind (token donep)
-      (read-token stream)
-    (if donep
-        token
-        (parse-token token))))
+(defun clutter-read (&optional (stream *standard-input*) (eof-error-p t) eof-value)
+  (handler-case
+      (multiple-value-bind (token donep)
+          (read-token stream)
+        (if donep
+            token
+            (parse-token token)))
+    (end-of-file (e) (if eof-error-p (error e) eof-value))))
 
 (defun clutter-read-from-string (string)
   (with-input-from-string (s string)
