@@ -7,7 +7,7 @@
   parent
   (bindings (make-hash-table :test 'eq)))
 
-(defparameter *global-env*
+(defvar *global-env*
   (make-env :parent nil))
 
 (defun clutter-eval (expression &optional (environment *global-env*))
