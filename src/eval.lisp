@@ -92,7 +92,8 @@
        (make-function
         (make-clutter-operator
          :name ',name
-         :function (lambda ,lambda-list ,@body)))))
+         :function (lambda (*denv* ,@lambda-list)
+                     ,@body)))))
 
 (defprimop vau (static-env lambda-list env-var &rest body)
   (make-clutter-operator
@@ -113,34 +114,34 @@
                for last-value = (clutter-eval sexp env)
                finally (return last-value)))))))
 
-(defprimfun wrap (*denv* operative)
+(defprimfun wrap (operative)
   (make-function operative))
 
-(defprimfun unwrap (*denv* function)
+(defprimfun unwrap (function)
   (clutter-function-operator function))
 
-(defprimfun eval (*denv* expression environment)
+(defprimfun eval (expression environment)
   (clutter-eval expression environment))
 
-(defprimfun + (*denv* &rest values)
+(defprimfun + (&rest values)
   (reduce #'+ values))
 
-(defprimfun cons (*denv* car cdr)
+(defprimfun cons (car cdr)
   (cons car cdr))
 
-(defprimfun car (*denv* cons)
+(defprimfun car (cons)
   (car cons))
 
-(defprimfun cdr (*denv* cons)
+(defprimfun cdr (cons)
   (cdr cons))
 
-(defprimfun list (*denv* &rest values)
+(defprimfun list (&rest values)
   values)
 
-(defprimfun list* (*denv* &rest values)
+(defprimfun list* (&rest values)
   (apply #'list* values))
 
-(defprimfun random (*denv* max)
+(defprimfun random (max)
   (random max))
 
 (defprimop def! (*denv* var value)
@@ -160,16 +161,16 @@
     (assert (clutter-operator-p val))
     (extend *denv* var (make-symbol-operator val))))
 
-(defprimfun symbolize (*denv* &rest values)
+(defprimfun symbolize (&rest values)
   (assert (clutter-operator-p (car values)))
   (make-symbol-operator (car values)))
 
-(defprimfun eq (*denv* obj1 obj2)
+(defprimfun eq (obj1 obj2)
     (if (eq obj1 obj2)
         :t
         :f))
 
-(defprimfun print (*denv* obj)
+(defprimfun print (obj)
   (print obj))
 
 (defun clutter-true-p (exp)
