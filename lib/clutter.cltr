@@ -103,9 +103,7 @@
 
 (def! fun do
     (vau env (&rest body)
-         (let ((last-value ()))
-           (mapcar (lambda (exp) (set! last-value (eval exp env))) body)
-           last-value)))
+         (eval (list (list* (fun vau) #ignore () body)) env)))
 
 (def! fun when
     (vau env (test &rest body)
