@@ -83,8 +83,8 @@
          (eval (list (list* (fun lambda) () body)) (eval ns env))))
 
 (def! fun apply
-    (vau env (combiner args)
-         (eval (list* (fun combiner) (eval args env)) env)))
+  (lambda (function args)
+    (eval (cons (unwrap function) args) (make-env))))
 
 (def! fun def-set!-special!
     (vau env (variable function)
