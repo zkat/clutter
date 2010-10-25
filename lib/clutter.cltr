@@ -125,12 +125,12 @@
 
 (def! fun aif
     (vau env (var test then else)
-         (eval (list (fun anaphoric) var if test then else) env)))
+         (eval (list (fun anaphoric) var (fun if) test then else) env)))
 
 (def! fun awhen
     (vau env (var test &rest body)
-         (eval (list* (fun anaphoric) var when test body) env)))
+         (eval (list* (fun anaphoric) var (fun when) test body) env)))
 
 (def! fun aunless
     (vau env (var test &rest body)
-         (eval (list* (fun anaphoric) var unless test body) env)))
+         (eval (list* (fun anaphoric) var (fun unless) test body) env)))
