@@ -40,8 +40,8 @@
          (parse-vau-list vau-list)
        (declare (ignore optional))
        (unless (or (= (length values) (length vau-list))
-                   (and rest (>= (length values) (1- (length vau-list))))
-                   (error "Wrong number of arguments")))
+                   (and rest (>= (length values) (1- (length vau-list)))))
+         (error "Wrong number of arguments"))
        (let ((env (make-env static-env)))
          (loop for var in (list* env-var rest required)
                for value in (list* *denv*
