@@ -2,11 +2,12 @@
 
 (direct-def! fun cond
     (vau env (&rest forms)
-         (if (eql? forms (list))
+         (if (eql? forms ())
              #f
-             (if (eval (car forms) env)
-                 (eval (car (cdr forms)) env)
-                 (eval (list* (fun cond) (cdr (cdr forms))) env)))))
+             (if (eval (car (car forms)) env)
+                 (eval (list (list* (fun vau) #ignore () (cdr (car forms))))
+                       env)
+                 (eval (list* (fun cond) (cdr forms)) env)))))
 
 (direct-def! fun lambda
     (vau env (vau-list &rest body)
@@ -35,11 +36,12 @@
 (direct-def! fun def!
     (vau env (subenv place value)
          (cond
-           (symbol? place) (eval (list (fun direct-def!) subenv place value) env)
-           (cons? place)
-           (let ((expander (assoc (car place) %def!-expanders)))
-             (eval (list* (cdr expander) (eval value env) (cdr place))
-                   env)))))
+           ((symbol? place)
+            (eval (list (fun direct-def!) subenv place value) env))
+           ((cons? place)
+            (let ((expander (assoc (car place) %def!-expanders)))
+              (eval (list* (cdr expander) (eval value env) (cdr place))
+                    env))))))
 
 (def! var %set!-specials (list))
 (def! var %set!-expanders (list))
@@ -47,15 +49,15 @@
 (def! fun set!
     (vau env (variable value)
          (cond
-           (symbol? variable)
-           (let ((special (assoc variable %set!-specials)))
-             (if special
-                 ((cdr special) (eval value env))
-                 (eval (list (fun direct-set!) ((vau env (x) x) var) variable value) env)))
+           ((symbol? variable)
+            (let ((special (assoc variable %set!-specials)))
+              (if special
+                  ((cdr special) (eval value env))
+                  (eval (list (fun direct-set!) ((vau env (x) x) var) variable value) env))))
 
-           (cons? variable)
-           (let ((expander (assoc (car variable) %set!-expanders)))
-             (eval (list* (cdr expander) (eval value env) (cdr variable)) env)))))
+           ((cons? variable)
+            (let ((expander (assoc (car variable) %set!-expanders)))
+              (eval (list* (cdr expander) (eval value env) (cdr variable)) env))))))
 
 (def! fun push!
     (vau env (value place)
