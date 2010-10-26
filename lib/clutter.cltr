@@ -73,8 +73,8 @@
          (eval (list (fun def-lookup!) (eval value env) symbol (eval target-env env))
                env)))
 
-(def! fun current-env
-    (vau env () env))
+(def! fun get-current-env
+  (wrap (vau env () env)))
 
 (def! fun def-ns!
     (vau env (name)
@@ -86,7 +86,7 @@
 
 (def! fun apply
   (lambda (function args)
-    (eval (cons (unwrap function) args) (make-env))))
+    (eval (cons (unwrap function) args) (get-current-env))))
 
 (def! fun def-set!-special!
     (vau env (variable function)
