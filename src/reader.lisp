@@ -10,7 +10,7 @@
 ;;;
 ;;; Symbols
 ;;;
-(defstruct (clutter-symbol (:constructor %make-clutter-symbol (name)))
+(defstruct (clutter-symbol (:constructor %make-clutter-symbol (name &optional interned)))
   (interned t)
   name)
 
@@ -21,13 +21,15 @@
   (if intern
       (or (gethash name *symbol-table*)
           (setf (gethash name *symbol-table*) (%make-clutter-symbol name)))
-      (%make-clutter-symbol name)))
+      (%make-clutter-symbol name nil)))
 
 (defun cs (name)
   "Shorthand for clutter-symbol"
   (clutter-symbol name))
 
 (defmethod print-object ((o clutter-symbol) s)
+  (unless (clutter-symbol-interned o)
+    (princ #\. s))
   (princ (clutter-symbol-name o) s))
 
 ;;;
@@ -117,6 +119,9 @@
 (set-clutter-reader-macro-function #\" (lambda (stream char)
                                          (declare (ignore char))
                                          (clutter-read-string #\" stream)))
+(set-clutter-reader-macro-function #\. (lambda (stream char)
+                                         (declare (ignore char))
+                                         (clutter-symbol (read-token stream) nil)))
 
 (defun read-token (stream)
   (loop with token = (make-array 8 :adjustable t :fill-pointer 0 :element-type 'character)
