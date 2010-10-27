@@ -1,19 +1,19 @@
-(direct-def! var %def!-expanders (list))
+(direct-def! %def!-expanders (list))
 
-(direct-def! fun cond
+(direct-def! cond
     (vau env (&rest forms)
          (if (eql? forms ())
              #f
              (if (eval (car (car forms)) env)
-                 (eval (list (list* (fun vau) #ignore () (cdr (car forms))))
+                 (eval (list* do (cdr (car forms)))
                        env)
-                 (eval (list* (fun cond) (cdr forms)) env)))))
+                 (eval (list* cond (cdr forms)) env)))))
 
-(direct-def! fun lambda
+(direct-def! lambda
     (vau env (vau-list &rest body)
-         (wrap (eval (list* (fun vau) #ignore vau-list body) env))))
+         (wrap (eval (list* vau #ignore vau-list body) env))))
 
-(direct-def! fun assoc
+(direct-def! assoc
     (lambda (key alist)
       (if (eql? alist (list))
           #f
@@ -21,116 +21,115 @@
               (car alist)
               (assoc key (cdr alist))))))
 
-(direct-def! fun mapcar
+(direct-def! mapcar
     (lambda (function values)
       (if (eql? (list) values)
           (list)
-          (cons ((var function) (car values)) (mapcar function (cdr values))))))
+          (cons (function (car values)) (mapcar function (cdr values))))))
 
-(direct-def! fun let
+(direct-def! let
     (vau env (clauses &rest body)
-         (eval (list* (list* (fun lambda) (mapcar (fun car) clauses) body)
+         (eval (list* (list* lambda (mapcar car clauses) body)
                       (mapcar (lambda (x) (car (cdr x))) clauses))
                env)))
 
-(direct-def! fun def!
-    (vau env (subenv place value)
+(direct-def! def!
+    (vau env (place value)
          (cond
            ((symbol? place)
-            (eval (list (fun direct-def!) subenv place value) env))
+            (eval (list direct-def! place value) env))
            ((cons? place)
             (let ((expander (assoc (car place) %def!-expanders)))
               (eval (list* (cdr expander) (eval value env) (cdr place))
                     env))))))
 
-(def! var %set!-specials (list))
-(def! var %set!-expanders (list))
+(def! %set!-specials (list))
+(def! %set!-expanders (list))
 
-(def! fun set!
+(def! set!
     (vau env (variable value)
          (cond
            ((symbol? variable)
             (let ((special (assoc variable %set!-specials)))
               (if special
                   ((cdr special) (eval value env))
-                  (eval (list (fun direct-set!) ((vau env (x) x) var) variable value) env))))
-
+                  (eval (list direct-set! variable value) env))))
            ((cons? variable)
             (let ((expander (assoc (car variable) %set!-expanders)))
               (eval (list* (cdr expander) (eval value env) (cdr variable)) env))))))
 
-(def! fun push!
+(def! push!
     (vau env (value place)
-         (eval (list (fun set!) place (list (fun cons) value place))
+         (eval (list set! place (list cons value place))
                env)))
 
-(def! fun def-def!-expander!
+(def! def-def!-expander!
     (vau env (name combiner)
          (push! (cons name (eval combiner env)) %def!-expanders)))
 
 (def-def!-expander! lookup
     (vau env (value symbol target-env)
-         (eval (list (fun def-lookup!) (eval value env) symbol (eval target-env env))
+         (eval (list def-lookup! (eval value env) symbol (eval target-env env))
                env)))
 
-(def! fun get-current-env
+(def! get-current-env
   (wrap (vau env () env)))
 
-(def! fun def-ns!
+(def! def-ns!
     (vau env (name)
-         (eval (list (fun def!) name (make-env env)) env)))
+         (eval (list def! name (make-env env)) env)))
 
-(def! fun with-ns
+(def! with-ns
     (vau env (ns &rest body)
-         (eval (list (list* (fun lambda) () body)) (eval ns env))))
+         (eval (list (list* lambda () body)) (eval ns env))))
 
-(def! fun apply
+(def! apply
   (lambda (function args)
     (eval (cons (unwrap function) args) (get-current-env))))
 
-(def! fun def-set!-special!
+(def! def-set!-special!
     (vau env (variable function)
          (push! (cons variable (eval function env)) %set!-specials)))
 
-(def! fun def-set!-expander!
+(def! def-set!-expander!
     (vau env (name combiner)
          (push! (cons name (eval combiner env)) %set!-expanders)))
 
 (def-set!-expander! lookup
     (vau env (value symbol target-env)
-         (eval (list (fun set-lookup!) (eval value env) symbol (eval target-env env))
+         (eval (list set-lookup! (eval value env) symbol (eval target-env env))
                env)))
 
-(def! fun do
+(def! do
     (vau env (&rest body)
-         (eval (list (list* (fun vau) #ignore () body)) env)))
+         (eval (list (list* vau #ignore () body)) env)))
 
-(def! fun when
+(def! when
     (vau env (test &rest body)
          (if (eval test env)
-             (eval (list* (fun do) body) env)
+             (eval (list* do body) env)
              #f)))
 
-(def! fun unless
+(def! unless
     (vau env (test &rest body)
          (if (eval test env)
              #f
-             (eval (list* (fun do) body) env))))
+             (eval (list* do body) env))))
 
-(def! fun anaphoric
-    (vau env (var op test &rest body)
-         (eval (list (fun let) (list (list var (eval test env)))
+(def! anaphoric
+    (vau env op test &rest body
+         (eval (list let (list (list var (eval test env)))
                      (list* op var body))
                env)))
 
-(def! fun aif
-    (vau env (var test then else)
-         (eval (list (fun anaphoric) var (fun if) test then else) env)))
+(def! aif
+    (vau env test then else
+         (eval (list anaphoric var if test then else) env)))
 
-(def! fun awhen
-    (vau env (var test &rest body)
-         (eval (list* (fun anaphoric) var (fun when) test body) env)))
+(def! awhen
+    (vau env test &rest body
+         (eval (list* anaphoric var when test body) env)))
 
-(def! fun aunless
-    (vau env (var test &rest body)
-         (eval (list* (fun anaphoric) var (fun unless) test body) env)))
+(def! aunless
+    (vau env test &rest body
+         (eval (list* anaphoric var unless test body) env)))
