@@ -117,19 +117,19 @@
              (eval (list* do body) env))))
 
 (def! anaphoric
-    (vau env op test &rest body
+    (vau env (var test op &rest body)
          (eval (list let (list (list var (eval test env)))
                      (list* op var body))
                env)))
 
 (def! aif
-    (vau env test then else
-         (eval (list anaphoric var if test then else) env)))
+    (vau env (var test then else)
+         (eval (list anaphoric var test if then else) env)))
 
 (def! awhen
-    (vau env test &rest body
-         (eval (list* anaphoric var when test body) env)))
+    (vau env (var test &rest body)
+         (eval (list* anaphoric var test when body) env)))
 
 (def! aunless
-    (vau env test &rest body
-         (eval (list* anaphoric var unless test body) env)))
+    (vau env (var test &rest body)
+         (eval (list* anaphoric var test unless body) env)))
