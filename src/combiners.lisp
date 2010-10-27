@@ -14,7 +14,7 @@
      (let ((env (make-env env)))
        (loop for var in variables
              for value in values
-             do (extend env (cs "var") var value))
+             do (extend env var value))
        (loop for sexp in body
           for last-value = (clutter-eval sexp env)
           finally (return last-value))))))
