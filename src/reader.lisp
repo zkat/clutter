@@ -10,14 +10,18 @@
 ;;;
 ;;; Symbols
 ;;;
-(defstruct (clutter-symbol (:constructor %make-clutter-symbol (name))) name)
+(defstruct (clutter-symbol (:constructor %make-clutter-symbol (name)))
+  (interned t)
+  name)
 
 (defvar *symbol-table* (make-hash-table :test 'equal))
 
-(defun clutter-symbol (name)
+(defun clutter-symbol (name &optional (intern t))
   "Return the symbol corresponding to string NAME"
-  (or (gethash name *symbol-table*)
-      (setf (gethash name *symbol-table*) (%make-clutter-symbol name))))
+  (if intern
+      (or (gethash name *symbol-table*)
+          (setf (gethash name *symbol-table*) (%make-clutter-symbol name)))
+      (%make-clutter-symbol name)))
 
 (defun cs (name)
   "Shorthand for clutter-symbol"
