@@ -12,6 +12,10 @@
   parent
   (bindings (make-hash-table :test 'eq)))
 
+(defmethod print-object ((o env) s)
+  (print-unreadable-object (o s :type t :identity t)
+    (format s "~A binding~:P" (hash-table-count (env-bindings o)))))
+
 (defvar *global-env*
   (make-env nil))
 
