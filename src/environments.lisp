@@ -19,7 +19,7 @@
 
 (defun get-current-env () *denv*)
 
-(defun lookup (symbol env)
+(defun lookup (symbol &optional (env *global-env*))
   (if env
       (multiple-value-bind (value exists)
           (gethash symbol (env-bindings env))
@@ -28,12 +28,14 @@
             (lookup symbol (env-parent env))))
       (error "No binding for ~A." symbol)))
 
-(defun (setf lookup) (new-value symbol env)
-  (if (nth-value 1 (gethash symbol (env-bindings env)))
-      (setf (gethash symbol (env-bindings env)) new-value)
+(defun (setf lookup) (new-value symbol &optional (env *global-env*))
+  (if env
+      (if (nth-value 1 (gethash symbol (env-bindings env)))
+          (setf (gethash symbol (env-bindings env)) new-value)
+          (setf (lookup symbol (env-parent env)) new-value))
       (error "No binding for ~A." symbol)))
 
-(defun clutter-bound? (symbol env)
+(defun clutter-bound? (symbol &optional (env *global-env*))
   (if env
       (if (nth-value 1 (gethash symbol (env-bindings env)))
           t
