@@ -84,7 +84,6 @@
 (def! def-ns!
     (vau env (name)
          (let ((new-env (make-env env)))
-           ;; FIXME: Parent skips intermediary namespaces
            (eval (list def-lookup! (list make-env (list eval setters-name env)) setters-name new-env) env)
            (eval (list def! name new-env) env))))
 
