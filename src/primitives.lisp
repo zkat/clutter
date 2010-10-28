@@ -70,11 +70,16 @@
 (defprimop "def-lookup!" (*denv* value symbol environment)
   (extend (clutter-eval environment *denv*) symbol (clutter-eval value *denv*)))
 
-(defprimfun "make-env" (&optional parent)
+(defprimfun "make-env" (&optional (parent (get-current-env)))
   (make-env parent))
 
 (defprimfun "env-parent" (env)
   (env-parent env))
+
+(defprimfun "bound?" (symbol &optional (env (get-current-env)))
+  (if (clutter-bound? symbol env)
+      *true*
+      *false*))
 
 (defprimop "direct-set!" (*denv* var value)
   (setf (lookup var *denv*) (clutter-eval value *denv*)))
@@ -119,6 +124,9 @@
   (apply #'list* values))
 (defprimfun "length" (seq)
   (length seq))
+;;; TODO: Does this sideffect?
+(defprimfun "append" (&rest lists)
+  (apply #'append lists))
 
 (defprimfun "set-head" (cons new-car)
   (rplaca cons new-car))

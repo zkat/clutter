@@ -31,6 +31,12 @@
           (list)
           (cons (function (car values)) (mapcar function (cdr values))))))
 
+(direct-def! map
+             (lambda (function values)
+               (unless (eql? (list) values)
+                 (function (car values))
+                 (map function (cdr values)))))
+
 (direct-def! let
     (vau env (clauses &rest body)
          (eval (list* (list* lambda (mapcar car clauses) body)
@@ -81,32 +87,21 @@
 (def! get-current-env
   (wrap (vau env () env)))
 
-(def! def-ns!
-    (vau env (name)
-         (let ((new-env (make-env env)))
-           (eval (list def-lookup! (list make-env (list eval setters-name env)) setters-name new-env) env)
-           (eval (list def! name new-env) env))))
+(def! global-env ((vau env () env)))
 
-(def! with-ns
-    (vau env (ns &rest body)
-         (eval (list (list* lambda () body)) (eval ns env))))
+(def! rcurry
+    (lambda (function &rest last-args)
+      (lambda (&rest first-args)
+        (apply function (append first-args last-args)))))
+
+(def! with-env
+    (vau env (module &rest body)
+         (map (rcurry eval (eval module env))
+              body)))
 
 (def! apply
   (lambda (function args)
     (eval (cons (unwrap function) args) (get-current-env))))
-
-(def! def-set!-special!
-    (vau env (variable function)
-         (push! (cons variable (eval function env)) %set!-specials)))
-
-(def! def-set!-expander!
-    (vau env (name combiner)
-         (eval (list def-lookup! combiner name setters-name) env)))
-
-(def-set!-expander! lookup
-    (vau env (value symbol target-env)
-         (eval (list set-lookup! (eval value env) symbol (eval target-env env))
-               env)))
 
 (def! when
     (vau env (test &rest body)
@@ -119,6 +114,21 @@
          (if (eval test env)
              #f
              (eval (list* do body) env))))
+
+(def! def-set!-special!
+    (vau env (variable function)
+         (push! (cons variable (eval function env)) %set!-specials)))
+
+(def! def-set!-expander!
+    (vau env (name combiner)
+         (unless (bound? setters-name env)
+           (eval (list def! setters-name (make-env (env-parent env))) env))
+         (eval (list def-lookup! combiner name setters-name) env)))
+
+(def-set!-expander! lookup
+    (vau env (value symbol target-env)
+         (eval (list set-lookup! (eval value env) symbol (eval target-env env))
+               env)))
 
 (def! anaphoric
     (vau env (var test op &rest body)
