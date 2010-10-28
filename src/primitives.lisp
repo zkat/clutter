@@ -73,6 +73,9 @@
 (defprimfun "make-env" (&optional parent)
   (make-env parent))
 
+(defprimfun "env-parent" (env)
+  (env-parent env))
+
 (defprimop "direct-set!" (*denv* var value)
   (setf (lookup var *denv*) (clutter-eval value *denv*)))
 
