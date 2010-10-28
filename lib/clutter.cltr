@@ -1,5 +1,9 @@
 (direct-def! %def!-expanders (list))
 
+(direct-def! do
+    (vau env (&rest body)
+         (eval (list (list* vau #ignore () body)) env)))
+
 (direct-def! cond
     (vau env (&rest forms)
          (if (eql? forms ())
@@ -99,10 +103,6 @@
     (vau env (value symbol target-env)
          (eval (list set-lookup! (eval value env) symbol (eval target-env env))
                env)))
-
-(def! do
-    (vau env (&rest body)
-         (eval (list (list* vau #ignore () body)) env)))
 
 (def! when
     (vau env (test &rest body)
