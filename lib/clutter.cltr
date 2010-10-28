@@ -50,7 +50,7 @@
 (def! %set!-specials (list))
 
 (def! setters-name ((vau env (x) x) .setters))
-(eval (list def! setters-name (list make-env)) (vau env () env))
+(eval (list def! setters-name (list make-env)) ((vau env () env)))
 
 (def! set!
     (vau env (variable value)
@@ -83,7 +83,10 @@
 
 (def! def-ns!
     (vau env (name)
-         (eval (list def! name (make-env env)) env)))
+         (let ((new-env (make-env env)))
+           ;; FIXME: Parent skips intermediary namespaces
+           (eval (list def-lookup! (list make-env (list eval setters-name env)) setters-name new-env) env)
+           (eval (list def! name new-env) env))))
 
 (def! with-ns
     (vau env (ns &rest body)
@@ -99,7 +102,7 @@
 
 (def! def-set!-expander!
     (vau env (name combiner)
-         (push! (cons name (eval combiner env)) %set!-expanders)))
+         (eval (list def-lookup! combiner name setters-name) env)))
 
 (def-set!-expander! lookup
     (vau env (value symbol target-env)
