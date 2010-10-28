@@ -1,10 +1,12 @@
-(direct-def! %def!-expanders (list))
+(def-var! ((vau env () env)) global ((vau env () env)))
 
-(direct-def! do
+(def-var! global %def!-expanders (list))
+
+(def-var! global do
     (vau env (&rest body)
          (eval (list (list* vau #ignore () body)) env)))
 
-(direct-def! cond
+(def-var! global cond
     (vau env (&rest forms)
          (if (eql? forms ())
              #f
@@ -13,11 +15,11 @@
                        env)
                  (eval (list* cond (cdr forms)) env)))))
 
-(direct-def! lambda
+(def-var! global lambda
     (vau env (vau-list &rest body)
          (wrap (eval (list* vau #ignore vau-list body) env))))
 
-(direct-def! assoc
+(def-var! global assoc
     (lambda (key alist)
       (if (eql? alist (list))
           #f
@@ -25,29 +27,29 @@
               (car alist)
               (assoc key (cdr alist))))))
 
-(direct-def! mapcar
+(def-var! global mapcar
     (lambda (function values)
       (if (eql? (list) values)
           (list)
           (cons (function (car values)) (mapcar function (cdr values))))))
 
-(direct-def! map
+(def-var! global map
              (lambda (function values)
                (unless (eql? (list) values)
                  (function (car values))
                  (map function (cdr values)))))
 
-(direct-def! let
+(def-var! global let
     (vau env (clauses &rest body)
          (eval (list* (list* lambda (mapcar car clauses) body)
                       (mapcar (lambda (x) (car (cdr x))) clauses))
                env)))
 
-(direct-def! def!
+(def-var! global def!
     (vau env (place value)
          (cond
            ((symbol? place)
-            (eval (list direct-def! place value) env))
+            (eval (list def-var! env place value) env))
            ((cons? place)
             (let ((expander (assoc (car place) %def!-expanders)))
               (eval (list* (cdr expander) (eval value env) (cdr place))
@@ -65,7 +67,7 @@
             (let ((special (assoc variable %set!-specials)))
               (if special
                   ((cdr special) (eval value env))
-                  (eval (list direct-set! variable value) env))))
+                  (eval (list set-var! env variable value) env))))
            ((cons? variable)
             (let ((expander (eval (list lookup (car variable) setters-name) env)))
               (eval (list* expander (eval value env) (cdr variable)) env))))))
@@ -86,8 +88,6 @@
 
 (def! get-current-env
   (wrap (vau env () env)))
-
-(def! global-env ((vau env () env)))
 
 (def! rcurry
     (lambda (function &rest last-args)

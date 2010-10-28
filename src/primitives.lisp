@@ -81,11 +81,11 @@
       *true*
       *false*))
 
-(defprimop "direct-set!" (*denv* var value)
-  (setf (lookup var *denv*) (clutter-eval value *denv*)))
+(defprimop "set-var!" (*denv* env var value)
+  (setf (lookup var (clutter-eval env *denv*)) (clutter-eval value *denv*)))
 
-(defprimop "direct-def!" (*denv* var value)
-  (extend *denv* var (clutter-eval value *denv*))
+(defprimop "def-var!" (*denv* env var value)
+  (extend (clutter-eval env *denv*) var (clutter-eval value *denv*))
   var)
 
 (defun clutter-true-p (exp)
