@@ -48,7 +48,9 @@
                     env))))))
 
 (def! %set!-specials (list))
-(def! %set!-expanders (list))
+
+(def! setters-name ((vau env (x) x) .setters))
+(eval (list def! setters-name (list make-env)) (vau env () env))
 
 (def! set!
     (vau env (variable value)
@@ -59,8 +61,8 @@
                   ((cdr special) (eval value env))
                   (eval (list direct-set! variable value) env))))
            ((cons? variable)
-            (let ((expander (assoc (car variable) %set!-expanders)))
-              (eval (list* (cdr expander) (eval value env) (cdr variable)) env))))))
+            (let ((expander (eval (list lookup (car variable) setters-name) env)))
+              (eval (list* expander (eval value env) (cdr variable)) env))))))
 
 (def! push!
     (vau env (value place)
