@@ -2,9 +2,25 @@
 
 (def-var! global %def!-expanders (list))
 
+(def-var! global lambda
+    (vau env (vau-list &rest body)
+         (wrap (eval (list* vau #ignore vau-list body) env))))
+
+(def-var! global get-current-env
+  (wrap (vau env () env)))
+
+(def-var! global map
+  (lambda (function values)
+    (if (eql? (list) values)
+        (list)
+        (cons (function (car values)) (map function (cdr values))))))
+
 (def-var! global do
-    (vau env (&rest body)
-         (eval (list (list* vau #ignore () body)) env)))
+  (vau env (&rest body)
+       (let ((last-value ()))
+         (map (lambda (exp) (set-var! (get-current-env) last-value (eval exp env)))
+              body)
+         last-value)))
 
 (def-var! global cond
     (vau env (&rest forms)
@@ -15,10 +31,6 @@
                        env)
                  (eval (list* cond (cdr forms)) env)))))
 
-(def-var! global lambda
-    (vau env (vau-list &rest body)
-         (wrap (eval (list* vau #ignore vau-list body) env))))
-
 (def-var! global assoc
     (lambda (key alist)
       (if (eql? alist (list))
@@ -27,23 +39,10 @@
               (car alist)
               (assoc key (cdr alist))))))
 
-(def-var! global mapcar
-  (lambda (function values)
-    (if (eql? (list) values)
-        (list)
-        (cons (function (car values)) (mapcar function (cdr values))))))
-
-(def-var! global map
-  (lambda (function values)
-    (if (eql? (list) (cdr values))
-        (function (car values))
-        (do (function (car values))
-            (map function (cdr values))))))
-
 (def-var! global let
     (vau env (clauses &rest body)
-         (eval (list* (list* lambda (mapcar car clauses) body)
-                      (mapcar (lambda (x) (car (cdr x))) clauses))
+         (eval (list* (list* lambda (map car clauses) body)
+                      (map (lambda (x) (car (cdr x))) clauses))
                env)))
 
 (def-var! global def!
@@ -93,18 +92,14 @@
          (eval (list def-lookup! (eval value env) symbol (eval target-env env))
                env)))
 
-(def! get-current-env
-  (wrap (vau env () env)))
-
 (def! rcurry
     (lambda (function &rest last-args)
       (lambda (&rest first-args)
         (apply function (append first-args last-args)))))
 
 (def! with-env
-    (vau env (module &rest body)
-         (map (rcurry eval (eval module env))
-              body)))
+    (vau callsite-env (target-env &rest body)
+         (eval (list* do body) (eval target-env callsite-env))))
 
 (def! apply
   (lambda (function args)
