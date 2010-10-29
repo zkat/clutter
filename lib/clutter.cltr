@@ -92,6 +92,11 @@
          (eval (list def-lookup! (eval value env) symbol (eval target-env env))
                env)))
 
+(def! curry
+    (lambda (function &rest first-args)
+      (lambda (&rest last-args)
+        (apply function (append first-args last-args)))))
+
 (def! rcurry
     (lambda (function &rest last-args)
       (lambda (&rest first-args)
