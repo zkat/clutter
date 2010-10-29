@@ -70,6 +70,9 @@
 (defprimop "def-lookup!" (*denv* value symbol environment)
   (extend (clutter-eval environment *denv*) symbol (clutter-eval value *denv*)))
 
+(defprimfun "gensym" (name)
+  (clutter-symbol name nil))
+
 (defprimfun "make-env" (&optional (parent (get-current-env)))
   (make-env parent))
 

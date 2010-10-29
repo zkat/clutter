@@ -57,7 +57,7 @@
 
 (def! %set!-specials (list))
 
-(let ((setters-name ((vau env (x) x) .setters)))
+(let ((setters-name (gensym "setters")))
   (eval (list def! setters-name (list make-env)) global)
 
   (def-var! global set!
