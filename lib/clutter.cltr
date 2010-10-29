@@ -28,16 +28,17 @@
               (assoc key (cdr alist))))))
 
 (def-var! global mapcar
-    (lambda (function values)
-      (if (eql? (list) values)
-          (list)
-          (cons (function (car values)) (mapcar function (cdr values))))))
+  (lambda (function values)
+    (if (eql? (list) values)
+        (list)
+        (cons (function (car values)) (mapcar function (cdr values))))))
 
 (def-var! global map
-             (lambda (function values)
-               (unless (eql? (list) values)
-                 (function (car values))
-                 (map function (cdr values)))))
+  (lambda (function values)
+    (if (eql? (list) (cdr values))
+        (function (car values))
+        (do (function (car values))
+            (map function (cdr values))))))
 
 (def-var! global let
     (vau env (clauses &rest body)
