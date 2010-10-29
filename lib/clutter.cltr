@@ -57,10 +57,10 @@
 
 (def! %set!-specials (list))
 
-(def! setters-name ((vau env (x) x) .setters))
-(eval (list def! setters-name (list make-env)) ((vau env () env)))
+(let ((setters-name ((vau env (x) x) .setters)))
+  (eval (list def! setters-name (list make-env)) global)
 
-(def! set!
+  (def-var! global set!
     (vau env (variable value)
          (cond
            ((symbol? variable)
@@ -71,6 +71,12 @@
            ((cons? variable)
             (let ((expander (eval (list lookup (car variable) setters-name) env)))
               (eval (list* expander (eval value env) (cdr variable)) env))))))
+
+  (def-var! global def-set!-expander!
+    (vau env (name combiner)
+         (unless (bound? setters-name env)
+           (eval (list def! setters-name (make-env (env-parent env))) env))
+         (eval (list def-lookup! combiner name setters-name) env))))
 
 (def! push!
     (vau env (value place)
@@ -118,12 +124,6 @@
 (def! def-set!-special!
     (vau env (variable function)
          (push! (cons variable (eval function env)) %set!-specials)))
-
-(def! def-set!-expander!
-    (vau env (name combiner)
-         (unless (bound? setters-name env)
-           (eval (list def! setters-name (make-env (env-parent env))) env))
-         (eval (list def-lookup! combiner name setters-name) env)))
 
 (def-set!-expander! lookup
     (vau env (value symbol target-env)
