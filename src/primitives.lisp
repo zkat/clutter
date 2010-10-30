@@ -77,7 +77,7 @@
   (make-env parent))
 
 (defprimfun "env-parent" (env)
-  (env-parent env))
+  (or (env-parent env) *false*))
 
 (defprimfun "bound?" (symbol &optional (env (get-current-env)))
   (if (clutter-bound? symbol env)
