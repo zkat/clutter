@@ -30,14 +30,14 @@
         (if exists
             value
             (lookup symbol (env-parent env))))
-      (error "No binding for ~A." symbol)))
+      (error "No binding for ~A in or above ~A" symbol env)))
 
 (defun (setf lookup) (new-value symbol &optional (env *global-env*))
   (if env
       (if (nth-value 1 (gethash symbol (env-bindings env)))
           (setf (gethash symbol (env-bindings env)) new-value)
           (setf (lookup symbol (env-parent env)) new-value))
-      (error "No binding for ~A." symbol)))
+      (error "No binding for ~A in or above ~A" symbol env)))
 
 (defun clutter-bound? (symbol &optional (env *global-env*))
   (if env
