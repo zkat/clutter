@@ -45,7 +45,59 @@
                       (map (lambda (x) (car (cdr x))) clauses))
                env)))
 
-(def-var! global def!
+(def-var! global when
+  (vau env (test &rest body)
+       (if (eval test env)
+           (eval (list* do body) env)
+           #f)))
+
+(def-var! global unless
+  (vau env (test &rest body)
+       (if (eval test env)
+           #f
+           (eval (list* do body) env))))
+
+(def-var! global returning
+  (lambda (first &rest #ignore) first))
+
+(def-var! global anaphoric
+  (vau env (op var test &rest body)
+       (eval (list let (list (list var (eval test env)))
+                   (list* op var body))
+             env)))
+
+(def-var! global aif
+  (vau env (var test then else)
+       (eval (list anaphoric if var test then else) env)))
+
+(def-var! global awhen
+  (vau env (var test &rest body)
+       (eval (list* anaphoric when var test body) env)))
+
+(def-var! global aunless
+  (vau env (var test &rest body)
+       (eval (list* anaphoric unless var test body) env)))
+
+(def-var! global areturning
+  (vau env (var first &rest body)
+       (eval (list* anaphoric returning var first body) env)))
+
+(def-var! global build-sidetree-leaf
+  (vau callsite-env (name target-env-form)
+       (let ((target-env (eval target-env-form callsite-env)))
+         (let ((target-parent (env-parent target-env)))
+           (if target-parent
+               (do
+                   (unless (bound? name target-parent)
+                     (eval (list build-sidetree-leaf name target-parent) callsite-env))
+                   (areturning leaf (make-env (eval (list lookup name target-parent)
+                                                    callsite-env))
+                      (eval (list def-var! target-env name leaf) callsite-env)))
+               (areturning root (make-env (list))
+                           (eval (list def-var! target-env name root) callsite-env)))))))
+
+(let ((definers-name (gensym "definers")))
+  (def-var! global def!
     (vau env (place value)
          (cond
            ((symbol? place)
@@ -53,13 +105,11 @@
            ((cons? place)
             (let ((expander (assoc (car place) %def!-expanders)))
               (eval (list* (cdr expander) (eval value env) (cdr place))
-                    env))))))
+                    env)))))))
 
 (def! %set!-specials (list))
 
 (let ((setters-name (gensym "setters")))
-  (eval (list def! setters-name (list make-env)) global)
-
   (def-var! global set!
     (vau env (variable value)
          (cond
@@ -110,18 +160,6 @@
   (lambda (function args)
     (eval (cons (unwrap function) args) (get-current-env))))
 
-(def! when
-    (vau env (test &rest body)
-         (if (eval test env)
-             (eval (list* do body) env)
-             #f)))
-
-(def! unless
-    (vau env (test &rest body)
-         (if (eval test env)
-             #f
-             (eval (list* do body) env))))
-
 (def! def-set!-special!
     (vau env (variable function)
          (push! (cons variable (eval function env)) %set!-specials)))
@@ -130,21 +168,3 @@
     (vau env (value symbol target-env)
          (eval (list set-lookup! (eval value env) symbol (eval target-env env))
                env)))
-
-(def! anaphoric
-    (vau env (var test op &rest body)
-         (eval (list let (list (list var (eval test env)))
-                     (list* op var body))
-               env)))
-
-(def! aif
-    (vau env (var test then else)
-         (eval (list anaphoric var test if then else) env)))
-
-(def! awhen
-    (vau env (var test &rest body)
-         (eval (list* anaphoric var test when body) env)))
-
-(def! aunless
-    (vau env (var test &rest body)
-         (eval (list* anaphoric var test unless body) env)))
