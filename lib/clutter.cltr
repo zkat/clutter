@@ -5,6 +5,10 @@
   (vau env (var value)
     (eval (list def-in! env var value) env)))
 
+(def-in! (get-current-env) set!
+  (vau env (var value)
+    (eval (list set-in! env var value) env)))
+
 (def! def-op!
   (vau env (name env-var vau-list &rest body)
     (eval (list def! name (list* vau env-var vau-list body)) env)))
@@ -14,6 +18,9 @@
 
 (def-op! def-fun! env (name lambda-list &rest body)
   (eval (list def! name (list* lambda lambda-list body)) env))
+
+(def-op! lookup env (var lookup-env)
+  (eval var (eval lookup-env env)))
 
 (def!-fun map (function values)
   (if (eql? (list) values)
