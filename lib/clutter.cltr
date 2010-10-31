@@ -109,3 +109,31 @@
   (lambda (function args)
     (eval (cons (unwrap function) args) (get-current-env))))
 
+(def-var! global module
+  (vau dyn-env (parent-envs &rest body)
+       (let ((env (apply make-env (map (rcurry eval dyn-env) parent-envs))))
+         (map (rcurry eval env) body)
+         env)))
+
+(def! provide!
+    (vau dyn-env (bindings parent-envs &rest body)
+         (let ((module-env (eval (list* module parent-envs body) dyn-env)))
+           (map (lambda (binding)
+                  (eval (list def-var! dyn-env binding (eval binding module-env)) dyn-env))
+                bindings))
+         bindings))
+
+(def! providing-module
+    (vau dyn-env (bindings parent-envs &rest body)
+         (eval (list module (list)
+                     (list* provide! bindings (map (curry eval dyn-env) parent-envs)
+                            body))
+               dyn-env)))
+
+(def! import-from!
+    (vau dyn-env (from-env &rest bindings)
+         (let ((env (eval from-env dyn-env)))
+           (map (lambda (binding)
+                  (eval (list def-var! dyn-env binding (eval binding env)) dyn-env))
+                bindings))
+         bindings))
