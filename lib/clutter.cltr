@@ -3,7 +3,7 @@
 
 (def!-in (get-current-env) def!
   (vau env (var value)
-    (eval (list def!-in env var (eval value env)) env)))
+    (eval (list def-in! env var value) env)))
 
 (def! def!-op
   (vau env (env-var vau-list &rest body)
