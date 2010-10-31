@@ -1,28 +1,28 @@
-(def-var! ((vau env () env)) global ((vau env () env)))
-
-(def-var! global %def!-expanders (list))
-
-(def-var! global lambda
-    (vau env (vau-list &rest body)
-         (wrap (eval (list* vau #ignore vau-list body) env))))
-
-(def-var! global get-current-env
+(def!-in ((vau env () env)) get-current-env
   (wrap (vau env () env)))
 
-(def-var! global map
-  (lambda (function values)
-    (if (eql? (list) values)
-        (list)
-        (cons (function (car values)) (map function (cdr values))))))
+(def!-in (get-current-env) def!
+  (vau env (var value)
+       (eval (list def!-in env var (eval value env)) env)))
 
-(def-var! global do
-  (vau env (&rest body)
-       (let ((last-value ()))
-         (map (lambda (exp) (set-var! (get-current-env) last-value (eval exp env)))
-              body)
-         last-value)))
+(def! lambda
+    (vau env (vau-list &rest body)
+         (wrap (eval (list* vau () vau-list body) env))))
 
-(def-var! global cond
+(def! map
+    (lambda (function values)
+      (if (eql? (list) values)
+          (list)
+          (cons (function (car values)) (map function (cdr values))))))
+
+(def! do
+    (vau env (&rest body)
+         (let ((last-value ()))
+           (map (lambda (exp) (set! last-value (eval exp env)))
+                body)
+           last-value)))
+
+(def! cond
     (vau env (&rest forms)
          (if (eql? forms ())
              #f
@@ -31,7 +31,7 @@
                        env)
                  (eval (list* cond (cdr forms)) env)))))
 
-(def-var! global assoc
+(def! assoc
     (lambda (key alist)
       (if (eql? alist (list))
           #f
@@ -39,52 +39,51 @@
               (car alist)
               (assoc key (cdr alist))))))
 
-(def-var! global let
+(def! let
     (vau env (clauses &rest body)
          (eval (list* (list* lambda (map car clauses) body)
                       (map (lambda (x) (car (cdr x))) clauses))
                env)))
 
-(def-var! global when
-  (vau env (test &rest body)
-       (if (eval test env)
-           (eval (list* do body) env)
-           #f)))
+(def! when
+    (vau env (test &rest body)
+         (if (eval test env)
+             (eval (list* do body) env)
+             #f)))
 
-(def-var! global unless
+(def! unless
   (vau env (test &rest body)
        (if (eval test env)
            #f
            (eval (list* do body) env))))
 
-(def-var! global returning
-  (lambda (first &rest #ignore) first))
+(def! returning
+    (vau env (first &rest body)
+         (let ((return-val (eval first env)))
+           (map (curry eval env) body)
+           return-val)))
 
-(def-var! global anaphoric
-  (vau env (op var test &rest body)
-       (eval (list let (list (list var (eval test env)))
-                   (list* op var body))
-             env)))
+(def! anaphoric
+    (vau env (op var test &rest body)
+         (eval (list let (list (list var (eval test env)))
+                     (list* op var body))
+               env)))
 
-(def-var! global aif
-  (vau env (var test then else)
-       (eval (list anaphoric if var test then else) env)))
+(def! aif
+    (vau env (var test then else)
+         (eval (list anaphoric if var test then else) env)))
 
-(def-var! global awhen
-  (vau env (var test &rest body)
-       (eval (list* anaphoric when var test body) env)))
+(def! awhen
+    (vau env (var test &rest body)
+         (eval (list* anaphoric when var test body) env)))
 
-(def-var! global aunless
-  (vau env (var test &rest body)
-       (eval (list* anaphoric unless var test body) env)))
+(def! aunless
+    (vau env (var test &rest body)
+         (eval (list* anaphoric unless var test body) env)))
 
-(def-var! global areturning
-  (vau env (var first &rest body)
-       (eval (list* anaphoric returning var first body) env)))
-
-(def-var! global def!
-    (vau env (var value)
-         (eval (list def-var! env var (eval value env)) env)))
+(def! areturning
+    (vau env (var first &rest body)
+         (eval (list* anaphoric returning var first body) env)))
 
 (def! push!
     (vau env (value place)
@@ -109,17 +108,17 @@
   (lambda (function args)
     (eval (cons (unwrap function) args) (get-current-env))))
 
-(def-var! global module
-  (vau dyn-env (parent-envs &rest body)
-       (let ((env (apply make-env (map (rcurry eval dyn-env) parent-envs))))
-         (map (rcurry eval env) body)
-         env)))
+(def! module
+    (vau dyn-env (parent-envs &rest body)
+         (let ((env (apply make-env (map (rcurry eval dyn-env) parent-envs))))
+           (map (rcurry eval env) body)
+           env)))
 
 (def! provide!
     (vau dyn-env (bindings parent-envs &rest body)
          (let ((module-env (eval (list* module parent-envs body) dyn-env)))
            (map (lambda (binding)
-                  (eval (list def-var! dyn-env binding (eval binding module-env)) dyn-env))
+                  (eval (list def!-in dyn-env binding (eval binding module-env)) dyn-env))
                 bindings))
          bindings))
 
@@ -134,6 +133,6 @@
     (vau dyn-env (from-env &rest bindings)
          (let ((env (eval from-env dyn-env)))
            (map (lambda (binding)
-                  (eval (list def-var! dyn-env binding (eval binding env)) dyn-env))
+                  (eval (list def!-in dyn-env binding (eval binding env)) dyn-env))
                 bindings))
          bindings))
