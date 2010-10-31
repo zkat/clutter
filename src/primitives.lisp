@@ -61,18 +61,6 @@
 (defprimfun "eval" (expression environment)
   (clutter-eval expression environment))
 
-(defprimop "lookup" (*denv* symbol environment)
-  (lookup symbol (clutter-eval environment *denv*)))
-
-(defprimop "set-lookup!" (*denv* value symbol environment)
-  (setf (lookup symbol (clutter-eval environment *denv*)) (clutter-eval value *denv*)))
-
-(defprimop "def-lookup!" (*denv* value symbol environment)
-  (extend (clutter-eval environment *denv*) symbol (clutter-eval value *denv*)))
-
-(defprimfun "gensym" (name)
-  (clutter-symbol name nil))
-
 (defprimfun "make-env" (&rest parents)
   (apply #'make-env parents))
 
@@ -84,10 +72,10 @@
       *true*
       *false*))
 
-(defprimop "set-var!" (*denv* env var value)
+(defprimop "set!-in" (*denv* env var value)
   (setf (lookup var (clutter-eval env *denv*)) (clutter-eval value *denv*)))
 
-(defprimop "def-var!" (*denv* env var value)
+(defprimop "def!-in" (*denv* env var value)
   (extend (clutter-eval env *denv*) var (clutter-eval value *denv*))
   var)
 
@@ -117,6 +105,8 @@
   (cons x y))
 (defprimfun "cons?" (x)
   (consp x))
+(defprimfun "list?" (x)
+  (listp x))
 (defprimfun "car" (cons)
   (car cons))
 (defprimfun "cdr" (cons)
@@ -127,17 +117,15 @@
   (apply #'list* values))
 (defprimfun "length" (seq)
   (length seq))
-;;; TODO: Does this sideffect?
 (defprimfun "append" (&rest lists)
   (apply #'append lists))
 
-(defprimfun "set-head" (cons new-car)
-  (rplaca cons new-car))
-(defprimfun "set-tail" (cons new-cdr)
-  (rplacd cons new-cdr))
-
 (defprimfun "eql?" (x y)
-  (if (eql x y) *true* *false*))
+  (if (eql (type-of x) (type-of y))
+      (cond ((numberp x) (if (= x y) *true* *false*))
+            ((or (listp x) (stringp x)) (if (equal x y) *true* *false*))
+            (t (if (eq x y) *true* *false*)))
+      *false*))
 
 (defprimfun "symbol?" (x)
   (if (clutter-symbol-p x) *true* *false*))
