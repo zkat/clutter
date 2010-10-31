@@ -73,11 +73,11 @@
 (defprimfun "gensym" (name)
   (clutter-symbol name nil))
 
-(defprimfun "make-env" (&optional (parent (get-current-env)))
-  (make-env parent))
+(defprimfun "make-env" (&rest parents)
+  (apply #'make-env parents))
 
-(defprimfun "env-parent" (env)
-  (or (env-parent env) *false*))
+(defprimfun "env-parents" (env)
+  (env-parents env))
 
 (defprimfun "bound?" (symbol &optional (env (get-current-env)))
   (if (clutter-bound? symbol env)
