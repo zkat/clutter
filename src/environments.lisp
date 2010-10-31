@@ -52,6 +52,7 @@
       nil))
 
 (defun extend (env symbol &optional value)
-  (if (nth-value 1 (gethash symbol (env-bindings env)))
-      (warn "Redefinition of ~A." symbol))
+  (assert (clutter-symbol-p symbol))
+  (when (nth-value 1 (gethash symbol (env-bindings env)))
+    (warn "Redefinition of ~A." symbol))
   (setf (gethash symbol (env-bindings env)) value))
