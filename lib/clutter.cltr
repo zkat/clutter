@@ -5,15 +5,15 @@
   (vau env (var value)
     (eval (list def-in! env var value) env)))
 
-(def! def!-op
-  (vau env (env-var vau-list &rest body)
-    (eval (list* vau env-var vau-list body) env)))
+(def! def-op!
+  (vau env (name env-var vau-list &rest body)
+    (eval (list def! name (list* vau env-var vau-list body)) env)))
 
 (def!-op lambda env (vau-list &rest body)
   (wrap (eval (list* vau () vau-list body) env)))
 
-(def!-op def!-fun env (lambda-list &rest body)
-  (eval (list* lambda lambda-list body) env))
+(def-op! def-fun! env (name lambda-list &rest body)
+  (eval (list def! name (list* lambda lambda-list body)) env))
 
 (def!-fun map (function values)
   (if (eql? (list) values)
