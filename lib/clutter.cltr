@@ -82,64 +82,13 @@
   (vau env (var first &rest body)
        (eval (list* anaphoric returning var first body) env)))
 
-(def-var! global build-sidetree-leaf
-  (vau callsite-env (name target-env-form)
-       (let ((target-env (eval target-env-form callsite-env)))
-         (let ((target-parent (env-parent target-env)))
-           (if target-parent
-               (do
-                   (unless (bound? name target-parent)
-                     (eval (list build-sidetree-leaf name target-parent) callsite-env))
-                   (areturning leaf (make-env (eval (list lookup name target-parent)
-                                                    callsite-env))
-                      (eval (list def-var! target-env name leaf) callsite-env)))
-               (areturning root (make-env (list))
-                           (eval (list def-var! target-env name root) callsite-env)))))))
-
-(let ((definers-name (gensym "definers")))
-  (def-var! global def!
-    (vau env (place value)
-         (cond
-           ((symbol? place)
-            (eval (list def-var! env place value) env))
-           ((cons? place)
-            (let ((expander (assoc (car place) %def!-expanders)))
-              (eval (list* (cdr expander) (eval value env) (cdr place))
-                    env)))))))
-
-(def! %set!-specials (list))
-
-(let ((setters-name (gensym "setters")))
-  (def-var! global set!
-    (vau env (variable value)
-         (cond
-           ((symbol? variable)
-            (let ((special (assoc variable %set!-specials)))
-              (if special
-                  ((cdr special) (eval value env))
-                  (eval (list set-var! env variable value) env))))
-           ((cons? variable)
-            (let ((expander (eval (list lookup (car variable) setters-name) env)))
-              (eval (list* expander (eval value env) (cdr variable)) env))))))
-
-  (def-var! global def-set!-expander!
-    (vau env (name combiner)
-         (unless (bound? setters-name env)
-           (eval (list def! setters-name (make-env (env-parent env))) env))
-         (eval (list def-lookup! combiner name setters-name) env))))
+(def-var! global def!
+    (vau env (var value)
+         (eval (list def-var! env var (eval value env)) env)))
 
 (def! push!
     (vau env (value place)
          (eval (list set! place (list cons value place))
-               env)))
-
-(def! def-def!-expander!
-    (vau env (name combiner)
-         (push! (cons name (eval combiner env)) %def!-expanders)))
-
-(def-def!-expander! lookup
-    (vau env (value symbol target-env)
-         (eval (list def-lookup! (eval value env) symbol (eval target-env env))
                env)))
 
 (def! curry
@@ -160,11 +109,3 @@
   (lambda (function args)
     (eval (cons (unwrap function) args) (get-current-env))))
 
-(def! def-set!-special!
-    (vau env (variable function)
-         (push! (cons variable (eval function env)) %set!-specials)))
-
-(def-set!-expander! lookup
-    (vau env (value symbol target-env)
-         (eval (list set-lookup! (eval value env) symbol (eval target-env env))
-               env)))
