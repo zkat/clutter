@@ -72,10 +72,10 @@
       *true*
       *false*))
 
-(defprimop "set!-in" (*denv* env var value)
+(defprimop "set-in!" (*denv* env var value)
   (setf (lookup var (clutter-eval env *denv*)) (clutter-eval value *denv*)))
 
-(defprimop "def!-in" (*denv* env var value)
+(defprimop "def-in!" (*denv* env var value)
   (extend (clutter-eval env *denv*) var (clutter-eval value *denv*))
   var)
 
