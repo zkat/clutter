@@ -47,7 +47,8 @@
                for value in (list* *denv*
                                    (nthcdr (length required) values)
                                    (subseq values 0 (length required)))
-               do (if var (extend env var value) (print "BUG IN VAU")))
+               when var                 ; Ignore nil binding elements
+                 do (extend env var value))
          (loop for sexp in body
                for last-value = (clutter-eval sexp env)
                finally (return last-value)))))))
