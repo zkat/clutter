@@ -1,0 +1,38 @@
+(def-fun! constant? (value)
+  (or (number? value)
+      (and (sequence? value) (every? constant? value))))
+
+(def-fun! emit-+ (&rest values)
+  (cond
+    ((every? constant? values) (apply + values))
+    (#t (list* + values))))
+
+(def-fun! emit-- (&rest values)
+  (cond
+    ((every? constant? values) (apply - values))
+    (#t (list* - values))))
+
+(def-fun! emit-eval (expr env)
+  (cond ((symbol? expr)
+         (if (bound? expr env)
+             (eval expr env)
+             (list make-placeholder expr)))
+        ((list? expr)
+         (eval (map (rcurry emit-eval env) expr) env))
+        (#t expr)))
+
+(def-op! make-placeholder #ignore (symbol)
+  symbol)
+
+(def-op! partially-eval callsite-env (form)
+  (let ((peval-env (make-env global-env)))
+    (with-env peval-env
+      (def! + emit-+)
+      (def! - emit--)
+      (def! eval emit-eval))
+    (eval (cons (first form) (map (lambda (elt)
+                  (if (symbol? elt)
+                      (list make-placeholder elt)
+                      elt))
+                (rest form)))
+          peval-env)))
