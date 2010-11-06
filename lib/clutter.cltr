@@ -64,7 +64,7 @@
 (def-op! unless env (test &rest body)
   (if (eval test env)
       #f
-      (eval (list* do body) env))  (vau))
+      (eval (list* do body) env)))
 
 (def-op! returning env (first &rest body)
   (let ((return-val (eval first env)))
