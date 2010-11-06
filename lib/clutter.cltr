@@ -105,6 +105,11 @@
             (eval (list* and? (rest values)) env)
             #f))))
 
+(def-fun! not (value)
+  (if value
+      #f
+      #t))
+
 (def-fun! every? (predicate sequence)
   (if (eql? sequence (list))
       #t
