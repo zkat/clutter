@@ -1,11 +1,14 @@
 (def-in! ((vau env () env)) get-current-env
   (wrap (vau env () env)))
 
-(def-in! (get-current-env) def!
+(def-in! (get-current-env) global-env
+  (get-current-env))
+
+(def-in! global-env def!
   (vau env (var value)
     (eval (list def-in! env var value) env)))
 
-(def-in! (get-current-env) set!
+(def-in! global-env set!
   (vau env (var value)
     (eval (list set-in! env var value) env)))
 
@@ -112,7 +115,7 @@
   bindings)
 
 (def! anaphora
-  (module ((get-current-env))
+  (module (global-env)
 
     (def-op! anaphoric env (op var test &rest body)
       (eval (list let (list (list var (eval test env)))
