@@ -111,6 +111,12 @@
       (and? (predicate (first sequence))
             (every? predicate (rest sequence)))))
 
+(def-fun! some? (predicate sequence)
+  (if (eql? sequence (list))
+      #f
+      (or? (predicate (first sequence))
+           (some? predicate (rest sequence)))))
+
 (def-fun! sequence? (object)
   (list? object))
 
