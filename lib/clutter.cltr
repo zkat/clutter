@@ -83,6 +83,41 @@
   (lambda (&rest first-args)
     (apply function (append first-args last-args))))
 
+(def-fun! first (sequence)
+  (car sequence))
+
+(def-fun! rest (sequence)
+  (cdr sequence))
+
+(def-op! or? env (&rest values)
+  (if (=? (length values) 0)
+      #f
+      (let ((result (eval (first values) env)))
+        (if result
+            result
+            (eval (list* or? (rest values)) env)))))
+
+(def-op! and? env (&rest values)
+  (if (=? (length values) 0)
+      #t
+      (let ((result (eval (first values) env)))
+        (if result
+            (eval (list* and? (rest values)) env)
+            #f))))
+
+(def-fun! every? (predicate sequence)
+  (if (eql? sequence (list))
+      #t
+      (and? (predicate (first sequence))
+            (every? predicate (rest sequence)))))
+
+(def-fun! sequence? (object)
+  (list? object))
+
+(def-fun! combiner? (object)
+  (or? (function? object)
+       (operator? object)))
+
 (def-fun! apply (function args)
   (eval (cons (unwrap function) args) (get-current-env)))
 
