@@ -119,6 +119,10 @@
 (set-clutter-reader-macro-function #\" (lambda (stream char)
                                          (declare (ignore char))
                                          (clutter-read-string #\" stream)))
+(set-clutter-reader-macro-function #\; (lambda (stream char)
+                                         (declare (ignore char))
+                                         (read-line stream)
+                                         (values)))
 
 (defun read-token (stream)
   (loop with token = (make-array 8 :adjustable t :fill-pointer 0 :element-type 'character)
