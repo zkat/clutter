@@ -158,6 +158,8 @@
 
 (defprimfun "print" (obj)
   (print obj))
+(defprimfun "load" (path)
+  (clutter-load path))
 
 ;;; For escaping the REPL cleanly.
 (define-condition quit () ())
