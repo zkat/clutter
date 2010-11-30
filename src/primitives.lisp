@@ -155,6 +155,8 @@
   (apply #'* values))
 (defprimfun "/" (number &rest more-numbers)
   (apply #'/ number more-numbers))
+(defprimfun "rem" (number divisor)
+  (rem number divisor))
 
 (defprimfun "print" (obj)
   (print obj))
