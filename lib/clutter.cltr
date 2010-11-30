@@ -31,7 +31,7 @@
       (cons (function (car values)) (map function (cdr values)))))
 
 (def-op! do env (&rest body)
-  (let ((last-value ()))
+  (let (last-value ())
     (map (lambda (exp) (set! last-value (eval exp env)))
          body)
     last-value))
@@ -51,9 +51,42 @@
           (car alist)
           (assoc key (cdr alist)))))
 
+(def-fun! not (value)
+  (if value
+      #f
+      #t))
+
+(def-fun! complement (function)
+  (lambda (&rest args)
+    (not (apply function args))))
+
+(def-fun! empty? (sequence)
+  (=? (length sequence) 0))
+
+(def-fun! filter (predicate sequence)
+  (if (empty? sequence)
+      (list)
+      (if (predicate (first sequence))
+          (cons (first sequence) (filter predicate (rest sequence)))
+          (filter predicate (rest sequence)))))
+
+(def-fun! even? (number)
+  (=? (rem number 2) 0))
+
+(def-fun! odd? (number)
+  (not (even? number)))
+
+(def-op! inc! env (var)
+  (eval (list set! var (+ 1 (eval var env))) env))
+
 (def-op! let env (clauses &rest body)
-  (eval (list* (list* lambda (map car clauses) body)
-               (map (lambda (x) (car (cdr x))) clauses))
+  (eval (list*
+         (list* lambda
+                (filter ((lambda (x) (lambda (#ignore) (odd? (inc! x)))) 0)
+                        clauses)
+                body)
+         (filter ((lambda (x) (lambda (#ignore) (even? (inc! x)))) 0)
+                 clauses))
         env))
 
 (def-op! when env (test &rest body)
@@ -67,7 +100,7 @@
       (eval (list* do body) env)))
 
 (def-op! returning env (first &rest body)
-  (let ((return-val (eval first env)))
+  (let (return-val (eval first env))
     (map (curry eval env) body)
     return-val))
 
@@ -92,7 +125,7 @@
 (def-op! or? env (&rest values)
   (if (=? (length values) 0)
       #f
-      (let ((result (eval (first values) env)))
+      (let (result (eval (first values) env))
         (if result
             result
             (eval (list* or? (rest values)) env)))))
@@ -100,15 +133,10 @@
 (def-op! and? env (&rest values)
   (if (=? (length values) 0)
       #t
-      (let ((result (eval (first values) env)))
+      (let (result (eval (first values) env))
         (if result
             (eval (list* and? (rest values)) env)
             #f))))
-
-(def-fun! not (value)
-  (if value
-      #f
-      #t))
 
 (def-fun! every? (predicate sequence)
   (if (eql? sequence (list))
@@ -136,12 +164,12 @@
   (eval (list* do body) (eval target-env callsite-env)))
 
 (def-op! module dyn-env (parent-envs &rest body)
-  (let ((env (apply make-env (map (rcurry eval dyn-env) parent-envs))))
+  (let (env (apply make-env (map (rcurry eval dyn-env) parent-envs)))
     (map (rcurry eval env) body)
     env))
 
 (def-op! provide! dyn-env (bindings parent-envs &rest body)
-  (let ((module-env (eval (list* module parent-envs body) dyn-env)))
+  (let (module-env (eval (list* module parent-envs body) dyn-env))
     (map (lambda (binding)
            (eval (list def-in! dyn-env binding (eval binding module-env)) dyn-env))
          bindings))
@@ -154,7 +182,7 @@
         dyn-env))
 
 (def-op! import-from! dyn-env (from-env &rest bindings)
-  (let ((env (eval from-env dyn-env)))
+  (let (env (eval from-env dyn-env))
     (map (lambda (binding)
            (eval (list def-in! dyn-env binding (eval binding env)) dyn-env))
          bindings))
@@ -164,7 +192,7 @@
   (module (global-env)
 
     (def-op! anaphoric env (op var test &rest body)
-      (eval (list let (list (list var (eval test env)))
+      (eval (list let (list var (eval test env))
                   (list* op var body))
             env))
 
