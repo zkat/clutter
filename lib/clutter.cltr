@@ -51,14 +51,16 @@
           (car alist)
           (assoc key (cdr alist)))))
 
-(def-fun! not (value)
+(def-fun! not? (value)
   (if value
       #f
       #t))
+(def-fun! null? (value)
+  (if (eql? value (list)) #t #f))
 
 (def-fun! complement (function)
   (lambda (&rest args)
-    (not (apply function args))))
+    (not? (apply function args))))
 
 (def-fun! empty? (sequence)
   (=? (length sequence) 0))
@@ -74,7 +76,7 @@
   (=? (rem number 2) 0))
 
 (def-fun! odd? (number)
-  (not (even? number)))
+  (not? (even? number)))
 
 (def-op! inc! env (var)
   (eval (list set! var (+ 1 (eval var env))) env))
