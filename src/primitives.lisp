@@ -97,11 +97,6 @@
   (assert (clutter-operator-p (car values)))
   (make-symbol-operator (car values)))
 
-(defprimfun "not" (x)
-  (if (eq x *false*) *true* *false*))
-(defprimfun "null?" (x)
-  (if (eq x nil) *true* *false*))
-
 (defprimfun "cons" (x y)
   (cons x y))
 (defprimfun "cons?" (x)
