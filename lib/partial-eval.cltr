@@ -12,22 +12,21 @@
     ((every? constant? values) (apply - values))
     (#t (list* - values))))
 
-(def-fun! emit-eval (expr env)
-  (cond ((symbol? expr)
-         (if (bound? expr env)
-             (eval expr env)
-             (list make-placeholder expr)))
-        ((list? expr)
-         (eval (map (rcurry emit-eval env) expr) env))
-        (#t expr)))
+(def-op! emit-eval callsite-env (expr-code env-code)
+  (let (expr (eval expr-code callsite-env)
+        env  (eval env-code callsite-env))
+    (cond
+      ((eql? env callsite-env) (print "direct") (eval expr env))
+      ((print (eql? env global-env)) (print "global") (eval expr env))
+      (#t (print "fallback") (list eval expr-code env-code)))))
 
 (def-op! make-placeholder #ignore (symbol)
   symbol)
 
-(def-op! partially-eval callsite-env (form)
-  (let ((peval-env (make-env global-env)))
+(def-fun! peval (form)
+  (let (peval-env (make-env global-env))
     (with-env peval-env
       (def! + emit-+)
       (def! - emit--)
       (def! eval emit-eval))
-    (emit-eval form peval-env)))
+    (eval form peval-env)))
