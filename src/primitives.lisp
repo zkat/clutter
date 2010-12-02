@@ -130,6 +130,8 @@
 
 (defprimfun "symbol?" (x)
   (if (clutter-symbol-p x) *true* *false*))
+(defprimfun "keyword?" (x)
+  (if (clutter-keyword-p x) *true* *false*))
 (defprimfun "number?" (x)
   (if (numberp x) *true* *false*))
 (defprimfun "function?" (x)
