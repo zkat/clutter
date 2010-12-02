@@ -32,6 +32,14 @@
     (princ #\. s))
   (princ (clutter-symbol-name o) s))
 
+;;; Keyword literals
+(defstruct (clutter-keyword (:constructor make-clutter-keyword (name)))
+  (name))
+
+(defmethod print-object ((o clutter-keyword) s)
+  (princ #\: s)
+  (princ (clutter-keyword-name o) s))
+
 ;;;
 ;;; Reader
 ;;;
@@ -148,6 +156,10 @@
                       (vector-push-extend char token)
                       (setf collecting-token t))))
         finally (return token)))
+
+(set-clutter-reader-macro-function #\: (lambda (stream char)
+                                         (declare (ignore char))
+                                         (make-clutter-keyword (read-token stream))))
 
 (defun parse-token (token)
   (or (parse-integer-token token)
