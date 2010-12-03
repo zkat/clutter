@@ -43,7 +43,7 @@
       (setf (gethash name *keyword-table*) (make-clutter-keyword name))))
 
 (defmethod print-object ((o clutter-keyword) s)
-  (princ #\: s)
+  (princ *keyword-marker* s)
   (princ (clutter-keyword-name o) s))
 
 ;;;
@@ -163,9 +163,10 @@
                       (setf collecting-token t))))
         finally (return token)))
 
-(set-clutter-reader-macro-function #\: (lambda (stream char)
-                                         (declare (ignore char))
-                                         (clutter-keyword (read-token stream))))
+(set-clutter-reader-macro-function *keyword-marker*
+                                   (lambda (stream char)
+                                     (declare (ignore char))
+                                     (clutter-keyword (read-token stream))))
 
 (defun parse-token (token)
   (or (parse-integer-token token)
