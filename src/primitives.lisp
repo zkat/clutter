@@ -145,8 +145,17 @@
   (if (numberp x) *true* *false*))
 (defprimfun "function?" (x)
   (if (clutter-function-p x) *true* *false*))
-(defprimfun "operator?" (x)
+(defprimfun "vau?" (x)
   (if (clutter-operator-p x) *true* *false*))
+
+(defprimfun "vau-name" (v)
+  (clutter-operator-name v))
+(defprimfun "vau-args" (v)
+  (clutter-operator-args v))
+(defprimfun "vau-body" (v)
+  (clutter-operator-body v))
+(defprimfun "vau-env" (v)
+  (clutter-operator-env v))
 
 (defprimfun "<?" (x y)
   (if (< x y) *true* *false*))
