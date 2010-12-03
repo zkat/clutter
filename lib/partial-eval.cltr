@@ -49,7 +49,7 @@
   (let (expr (eval expr-code callsite-env)
         env  (eval env-code callsite-env))
     (cond
-      ((not (placeholder? env)) (eval expr env))
+      ((not (placeholder? env)) (smart-eval expr env))
       (#t (list eval expr-code env-code)))))
 
 (def-fun! peval (form)
