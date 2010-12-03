@@ -111,6 +111,8 @@
 
 (defprimfun "symbol-name" (symbol)
   (clutter-symbol-name symbol))
+(defprimfun "keyword-name" (kw)
+  (clutter-keyword-name kw))
 
 (defprimfun "cons" (x y)
   (cons x y))
