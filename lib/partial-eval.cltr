@@ -12,6 +12,13 @@
     ((every? constant? values) (apply - values))
     (#t (list* - values))))
 
+(def-op! emit-vau static-env (env-var vau-list &rest body)
+  (let (vau-env (make-env static-env))
+    (map (lambda (binding)
+           (eval (list def! binding (make-placeholder binding))))
+         vau-list)
+    (map (rcurry eval vau-env) body)))
+
 (def-op! emit-eval callsite-env (expr-code env-code)
   (let (expr (eval expr-code callsite-env)
         env  (eval env-code callsite-env))
@@ -19,9 +26,6 @@
       ((eql? env callsite-env) (print "direct") (eval expr env))
       ((print (eql? env global-env)) (print "global") (eval expr env))
       (#t (print "fallback") (list eval expr-code env-code)))))
-
-(def-op! make-placeholder #ignore (symbol)
-  symbol)
 
 (def-fun! peval (form)
   (let (peval-env (make-env global-env))
