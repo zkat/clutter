@@ -33,8 +33,14 @@
   (princ (clutter-symbol-name o) s))
 
 ;;; Keyword literals
+(defvar *keyword-table* (make-hash-table :test 'equal))
+
 (defstruct (clutter-keyword (:constructor make-clutter-keyword (name)))
   (name))
+
+(defun clutter-keyword (name)
+  (or (gethash name *keyword-table*)
+      (setf (gethash name *keyword-table*) (make-clutter-keyword name))))
 
 (defmethod print-object ((o clutter-keyword) s)
   (princ #\: s)
@@ -159,7 +165,7 @@
 
 (set-clutter-reader-macro-function #\: (lambda (stream char)
                                          (declare (ignore char))
-                                         (make-clutter-keyword (read-token stream))))
+                                         (clutter-keyword (read-token stream))))
 
 (defun parse-token (token)
   (or (parse-integer-token token)
