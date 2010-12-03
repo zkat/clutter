@@ -48,10 +48,8 @@
 (def-op! emit-eval callsite-env (expr-code env-code)
   (let (expr (eval expr-code callsite-env)
         env  (eval env-code callsite-env))
-    ;; TODO: Pre-eval for all constant envs.
     (cond
-      ((eql? env callsite-env) (eval expr env))
-      ((eql? env global-env) (eval expr env))
+      ((not (placeholder? env)) (eval expr env))
       (#t (list eval expr-code env-code)))))
 
 (def-fun! peval (form)
