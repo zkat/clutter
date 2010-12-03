@@ -146,6 +146,8 @@
   (if (clutter-keyword-p x) *true* *false*))
 (defprimfun "number?" (x)
   (if (numberp x) *true* *false*))
+(defprimfun "string?" (x)
+  (if (stringp x) *true* *false*))
 (defprimfun "function?" (x)
   (if (clutter-function-p x) *true* *false*))
 (defprimfun "vau?" (x)

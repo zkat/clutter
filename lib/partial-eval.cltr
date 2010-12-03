@@ -24,11 +24,14 @@
     ((list? form) (smart-eval-operator form env))
     (#t (eval form env))))
 
+(def-fun! make-placeholder (x) x)
+(def! placeholder? string?)
+
 (def-op! emit-vau static-env (env-var vau-list &rest body)
   (let (vau-env (make-env static-env))
-    (eval (list def! env-var (make-placeholder env-var)) vau-env)
+    (eval (list def! env-var (make-placeholder (symbol-name env-var))) vau-env)
     (map (lambda (binding)
-           (eval (list def! binding (make-placeholder binding)) vau-env))
+           (eval (list def! binding (make-placeholder (symbol-name binding))) vau-env))
          vau-list)
     (map (rcurry smart-eval vau-env) body)))
 
