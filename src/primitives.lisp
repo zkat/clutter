@@ -15,8 +15,13 @@
 ;;; Primitive functions
 ;;;
 
+(defvar *primitives* (list))
+
 (defmacro defprimitive (name value)
-  `(extend *global-env* (clutter-symbol ,name) ,value))
+  (once-only (name value)
+   `(progn
+      (push ,value *primitives*)
+      (extend *global-env* (clutter-symbol ,name) ,value))))
 
 (defmacro defprimop (name vau-list &body body)
   `(defprimitive ,name
@@ -140,6 +145,9 @@
             (t (if (eq x y) *true* *false*)))
       *false*))
 
+(defprimfun "intern" (string)
+  (clutter-symbol string))
+
 (defprimfun "symbol?" (x)
   (if (clutter-symbol-p x) *true* *false*))
 (defprimfun "keyword?" (x)
@@ -152,6 +160,8 @@
   (if (clutter-function-p x) *true* *false*))
 (defprimfun "vau?" (x)
   (if (clutter-operator-p x) *true* *false*))
+(defprimfun "primitive?" (x)
+  (if (find x *primitives*) *true* *false*))
 
 (defprimfun "vau-name" (v)
   (clutter-operator-name v))
