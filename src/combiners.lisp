@@ -6,8 +6,8 @@
 ;;; Combiners
 ;;;
 
-(defstruct clutter-operator function name)
-(defun make-operator (variables body env)
+(defstruct clutter-operator function name args body (env *global-env*))
+(defun make-operator (variables body env &optional name)
   (make-clutter-operator 
    :function
    (lambda (*denv* &rest values)
@@ -17,7 +17,11 @@
              do (extend env var value))
        (loop for sexp in body
           for last-value = (clutter-eval sexp env)
-          finally (return last-value))))))
+          finally (return last-value))))
+   :name name
+   :args variables
+   :env env
+   :body body))
 
 (defstruct clutter-function operator)
 (defun make-function (operator)

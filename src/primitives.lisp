@@ -22,7 +22,9 @@
   `(defprimitive ,name
        (make-clutter-operator
         :name ,name
-        :function (lambda ,vau-list ,@body))))
+        :function (lambda ,vau-list ,@body)
+        :args ',vau-list
+        :body ',body)))
 
 (defmacro defprimfun (name vau-list &body body)
   `(defprimitive ,name
@@ -30,7 +32,9 @@
         (make-clutter-operator
          :name ,name
          :function (lambda (*denv* ,@vau-list)
-                     ,@body)))))
+                     ,@body)
+         :args ',vau-list
+         :body ',body))))
 
 (defprimop "vau" (static-env env-var vau-list &rest body)
   (make-clutter-operator
@@ -51,7 +55,10 @@
                  do (extend env var value))
          (loop for sexp in body
                for last-value = (clutter-eval sexp env)
-               finally (return last-value)))))))
+               finally (return last-value)))))
+   :args vau-list
+   :env static-env
+   :body body))
 
 (defprimfun "wrap" (operative)
   (make-function operative))
