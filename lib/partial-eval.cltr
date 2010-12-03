@@ -12,20 +12,47 @@
     ((every? constant? values) (apply - values))
     (#t (list* - values))))
 
+(def-fun! smart-eval-operator (form env)
+  ;; TODO: Also inline functions being passed constant envs.
+  (let (op (eval (first form) env))
+   (if (vau? op)
+       (inline (list* op (rest form)))
+       (eval form env))))
+
+(def-fun! smart-eval (form env)
+  (cond
+    ((list? form) (smart-eval-operator form env))
+    (#t (eval form env))))
+
 (def-op! emit-vau static-env (env-var vau-list &rest body)
   (let (vau-env (make-env static-env))
+    (eval (list def! env-var (make-placeholder env-var)) vau-env)
     (map (lambda (binding)
-           (eval (list def! binding (make-placeholder binding))))
+           (eval (list def! binding (make-placeholder binding)) vau-env))
          vau-list)
-    (map (rcurry eval vau-env) body)))
+    (map (rcurry smart-eval vau-env) body)))
+
+(def-fun! inline (call-form)
+  (let (op (if (vau? (first call-form))
+               (first call-form)
+               (unwrap (first call-form)))
+        is-vau (vau? (first call-form)))
+    (eval (list* let
+                 (if is-vau
+                     (apply append (zip (list* (vau-denv-var op) (vau-args op))
+                                        (list* (list get-current-env) (rest call-form))))
+                     (apply append (zip (vau-args op) (rest call-form))))
+                 (vau-body op))
+          (vau-env op))))
 
 (def-op! emit-eval callsite-env (expr-code env-code)
   (let (expr (eval expr-code callsite-env)
         env  (eval env-code callsite-env))
+    ;; TODO: Pre-eval for all constant envs.
     (cond
-      ((eql? env callsite-env) (print "direct") (eval expr env))
-      ((print (eql? env global-env)) (print "global") (eval expr env))
-      (#t (print "fallback") (list eval expr-code env-code)))))
+      ((eql? env callsite-env) (eval expr env))
+      ((eql? env global-env) (eval expr env))
+      (#t (list eval expr-code env-code)))))
 
 (def-fun! peval (form)
   (let (peval-env (make-env global-env))
