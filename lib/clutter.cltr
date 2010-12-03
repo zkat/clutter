@@ -29,6 +29,11 @@
 (def-op! lookup env (var lookup-env)
   (eval var (eval lookup-env env)))
 
+(def-fun! zip (&rest sequences)
+  (if (eql? (list) (first sequences))
+      (list)
+      (list* (map first sequences) (apply zip (map rest sequences)))))
+
 (def-fun! map (function values)
   (if (eql? (list) values)
       (list)
