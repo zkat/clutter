@@ -66,6 +66,10 @@
 (defprimfun "unwrap" (function)
   (clutter-function-operator function))
 
+(defprimfun "name-vau!" (v name)
+  (setf (clutter-operator-name v) name)
+  v)
+
 (defprimfun "eval" (expression environment)
   (clutter-eval expression environment))
 
@@ -103,6 +107,9 @@
 (defprimfun "symbolize" (&rest values)
   (assert (clutter-operator-p (car values)))
   (make-symbol-operator (car values)))
+
+(defprimfun "symbol-name" (symbol)
+  (clutter-symbol-name symbol))
 
 (defprimfun "cons" (x y)
   (cons x y))
