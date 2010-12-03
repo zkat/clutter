@@ -17,7 +17,7 @@
         (t expression)))
 
 (defun eval/symbol (symbol env)
-  (if (or (eq symbol (cs "#ignore"))
+  (if (or (eq symbol *ignore*)
           (eq symbol *true*)
           (eq symbol *false*))
       symbol

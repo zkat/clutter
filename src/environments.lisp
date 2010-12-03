@@ -21,9 +21,13 @@
 
 (defvar *denv* nil)
 
+(defvar *ignore* (clutter-symbol "#ignore"))
+
 (defun get-current-env () *denv*)
 
 (defun lookup (symbol &optional (env *global-env*))
+  (when (eq symbol *ignore*)
+    (error "Attempted to lookup #ignore in ~A" env))
   (if env
       (multiple-value-bind (value exists)
           (gethash symbol (env-bindings env))
@@ -35,6 +39,8 @@
       (error "No binding for ~A in or above ~A" symbol env)))
 
 (defun (setf lookup) (new-value symbol &optional (env *global-env*))
+  (when (eq symbol *ignore*)
+    (error "Attempted to set #ignore in ~A" env))
   (if env
       (if (nth-value 1 (gethash symbol (env-bindings env)))
           (setf (gethash symbol (env-bindings env)) new-value)
@@ -53,6 +59,7 @@
 
 (defun extend (env symbol &optional value)
   (assert (clutter-symbol-p symbol))
-  (when (nth-value 1 (gethash symbol (env-bindings env)))
-    (warn "Redefinition of ~A." symbol))
-  (setf (gethash symbol (env-bindings env)) value))
+  (unless (eq symbol *ignore*)
+    (when (nth-value 1 (gethash symbol (env-bindings env)))
+      (warn "Redefinition of ~A." symbol))
+    (setf (gethash symbol (env-bindings env)) value)))
