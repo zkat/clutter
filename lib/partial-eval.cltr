@@ -1,6 +1,6 @@
 (def-fun! constant? (value)
-  (or (number? value)
-      (and (sequence? value) (every? constant? value))))
+  (or? (number? value)
+       (and (sequence? value) (every? constant? value))))
 
 (def-fun! emit-+ (&rest values)
   (cond
@@ -33,6 +33,7 @@
     (map (lambda (binding)
            (eval (list def! binding (make-placeholder (symbol-name binding))) vau-env))
          vau-list)
+    (print vau-env)
     (map (rcurry smart-eval vau-env) body)))
 
 (def-fun! inline (call-form)
@@ -52,7 +53,7 @@
   (let (expr (eval expr-code callsite-env)
         env  (eval env-code callsite-env))
     (cond
-      ((not (placeholder? env)) (smart-eval expr env))
+      ((not? (placeholder? env)) (smart-eval expr env))
       (#t (list eval expr-code env-code)))))
 
 (def-fun! peval (form)
@@ -62,3 +63,6 @@
       (def! - emit--)
       (def! eval emit-eval))
     (eval form peval-env)))
+
+(def-op! pe #ignore (form)
+  (peval form))
