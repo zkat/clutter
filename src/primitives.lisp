@@ -58,6 +58,7 @@
                finally (return last-value)))))
    :args vau-list
    :env static-env
+   :denv-var env-var
    :body body))
 
 (defprimfun "wrap" (operative)
@@ -150,6 +151,8 @@
 
 (defprimfun "vau-name" (v)
   (clutter-operator-name v))
+(defprimfun "vau-denv-var" (v)
+  (clutter-operator-denv-var v))
 (defprimfun "vau-args" (v)
   (clutter-operator-args v))
 (defprimfun "vau-body" (v)

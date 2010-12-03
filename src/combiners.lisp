@@ -6,7 +6,7 @@
 ;;; Combiners
 ;;;
 
-(defstruct clutter-operator function name args body (env *global-env*))
+(defstruct clutter-operator function name args body denv-var (env *global-env*))
 (defun make-operator (variables body env &optional name)
   (make-clutter-operator 
    :function
