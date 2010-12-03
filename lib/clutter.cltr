@@ -14,13 +14,17 @@
 
 (def! def-op!
   (vau env (name env-var vau-list &rest body)
-    (eval (list def! name (list* vau env-var vau-list body)) env)))
+    (eval (list def! name (list name-vau! (list* vau env-var vau-list body) (symbol-name name))) env)))
 
 (def-op! lambda env (vau-list &rest body)
   (wrap (eval (list* vau () vau-list body) env)))
 
+(def-fun! name-lambda! (l name)
+  (name-vau! (unwrap l) name)
+  l)
+
 (def-op! def-fun! env (name lambda-list &rest body)
-  (eval (list def! name (list* lambda lambda-list body)) env))
+  (eval (list def! name (list name-lambda! (list* lambda lambda-list body) (symbol-name name))) env))
 
 (def-op! lookup env (var lookup-env)
   (eval var (eval lookup-env env)))
