@@ -97,6 +97,10 @@
   (extend (clutter-eval env *denv*) var (clutter-eval value *denv*))
   var)
 
+(defprimfun "dyn-def-in!" (env var value)
+  (extend env var value)
+  var)
+
 (defun clutter-true-p (exp)
   (not (eq exp *false*)))
 
