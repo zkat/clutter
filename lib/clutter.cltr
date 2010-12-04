@@ -172,6 +172,13 @@
   (or? (function? object)
        (operator? object)))
 
+(def-fun! member? (item sequence)
+  (if (>? (length sequence) 0)
+      (if (eql? item (first sequence))
+          #t
+          (member? item (rest sequence)))
+      #f))
+
 (def-fun! apply (function args)
   (eval (cons (unwrap function) args) (get-current-env)))
 

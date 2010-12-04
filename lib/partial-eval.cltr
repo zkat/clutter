@@ -1,15 +1,24 @@
-(def-fun! constant? (value)
-  (or? (number? value)
-       (and? (sequence? value) (every? constant? value))))
+;;; TODO: Structs here.
+(def-fun! make-placeholder (x) (symbol-name x))
+(def! placeholder? string?)
+(def-fun! placeholder-symbol (x)
+  (intern x))
+
+(def-fun! dynamic? (value)
+  (or? (placeholder? value)
+       (and? (sequence? value)
+             (some? dynamic? value))))
+
+(def! static? (complement dynamic?))
 
 (def-fun! emit-+ (&rest values)
   (cond
-    ((every? constant? values) (apply + values))
+    ((every? static? values) (apply + values))
     (#t (list* + values))))
 
 (def-fun! emit-- (&rest values)
   (cond
-    ((every? constant? values) (apply - values))
+    ((every? static? values) (apply - values))
     (#t (list* - values))))
 
 (def-fun! smart-eval-operator (form env)
@@ -25,11 +34,6 @@
     ((list? form) (smart-eval-operator form env))
     (#t (eval form env))))
 
-(def-fun! make-placeholder (x) x)
-(def! placeholder? string?)
-(def-fun! placeholder-symbol (x)
-  (intern x))
-
 (def-fun! unplaceholderify (tree)
   (if (sequence? tree)
       (map unplaceholderify tree)
@@ -39,9 +43,9 @@
 
 (def-op! emit-vau static-env (env-var vau-list &rest body)
   (let (vau-env (make-env static-env))
-    (eval (list def! env-var (make-placeholder (symbol-name env-var))) vau-env)
+    (eval (list def! env-var (make-placeholder env-var)) vau-env)
     (map (lambda (binding)
-           (eval (list def! binding (make-placeholder (symbol-name binding))) vau-env))
+           (eval (list def! binding (make-placeholder binding)) vau-env))
          vau-list)
     (eval (list* vau env-var vau-list
                  (unplaceholderify (map (rcurry smart-eval vau-env)
