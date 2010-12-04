@@ -11,23 +11,35 @@
 
 (def! static? (complement dynamic?))
 
+(def! peval-prims (list))
+(def-fun! peval-prim? (obj)
+  (member? obj peval-prims))
+
 (def-fun! emit-+ (&rest values)
   (cond
     ((every? static? values) (apply + values))
     (#t (list* + values))))
+(push! emit-+ peval-prims)
 
 (def-fun! emit-- (&rest values)
   (cond
     ((every? static? values) (apply - values))
     (#t (list* - values))))
+(push! emit-+ peval-prims)
 
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
   (let (op (eval (first form) env))
-    ;; TODO: Less hacky primitive check
-    (if (and? (vau? op) (not? (primitive? (eval (first form) global-env))))
-        (inline (list* op (rest form)) env)
-        (eval form env))))
+    (if (and? (vau? op))
+        (if (not? (peval-prim? op))
+            (if (primitive? op)
+                (do (print "WARNING: Unsupported partial eval primitive!")
+                    (eval form env))
+                (inline (list* op (rest form)) env))
+            (eval form env))
+        (if (and? (pure? op) (every? static? (rest form)))
+            (eval form env)
+            form))))
 
 (def-fun! smart-eval (form env)
   (cond
@@ -51,7 +63,9 @@
                  (unplaceholderify (map (rcurry smart-eval vau-env)
                                         body)))
           static-env)))
+(push! emit-vau peval-prims)
 
+;;; Produce code that may be substituted for the supplied operator invocation.
 (def-fun! inline (call-form outer-env)
   (let (op (if (vau? (first call-form))
                (first call-form)
@@ -77,6 +91,7 @@
     (cond
       ((not? (placeholder? env)) (smart-eval expr env))
       (#t (list eval expr-code env-code)))))
+(push! emit-eval peval-prims)
 
 (def-fun! peval (form)
   (let (peval-env (make-env global-env))
