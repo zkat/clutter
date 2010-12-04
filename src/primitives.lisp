@@ -172,6 +172,11 @@
   (if (clutter-operator-pure (clutter-function-operator x))
       *true*
       *false*))
+;;; HACK FOR TESTING PURPOSES ONLY.
+;;; TODO: Scrap this once we autodetect purity.
+(defprimfun nil "declare-pure!" (x purity)
+  (setf (clutter-operator-pure (clutter-function-operator x))
+        (if (eq purity *false*) nil t)))
 
 (defprimfun t "vau-name" (v)
   (clutter-operator-name v))
