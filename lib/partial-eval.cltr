@@ -41,7 +41,7 @@
           (placeholder-symbol tree)
           tree)))
 
-(def-op! emit-vau static-env (env-var vau-list &rest body)
+(def-vau! emit-vau static-env (env-var vau-list &rest body)
   (let (vau-env (make-env static-env))
     (eval (list def! env-var (make-placeholder env-var)) vau-env)
     (map (lambda (binding)
@@ -65,13 +65,13 @@
                (zip (vau-args op) (rest call-form))))
       (let (result (eval (list* do (vau-body op))
                      env))
-        ;; Ensure that the result can be evaluated (why do we need to quote here?)
+        ;; Ensure that the result can be evaluated (FIXME: why do we need to quote here?)
         (cond
           ((list? result) (cons list result))
           ;; TODO: Symbols
           (#t result))))))
 
-(def-op! emit-eval callsite-env (expr-code env-code)
+(def-vau! emit-eval callsite-env (expr-code env-code)
   (let (expr (eval expr-code callsite-env)
         env  (eval env-code callsite-env))
     (cond
@@ -87,5 +87,5 @@
       (def! vau emit-vau))
     (eval form peval-env)))
 
-(def-op! pe #ignore (form)
+(def-vau! pe #ignore (form)
   (peval form))
