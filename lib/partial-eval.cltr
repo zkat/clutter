@@ -30,7 +30,7 @@
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
   (let (op (eval (first form) env))
-    (if (vau? op)
+    (if (operative? op)
         (if (not? (peval-prim? op))
             (if (primitive? op)
                 (do (print "WARNING: Unsupported partial eval primitive!")
@@ -58,7 +58,7 @@
           (placeholder-symbol tree)
           tree)))
 
-(def-vau! emit-vau static-env (env-var vau-list &rest body)
+(def-op! emit-vau static-env (env-var vau-list &rest body)
   (let (vau-env (make-env static-env))
     (eval (list def! env-var (make-placeholder env-var)) vau-env)
     (map (lambda (binding)
@@ -72,13 +72,13 @@
 
 ;;; Produce code that may be substituted for the supplied operator invocation.
 (def-fun! inline (call-form outer-env)
-  (let (op (if (vau? (first call-form))
+  (let (op (if (operative? (first call-form))
                (first call-form)
                (unwrap (first call-form))))
     (let (env (make-env (vau-env op)))
       (map (lambda (binding)
              (dyn-def-in! env (first binding) (second binding)))
-           (if (vau? (first call-form))
+           (if (operative? (first call-form))
                (list* (list (vau-denv-var op) outer-env)
                       (zip (vau-args op) (rest call-form)))
                (zip (vau-args op) (rest call-form))))
@@ -90,7 +90,7 @@
           ;; TODO: Symbols
           (#t result))))))
 
-(def-vau! emit-eval callsite-env (expr-code env-code)
+(def-op! emit-eval callsite-env (expr-code env-code)
   (let (expr (eval expr-code callsite-env)
         env  (eval env-code callsite-env))
     (cond
@@ -107,5 +107,5 @@
       (def! vau emit-vau))
     (eval form peval-env)))
 
-(def-vau! pe #ignore (form)
+(def-op! pe #ignore (form)
   (peval form))

@@ -164,7 +164,7 @@
   (if (stringp x) *true* *false*))
 (defprimfun t "function?" (x)
   (if (clutter-function-p x) *true* *false*))
-(defprimfun t "vau?" (x)
+(defprimfun t "operative?" (x)
   (if (clutter-operator-p x) *true* *false*))
 (defprimfun t "primitive?" (x)
   (if (find x *primitives*) *true* *false*))

@@ -12,11 +12,11 @@
   (vau env (var value)
        (eval (list set-in! env var value) env)))
 
-(def! def-vau!
+(def! def-op!
     (vau env (name env-var vau-list &rest body)
          (eval (list def! name (list name-vau! (list* vau env-var vau-list body) (symbol-name name))) env)))
 
-(def-vau! lambda env (vau-list &rest body)
+(def-op! lambda env (vau-list &rest body)
   (wrap (eval (list* vau #ignore vau-list body) env)))
 
 (def! name-lambda!
@@ -24,10 +24,10 @@
       (name-vau! (unwrap l) name)
       l))
 
-(def-vau! def-fun! env (name lambda-list &rest body)
+(def-op! def-fun! env (name lambda-list &rest body)
   (eval (list def! name (list name-lambda! (list* lambda lambda-list body) (symbol-name name))) env))
 
-(def-vau! lookup env (var lookup-env)
+(def-op! lookup env (var lookup-env)
   (eval var (eval lookup-env env)))
 
 (def-fun! zip (&rest sequences)
@@ -40,13 +40,13 @@
       (list)
       (cons (function (car values)) (map function (cdr values)))))
 
-(def-vau! do env (&rest body)
+(def-op! do env (&rest body)
   (let (last-value ())
     (map (lambda (exp) (set! last-value (eval exp env)))
          body)
     last-value))
 
-(def-vau! cond env (&rest forms)
+(def-op! cond env (&rest forms)
   (if (eql? forms ())
       #f
       (if (eval (car (car forms)) env)
@@ -88,10 +88,10 @@
 (def-fun! odd? (number)
   (not? (even? number)))
 
-(def-vau! inc! env (var)
+(def-op! inc! env (var)
   (eval (list set! var (+ 1 (eval var env))) env))
 
-(def-vau! let env (clauses &rest body)
+(def-op! let env (clauses &rest body)
   (eval (list*
          (list* lambda
                 (filter ((lambda (x) (lambda (#ignore) (odd? (inc! x)))) 0)
@@ -101,22 +101,22 @@
                  clauses))
         env))
 
-(def-vau! when env (test &rest body)
+(def-op! when env (test &rest body)
   (if (eval test env)
       (eval (list* do body) env)
       #f))
 
-(def-vau! unless env (test &rest body)
+(def-op! unless env (test &rest body)
   (if (eval test env)
       #f
       (eval (list* do body) env)))
 
-(def-vau! returning env (first &rest body)
+(def-op! returning env (first &rest body)
   (let (return-val (eval first env))
     (map (curry eval env) body)
     return-val))
 
-(def-vau! push! env (value place)
+(def-op! push! env (value place)
   (eval (list set! place (list cons value place))
         env))
 
@@ -137,7 +137,7 @@
 (def-fun! rest (sequence)
   (cdr sequence))
 
-(def-vau! or? env (&rest values)
+(def-op! or? env (&rest values)
   (if (=? (length values) 0)
       #f
       (let (result (eval (first values) env))
@@ -145,7 +145,7 @@
             result
             (eval (list* or? (rest values)) env)))))
 
-(def-vau! and? env (&rest values)
+(def-op! and? env (&rest values)
   (if (=? (length values) 0)
       #t
       (let (result (eval (first values) env))
@@ -162,9 +162,9 @@
 (def-fun! sequence? (object)
   (list? object))
 
-(def-fun! operator? (object)
+(def-fun! combiner? (object)
   (or? (function? object)
-       (vau? object)))
+       (operative? object)))
 
 (def-fun! member? (item sequence)
   (if (>? (length sequence) 0)
@@ -176,28 +176,28 @@
 (def-fun! apply (function args)
   (eval (cons (unwrap function) args) (get-current-env)))
 
-(def-vau! with-env callsite-env (target-env &rest body)
+(def-op! with-env callsite-env (target-env &rest body)
   (eval (list* do body) (eval target-env callsite-env)))
 
-(def-vau! module dyn-env (parent-envs &rest body)
+(def-op! module dyn-env (parent-envs &rest body)
   (let (env (apply make-env (map (rcurry eval dyn-env) parent-envs)))
     (map (rcurry eval env) body)
     env))
 
-(def-vau! provide! dyn-env (bindings parent-envs &rest body)
+(def-op! provide! dyn-env (bindings parent-envs &rest body)
   (let (module-env (eval (list* module parent-envs body) dyn-env))
     (map (lambda (binding)
            (eval (list def-in! dyn-env binding (eval binding module-env)) dyn-env))
          bindings))
   bindings)
 
-(def-vau! providing-module dyn-env (bindings parent-envs &rest body)
+(def-op! providing-module dyn-env (bindings parent-envs &rest body)
   (eval (list module (list)
               (list* provide! bindings (map (curry eval dyn-env) parent-envs)
                      body))
         dyn-env))
 
-(def-vau! import-from! dyn-env (from-env &rest bindings)
+(def-op! import-from! dyn-env (from-env &rest bindings)
   (let (env (eval from-env dyn-env))
     (map (lambda (binding)
            (eval (list def-in! dyn-env binding (eval binding env)) dyn-env))
@@ -207,21 +207,21 @@
 (def! anaphora
     (module (global-env)
 
-            (def-vau! anaphoric env (op var test &rest body)
+            (def-op! anaphoric env (op var test &rest body)
               (eval (list let (list var (eval test env))
                           (list* op var body))
                     env))
 
-            (def-vau! aif env (var test then else)
+            (def-op! aif env (var test then else)
               (eval (list anaphoric if var test then else) env))
 
-            (def-vau! awhen env (var test &rest body)
+            (def-op! awhen env (var test &rest body)
               (eval (list* anaphoric when var test body) env))
 
-            (def-vau! aunless env (var test &rest body)
+            (def-op! aunless env (var test &rest body)
               (eval (list* anaphoric unless var test body) env))
 
-            (def-vau! areturning env (var first &rest body)
+            (def-op! areturning env (var first &rest body)
               (eval (list* anaphoric returning var first body) env))
 
             ))
