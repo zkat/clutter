@@ -30,7 +30,7 @@
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
   (let (op (eval (first form) env))
-    (if (and? (vau? op))
+    (if (vau? op)
         (if (not? (peval-prim? op))
             (if (primitive? op)
                 (do (print "WARNING: Unsupported partial eval primitive!")
@@ -39,7 +39,12 @@
             (eval form env))
         (if (and? (pure? op) (every? static? (rest form)))
             (eval form env)
-            form))))
+            (list* (unwrap op)
+                   (map (lambda (arg)
+                          (if (static? arg)
+                              (smart-eval arg env)
+                              arg))
+                        (rest form)))))))
 
 (def-fun! smart-eval (form env)
   (cond
