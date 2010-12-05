@@ -112,7 +112,7 @@
   (let (expr (eval expr-code callsite-env)
         env  (eval env-code callsite-env))
     (cond
-      ((static? env) (smart-eval expr env))
+      ((static? env) (eval expr env))
       (#t (emit (list eval expr-code env-code))))))
 (push! emit-eval peval-prims)
 
