@@ -4,8 +4,21 @@
 (def-fun! placeholder-symbol (x)
   (intern x))
 
+(def-fun! emit (code)
+  (cons :code code))
+(def-fun! code? (value)
+  (and? (sequence? value)
+        (eql? (car value) :code)))
+(def-fun! code-literal (code)
+  (cdr code))
+(def-fun! ensure-literal-code (val)
+  (if (code? val)
+      (code-literal val)
+      val))
+
 (def-fun! dynamic? (value)
   (or? (placeholder? value)
+       (code? value)
        (and? (sequence? value)
              (some? dynamic? value))))
 
@@ -18,13 +31,13 @@
 (def-fun! emit-+ (&rest values)
   (cond
     ((every? static? values) (apply + values))
-    (#t (list* + values))))
+    (#t (emit (list* + (map ensure-literal-code values))))))
 (push! emit-+ peval-prims)
 
 (def-fun! emit-- (&rest values)
   (cond
     ((every? static? values) (apply - values))
-    (#t (list* - values))))
+    (#t (emit (list* - (map ensure-literal-code values))))))
 (push! emit-+ peval-prims)
 
 (def-fun! smart-eval-operator (form env)
@@ -37,26 +50,34 @@
                     (eval form env))
                 (inline (list* op (rest form)) env))
             (eval form env))
-        (if (and? (pure? op) (every? static? (rest form)))
+        (if (or? (peval-prim? op)
+                 (and? (pure? op) (every? static? (rest form))))
             (eval form env)
-            (list* (unwrap op)
-                   (map (lambda (arg)
-                          (if (static? arg)
-                              (smart-eval arg env)
-                              arg))
-                        (rest form)))))))
+            (emit (list* op
+                         (map (lambda (arg) (if (static? arg)
+                                                (list quote (eval arg env))
+                                                arg))
+                              (rest form))))))))
 
 (def-fun! smart-eval (form env)
-  (cond
-    ((list? form) (smart-eval-operator form env))
-    (#t (eval form env))))
+  (let (result
+        (cond
+          ((list? form) (smart-eval-operator form env))
+          (#t (eval form env))))
+    (cond ((static? result)
+           (list quote result))
+          ((code? result)
+           (code-literal result))
+          ((list? result)
+           (cons list result))
+          (#t result))))
 
-(def-fun! unplaceholderify (tree)
-  (if (sequence? tree)
-      (map unplaceholderify tree)
-      (if (placeholder? tree)
-          (placeholder-symbol tree)
-          tree)))
+(def-fun! finalize (tree)
+  (cond
+    ((code? tree) (code-literal (map finalize tree)))
+    ((sequence? tree) (map finalize tree))
+    ((placeholder? tree) (placeholder-symbol tree))
+    (#t tree)))
 
 (def-op! emit-vau static-env (env-var vau-list &rest body)
   (let (vau-env (make-env static-env))
@@ -65,10 +86,13 @@
            (eval (list def! binding (make-placeholder binding)) vau-env))
          vau-list)
     (eval (list* vau env-var vau-list
-                 (unplaceholderify (map (rcurry smart-eval vau-env)
+                 (finalize (map (rcurry smart-eval vau-env)
                                         body)))
           static-env)))
 (push! emit-vau peval-prims)
+
+;;; Should be internal to peval to discourage external use.
+(def-op! quote #ignore (x) x)
 
 ;;; Produce code that may be substituted for the supplied operator invocation.
 (def-fun! inline (call-form outer-env)
@@ -82,20 +106,14 @@
                (list* (list (vau-denv-var op) outer-env)
                       (zip (vau-args op) (rest call-form)))
                (zip (vau-args op) (rest call-form))))
-      (let (result (eval (list* do (vau-body op))
-                     env))
-        ;; Ensure that the result can be evaluated (FIXME: why do we need to quote here?)
-        (cond
-          ((list? result) (cons list result))
-          ;; TODO: Symbols
-          (#t result))))))
+      (eval (list* do (vau-body op)) env))))
 
 (def-op! emit-eval callsite-env (expr-code env-code)
   (let (expr (eval expr-code callsite-env)
         env  (eval env-code callsite-env))
     (cond
-      ((not? (placeholder? env)) (smart-eval expr env))
-      (#t (list eval expr-code env-code)))))
+      ((static? env) (smart-eval expr env))
+      (#t (emit (list eval expr-code env-code))))))
 (push! emit-eval peval-prims)
 
 (def-fun! peval (form)
