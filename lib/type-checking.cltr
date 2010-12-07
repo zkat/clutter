@@ -1,0 +1,66 @@
+(def-op! declare! (&rest #ignore)
+  #t)
+
+(def-fun! type-combiner (type left right)
+  (list type left right))
+
+(def-fun! tc-constructor (tc)
+  (first tc))
+
+(def-fun! tc-left (tc)
+  (second tc))
+
+(def-fun! tc-right (tc)
+  (third tc))
+
+(def-fun! op (from to)
+  (type-combiner op from to))
+
+(def-fun! fun (from to)
+  (type-combiner fun from to))
+
+(def-fun! prod (left right)
+  (type-combiner prod left right))
+
+(def-fun! prod-list (&rest values)
+  (if (empty? (car values))
+      unit
+      (if (empty? (cdr values))
+          (car values)
+          (prod (car values) (prod (cdr values))))))
+
+(def-fun! check-type-constructor (form type decl)
+  (destructuring-bind (#ignore left right) form
+    (let ((left-value (normalize left decl))
+          (right-type (right left-value)))
+      (type-equal? ((tc-constructor type) (infer left-value decl) right-type) type))))
+
+(def-fun! infer-annotation (form decl)
+  (destructuring-bind (#ignore symbol value) form
+    (if (check value type decl)
+        (do
+         (def-in! decl symbol (infer value decl))
+         value)
+        #f)))
+
+(def-fun! infer-type-combiner (form decl)
+  (destructuring-bind (comb left right) form
+    (if (and
+         (check left type decl)
+         (check right (fun left type) decl))
+        type
+        #f)))
+
+(def-fun! infer-pair (form decl)
+  (destructuring-bind (#ignore left right) form
+    (if (and (check left type decl)
+             (check right type decl))
+        (prod left right))))
+
+(def-fun! infer-lambda (form decl)
+  (destructuring-bind (#ignore lambda-list body) form
+    (let (lambda-decl (make-env decl)
+          type-variables (make-type-variable-list (length lambda-list)))
+      (map (lambda (p) (extend lambda-decl (car p) (cdr p)))
+           (zip (lambda-list) type-variables))
+      (fun (apply prod-list type-combiner) (infer body lambda-decl))))) ;; TODO: Substitute tv correctly
