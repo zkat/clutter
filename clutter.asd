@@ -2,7 +2,7 @@
 
 (asdf:defsystem clutter
   :serial t
-  :depends-on (alexandria anaphora split-sequence)
+  :depends-on (#:alexandria #:anaphora #:split-sequence #:llvm)
   :components
   ((:module "src"
             :serial t
@@ -14,4 +14,5 @@
              (:file "combiners")
              (:file "eval")
              (:file "primitives")
+             (:file "compiler")
              (:file "main")))))
