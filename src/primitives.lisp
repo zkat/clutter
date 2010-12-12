@@ -74,9 +74,10 @@
 (defprimfun t "unwrap" (function)
   (clutter-function-operator function))
 
-(defprimfun nil "name-vau!" (v name)
-  (setf (clutter-operator-name v) name)
-  v)
+(defprimop "name-vau!" (*denv* v name)
+  (let ((value (clutter-eval v *denv*)))
+    (setf (clutter-operator-name value) name)
+    value))
 
 (defprimfun nil "eval" (expression environment)
   (clutter-eval expression environment))

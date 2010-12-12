@@ -15,14 +15,20 @@
 (defun compile-form (form env)
   (typecase form
     (integer (llvm:const-int (llvm:int32-type) form))
-    (clutter-symbol (llvm:build-load *builder* (lookup form env) (clutter-symbol-name form)))))
+    (clutter-symbol (llvm:build-load *builder* (lookup form env) (clutter-symbol-name form)))
+    ;; TODO: Recursively compile funcs
+    (list (llvm:build-call *builder* (lookup (car form) env)
+                           (make-array (length (rest form))
+                                       :initial-contents (mapcar (rcurry #'compile-form env)
+                                                                 (rest form)))
+                           ""))))
 
 (defun compile-func (func env)
   (let* ((op (clutter-function-operator func))
          (args (clutter-operator-args op))
          (argtypes (make-array (length args) :initial-element (llvm:int32-type)))
          (ftype (llvm:function-type (llvm:int32-type) argtypes))
-         (fobj (llvm:add-function *module* (clutter-operator-name op) ftype))
+         (fobj (llvm:add-function *module* (clutter-symbol-name (clutter-operator-name op)) ftype))
          (fenv (make-env env)))
     (llvm:position-builder-at-end *builder*
                                   (llvm:append-basic-block fobj "entry"))
