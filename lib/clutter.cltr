@@ -35,6 +35,14 @@
       (list)
       (list* (map first sequences) (apply zip (map rest sequences)))))
 
+(def-fun! reduce (function initial values)
+  (if (eql? (list) values)
+      initial
+      (function initial (reduce function (car values) (cdr values)))))
+
+(def-fun! flatten (sequence)
+  (reduce append (list) sequence))
+
 (def-fun! map (function values)
   (if (eql? (list) values)
       (list)
@@ -225,3 +233,9 @@
               (eval (list* anaphoric returning var first body) env))
 
             ))
+
+(def-op! destructuring-bind env (lambda-list list &rest body)
+  (eval (list* let
+               (flatten (zip lambda-list (eval list env)))
+               body)
+        env))
