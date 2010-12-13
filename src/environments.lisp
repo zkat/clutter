@@ -63,3 +63,6 @@
     (when (nth-value 1 (gethash symbol (env-bindings env)))
       (warn "Redefinition of ~A." symbol))
     (setf (gethash symbol (env-bindings env)) value)))
+
+(defun mapenv (func env)
+  (maphash func (env-bindings env)))
