@@ -10,15 +10,11 @@
 (defvar *module*)
 (defvar *builder*)
 
-(let ((llvm-inited nil))
- (defun init-llvm ()
-   (unless llvm-inited
-     (llvm:initialize-native-target)
-     (setf llvm-inited t))))
-
 (defvar *compiler-prims* (make-hash-table :test 'eq))
+(defun compiler-prim? (clutter-val)
+  (nth-value 1 (gethash clutter-val *compiler-prims*)))
 (defmacro def-compiler-prim (name lambda-list &body body)
-  `(setf (gethash (cs ,name) *compiler-prims*) #'(lambda ,lambda-list ,@body)))
+  `(setf (gethash (lookup (cs ,name)) *compiler-prims*) #'(lambda ,lambda-list ,@body)))
 
 (defun build-prim-call (prim args env)
   (let ((primbuilder (gethash prim *compiler-prims*)))
@@ -56,7 +52,7 @@
     (list
        (let ((cfunc (lookup (car form) env)))
          (if (primitive? (split-val-clutter cfunc))
-             (build-prim-call (split-val-llvm cfunc) (rest form) env)
+             (build-prim-call (split-val-clutter cfunc) (rest form) env)
              (progn
                ;; Ensure that the function has been compiled.
                ;; TODO: Ensure that *the relevant specialization* has been.
@@ -95,11 +91,17 @@
 (defun clone-env-tree (env)
   (let ((result (apply #'make-env (mapcar #'clone-env-tree (env-parents env)))))
     (mapenv (lambda (symbol value)
-              (if (primitive? value)
+              (if (compiler-prim? value)
                   (extend result symbol (split-val (combiner-name value) value))
                   (extend result symbol (split-val nil value))))
             env)
     result))
+
+(let ((llvm-inited nil))
+ (defun init-llvm ()
+   (unless llvm-inited
+     (llvm:initialize-native-target)
+     (setf llvm-inited t))))
 
 (defun clutter-compile (main &optional (output "binary"))
   "Write a binary to OUTPUT which invokes clutter function MAIN on execution."
