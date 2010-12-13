@@ -16,30 +16,43 @@
      (llvm:initialize-native-target)
      (setf llvm-inited t))))
 
+(defvar *compiler-prims* (make-hash-table :test 'eq))
+(defmacro def-compiler-prim (name lambda-list &body body)
+  `(setf (gethash (cs ,name) *compiler-prims*) #'(lambda ,lambda-list ,@body)))
+
+(defun build-prim-call (prim args env)
+  (let ((primbuilder (gethash prim *compiler-prims*)))
+    (if primbuilder
+        (funcall primbuilder args env)
+        (error "Unsupported primitive: ~A" prim))))
+
 (defun build-arith-op (name identity func args env)
   (reduce (rcurry (curry #'funcall func *builder*) name)
           args
           :key (rcurry #'compile-form env)
           :initial-value identity))
 
-(defun build-prim-call (prim args env)
-  (cond
-    ((eq prim (cs "+")) (build-arith-op "sum" (llvm:const-int (llvm:int32-type) 0)
-                                        #'llvm:build-add args env))
-    ((eq prim (cs "-")) (if (> (length args) 1)
-                            (build-arith-op "difference" (compile-form (first args) env)
-                                            #'llvm:build-sub (rest args) env)
-                            (llvm:build-neg *builder* (compile-form (first args) env) "negation")))
-    ((eq prim (cs "*")) (build-arith-op "product" (llvm:const-int (llvm:int32-type) 1)
-                                        #'llvm:build-mul args env))
-    ((eq prim (cs "/")) (build-arith-op "product" (llvm:const-int (llvm:int32-type) 1)
-                                        #'llvm:build-s-div args env))
-    (t (error "Unsupported primitive: ~A" prim))))
+(def-compiler-prim "+" (args env)
+  (build-arith-op "sum" (llvm:const-int (llvm:int32-type) 0)
+                  #'llvm:build-add args env))
+(def-compiler-prim "-" (args env)
+  (if (> (length args) 1)
+      (build-arith-op "difference" (compile-form (first args) env)
+                      #'llvm:build-sub (rest args) env)
+      (llvm:build-neg *builder* (compile-form (first args) env) "negation")))
+(def-compiler-prim "*" (args env)
+  (build-arith-op "product" (llvm:const-int (llvm:int32-type) 1)
+                  #'llvm:build-mul args env))
+(def-compiler-prim "/" (args env)
+  (build-arith-op "product" (llvm:const-int (llvm:int32-type) 1)
+                  #'llvm:build-s-div args env))
+(def-compiler-prim "=?" (args env)
+  (llvm:build-i-cmp *builder* := (compile-form (first args) env) (compile-form (second args) env) "equality"))
 
 (defun compile-form (form env)
   (typecase form
     (integer (llvm:const-int (llvm:int32-type) form))
-    (clutter-symbol (llvm:build-load *builder* (split-val-llvm (lookup form env)) (clutter-symbol-name form)))
+    (clutter-symbol (llvm:build-load *builder* (or (split-val-llvm (lookup form env)) (error "No binding for: ~A" form)) (clutter-symbol-name form)))
     (list
        (let ((cfunc (lookup (car form) env)))
          (if (primitive? (split-val-clutter cfunc))
@@ -77,9 +90,7 @@
       (mapc (compose (lambda (x) (setf ret x))
                      (rcurry #'compile-form fenv))
             (clutter-operator-body op))
-      (llvm:build-ret *builder* ret))
-    (unless (llvm:verify-function fobj)
-      (error "Invalid function ~A" func))))
+      (llvm:build-ret *builder* (llvm:build-int-cast *builder* ret (llvm:int32-type) "ret")))))
 
 (defun clone-env-tree (env)
   (let ((result (apply #'make-env (mapcar #'clone-env-tree (env-parents env)))))
@@ -99,6 +110,7 @@
        (progn
          (compile-func main (clone-env-tree (clutter-operator-env (clutter-function-operator main))))
          (llvm:dump-module *module*)
-         (llvm:write-bitcode-to-file *module* output))
+         (unless (llvm:verify-module *module*)
+           (llvm:write-bitcode-to-file *module* output)))
     (llvm:dispose-module *module*)
     (llvm:dispose-builder *builder*)))
