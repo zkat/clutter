@@ -13,8 +13,15 @@
 (defvar *compiler-prims* (make-hash-table :test 'eq))
 (defun compiler-prim? (clutter-val)
   (nth-value 1 (gethash clutter-val *compiler-prims*)))
-(defmacro def-compiler-prim (name env-var lambda-list &body body)
+(defmacro def-compiler-primop (name env-var lambda-list &body body)
   `(setf (gethash (lookup (cs ,name)) *compiler-prims*) #'(lambda ,(cons env-var lambda-list) ,@body)))
+(defmacro def-compiler-primfun (name lambda-list &body body)
+  (let ((env-var (gensym "ENV"))
+        (args (gensym "ARGS")))
+   `(setf (gethash (lookup (cs ,name)) *compiler-prims*)
+          #'(lambda (,env-var &rest ,args)
+              (apply (lambda ,lambda-list ,@body) (mapcar (rcurry #'compile-form ,env-var)
+                                                          ,args))))))
 
 (defun build-prim-call (prim args env)
   (let ((primbuilder (gethash prim *compiler-prims*)))
@@ -22,14 +29,8 @@
         (apply primbuilder env args)
         (error "Unsupported primitive: ~A" prim))))
 
-(defun build-arith-op (name identity func args env)
-  (reduce (rcurry (curry #'funcall func *builder*) name)
-          args
-          :key (rcurry #'compile-form env)
-          :initial-value identity))
-
 ;;; Control
-(def-compiler-prim "if" env (condition true-form false-form)
+(def-compiler-primop "if" env (condition true-form false-form)
   (let* ((prev-block (llvm:insertion-block *builder*))
          (func (llvm:basic-block-parent prev-block))
          (true-block (llvm:append-basic-block func "if-true"))
@@ -62,24 +63,24 @@
     return-value))
 
 ;;; Arithmetic
-(def-compiler-prim "+" env (&rest args)
-  (build-arith-op "sum" (llvm:const-int (llvm:int32-type) 0)
-                  #'llvm:build-add args env))
-(def-compiler-prim "-" env (first &rest args)
+(defun build-arith-op (name initial func args)
+  (reduce (rcurry (curry #'funcall func *builder*) name)
+          args
+          :initial-value initial))
+(def-compiler-primfun "+" (first &rest args)
+  (build-arith-op "sum" first #'llvm:build-add args))
+(def-compiler-primfun "-" (first &rest args)
   (if args
-      (build-arith-op "difference" (compile-form first env)
-                      #'llvm:build-sub (rest args) env)
-      (llvm:build-neg *builder* (compile-form first env) "negation")))
-(def-compiler-prim "*" env (&rest args)
-  (build-arith-op "product" (llvm:const-int (llvm:int32-type) 1)
-                  #'llvm:build-mul args env))
-(def-compiler-prim "/" env (&rest args)
-  (build-arith-op "product" (llvm:const-int (llvm:int32-type) 1)
-                  #'llvm:build-s-div args env))
+      (build-arith-op "difference" first #'llvm:build-sub (rest args))
+      (llvm:build-neg *builder* first "negation")))
+(def-compiler-primfun "*" (first &rest args)
+  (build-arith-op "product" first #'llvm:build-mul args))
+(def-compiler-primfun "/" (first &rest args)
+  (build-arith-op "product" first #'llvm:build-s-div args))
 
 ;;; Arithmetic comparison
-(def-compiler-prim "=?" env (&rest args)
-  (llvm:build-i-cmp *builder* := (compile-form (first args) env) (compile-form (second args) env) "equality"))
+(def-compiler-primfun "=?" (a b)
+  (llvm:build-i-cmp *builder* := a b "equality"))
 
 (defun compile-form (form env)
   (typecase form
@@ -128,9 +129,13 @@
 (defun clone-env-tree (env)
   (let ((result (apply #'make-env (mapcar #'clone-env-tree (env-parents env)))))
     (mapenv (lambda (symbol value)
-              (if (compiler-prim? value)
-                  (extend result symbol (split-val (combiner-name value) value))
-                  (extend result symbol (split-val nil value))))
+              (cond
+                ((compiler-prim? value)
+                 (extend result symbol (split-val (combiner-name value) value)))
+                ((primitive? value)
+                 ;; (warn "Unsupported primitive: ~A" value)
+                 )
+                (t (extend result symbol (split-val nil value)))))
             env)
     result))
 
