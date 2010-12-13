@@ -71,7 +71,7 @@
   (build-arith-op "sum" first #'llvm:build-add args))
 (def-compiler-primfun "-" (first &rest args)
   (if args
-      (build-arith-op "difference" first #'llvm:build-sub (rest args))
+      (build-arith-op "difference" first #'llvm:build-sub args)
       (llvm:build-neg *builder* first "negation")))
 (def-compiler-primfun "*" (first &rest args)
   (build-arith-op "product" first #'llvm:build-mul args))
