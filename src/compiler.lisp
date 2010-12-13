@@ -13,13 +13,13 @@
 (defvar *compiler-prims* (make-hash-table :test 'eq))
 (defun compiler-prim? (clutter-val)
   (nth-value 1 (gethash clutter-val *compiler-prims*)))
-(defmacro def-compiler-prim (name lambda-list &body body)
-  `(setf (gethash (lookup (cs ,name)) *compiler-prims*) #'(lambda ,lambda-list ,@body)))
+(defmacro def-compiler-prim (name env-var lambda-list &body body)
+  `(setf (gethash (lookup (cs ,name)) *compiler-prims*) #'(lambda ,(cons env-var lambda-list) ,@body)))
 
 (defun build-prim-call (prim args env)
   (let ((primbuilder (gethash prim *compiler-prims*)))
     (if primbuilder
-        (funcall primbuilder args env)
+        (apply primbuilder env args)
         (error "Unsupported primitive: ~A" prim))))
 
 (defun build-arith-op (name identity func args env)
@@ -28,21 +28,57 @@
           :key (rcurry #'compile-form env)
           :initial-value identity))
 
-(def-compiler-prim "+" (args env)
+;;; Control
+(def-compiler-prim "if" env (condition true-form false-form)
+  (let* ((prev-block (llvm:insertion-block *builder*))
+         (func (llvm:basic-block-parent prev-block))
+         (true-block (llvm:append-basic-block func "if-true"))
+         (false-block (llvm:append-basic-block func "if-false"))
+         (continue-block (llvm:append-basic-block func "if-continue"))
+         (return-value))
+    (llvm:position-builder-at-end *builder* prev-block)
+    (llvm:build-cond-br *builder*
+                         (llvm:build-trunc *builder* (compile-form condition env) (llvm:int1-type) "boolean")
+                         true-block
+                         false-block)
+    (llvm:position-builder-at-end *builder* continue-block)
+    (setf return-value (llvm:build-phi *builder* (llvm:int32-type) "if-result"))
+
+    (llvm:position-builder-at-end *builder* true-block)
+    ;; Get insert block in case true-form contains other blocks
+    (llvm:add-incoming return-value
+                       (vector (compile-form true-form env))
+                       (vector (llvm:insertion-block *builder*)))
+    (llvm:build-br *builder* continue-block)
+
+    (llvm:position-builder-at-end *builder* false-block)
+    ;; Get insert block in case false-form contains other blocks
+    (llvm:add-incoming return-value
+                       (vector (compile-form false-form env))
+                       (vector (llvm:insertion-block *builder*)))
+    (llvm:build-br *builder* continue-block)
+    
+    (llvm:position-builder-at-end *builder* continue-block)
+    return-value))
+
+;;; Arithmetic
+(def-compiler-prim "+" env (&rest args)
   (build-arith-op "sum" (llvm:const-int (llvm:int32-type) 0)
                   #'llvm:build-add args env))
-(def-compiler-prim "-" (args env)
-  (if (> (length args) 1)
-      (build-arith-op "difference" (compile-form (first args) env)
+(def-compiler-prim "-" env (first &rest args)
+  (if args
+      (build-arith-op "difference" (compile-form first env)
                       #'llvm:build-sub (rest args) env)
-      (llvm:build-neg *builder* (compile-form (first args) env) "negation")))
-(def-compiler-prim "*" (args env)
+      (llvm:build-neg *builder* (compile-form first env) "negation")))
+(def-compiler-prim "*" env (&rest args)
   (build-arith-op "product" (llvm:const-int (llvm:int32-type) 1)
                   #'llvm:build-mul args env))
-(def-compiler-prim "/" (args env)
+(def-compiler-prim "/" env (&rest args)
   (build-arith-op "product" (llvm:const-int (llvm:int32-type) 1)
                   #'llvm:build-s-div args env))
-(def-compiler-prim "=?" (args env)
+
+;;; Arithmetic comparison
+(def-compiler-prim "=?" env (&rest args)
   (llvm:build-i-cmp *builder* := (compile-form (first args) env) (compile-form (second args) env) "equality"))
 
 (defun compile-form (form env)
