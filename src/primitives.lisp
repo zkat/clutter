@@ -17,6 +17,9 @@
 
 (defvar *primitives* (list))
 
+(defun primitive? (x)
+  (find x *primitives*))
+
 (defmacro defprimitive (name value)
   (once-only (name value)
    `(progn
@@ -26,7 +29,7 @@
 (defmacro defprimop (name vau-list &body body)
   `(defprimitive ,name
        (make-clutter-operator
-        :name ,name
+        :name (cs ,name)
         :function (lambda ,vau-list ,@body)
         :args ',vau-list
         :body ',body)))
@@ -35,7 +38,7 @@
   `(defprimitive ,name
        (make-function
         (make-clutter-operator
-         :name ,name
+         :name (cs ,name)
          :function (lambda (*denv* ,@vau-list)
                      ,@body)
          :args ',vau-list
@@ -168,7 +171,7 @@
 (defprimfun t "operative?" (x)
   (if (clutter-operator-p x) *true* *false*))
 (defprimfun t "primitive?" (x)
-  (if (find x *primitives*) *true* *false*))
+  (if (primitive? x) *true* *false*))
 (defprimfun t "pure?" (x)
   (if (clutter-operator-pure (clutter-function-operator x))
       *true*
