@@ -101,13 +101,14 @@
                                                                       (rest form)))
                                 "")))))))
 
-(defun compile-func (func env)
-  (let* ((op (clutter-function-operator func))
+(defun compile-func (split env)
+  (let* ((op (clutter-function-operator (split-val-clutter split)))
          (args (clutter-operator-args op))
          (argtypes (make-array (length args) :initial-element (llvm:int32-type)))
          (ftype (llvm:function-type (llvm:int32-type) argtypes))
          (fobj (llvm:add-function *module* (clutter-symbol-name (clutter-operator-name op)) ftype))
          (fenv (make-env env)))
+    (setf (split-val-llvm split) fobj)
     (llvm:position-builder-at-end *builder*
                                   (llvm:append-basic-block fobj "entry"))
     (mapc (lambda (arg name)
@@ -139,14 +140,14 @@
      (llvm:initialize-native-target)
      (setf llvm-inited t))))
 
-(defun clutter-compile (main &optional (output "binary"))
-  "Write a binary to OUTPUT which invokes clutter function MAIN on execution."
+(defun clutter-compile (func-name env &optional (output "binary"))
+  "Write compiled code, which invokes clutter function named FUNC-NAME in ENV on execution, to OUTPUT."
   (init-llvm)
   (setf *module* (llvm:make-module output))
   (setf *builder* (llvm:make-builder))
   (unwind-protect
-       (progn
-         (compile-func main (clone-env-tree (clutter-operator-env (clutter-function-operator main))))
+       (let ((env (clone-env-tree env)))
+         (compile-func (lookup func-name env) env)
          (llvm:dump-module *module*)
          (unless (llvm:verify-module *module*)
            (llvm:write-bitcode-to-file *module* output)))
