@@ -31,8 +31,7 @@
        (make-clutter-operator
         :name (cs ,name)
         :function (lambda ,vau-list ,@body)
-        :args ',vau-list
-        :body ',body)))
+        :args ',(rest vau-list))))
 
 (defmacro defprimfun (purity name vau-list &body body)
   `(defprimitive ,name
@@ -42,8 +41,7 @@
          :function (lambda (*denv* ,@vau-list)
                      ,@body)
          :args ',vau-list
-         :pure ,purity
-         :body ',body))))
+         :pure ,purity))))
 
 (defprimop "vau" (static-env env-var vau-list &rest body)
   ;; TODO: Determine purity
