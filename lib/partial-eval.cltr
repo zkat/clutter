@@ -57,18 +57,14 @@
     (#t (emit (list* - (map ensure-literal-code values))))))
 
 (def-peval-op! def-in! emit-def-in! denv (target-env name value)
-  (let (target-env-val (eval target-env denv)
-        value-val (eval value denv))
-    (if (static? target-env-val)
-        (if (static? value-val)
-            (progn
-              ;; TODO: Is this safe?  Might mess with interp state.
-              (dyn-def-in! target-env-val name value-val)
-              (emit (list def-in! target-env-val name value-val)))
-            (progn
-              (dyn-def-in! target-env-val name (make-placeholder name))
-              (emit (list def-in! target-env-val name value))))
-        (emit (list def-in! target-env name value)))))
+  (let (target-env-val (smart-eval target-env denv)
+        value-val (smart-eval value denv))
+    ;; TODO: Is this safe?  Might mess with interp state by side-effecting shared envs
+    (when (static? target-env-val)
+      (if (static? value-val)
+          (dyn-def-in! target-env-val name value-val)
+          (dyn-def-in! target-env-val name (make-placeholder name))))
+    (emit (list def-in! target-env-val name value-val))))
 
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
@@ -114,8 +110,9 @@
            (dyn-def-in! vau-env binding (make-placeholder binding)))
          (cons env-var vau-list))
     (eval (list* vau env-var vau-list
-                 (map finalize (map (rcurry smart-eval vau-env)
-                                    body)))
+                 (map finalize
+                      (map (rcurry smart-eval vau-env)
+                           body)))
           static-env)))
 
 ;;; Should be internal to peval to discourage external use.
