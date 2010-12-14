@@ -64,7 +64,7 @@
       (if (static? value-val)
           (dyn-def-in! target-env-val name value-val)
           (dyn-def-in! target-env-val name (make-placeholder name))))
-    (emit (list def-in! target-env-val name value-val))))
+    (emit (list def-in! target-env-val (make-placeholder name) value-val))))
 
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
@@ -130,7 +130,7 @@
                (list* (list (vau-denv-var op) outer-env)
                       (zip (vau-args op) (rest call-form)))
                (zip (vau-args op) (rest call-form))))
-      (map (rcurry smart-eval env) (vau-body op)))))
+      (emit (cons do (map (rcurry smart-eval env) (vau-body op)))))))
 
 (def-peval-op! eval emit-eval callsite-env (expr-code env-code)
   (let (expr (eval expr-code callsite-env)
