@@ -28,17 +28,33 @@
 (def-fun! peval-prim? (obj)
   (member? obj peval-prims))
 
-(def-fun! emit-+ (&rest values)
+(def! shadowed-prims (list))
+(def-fun! shadowed-prim? (comb)
+  (if (assoc comb shadowed-prims)
+      #t
+      #f))
+(def-fun! shadowing-prim (obj)
+  (cdr (assoc obj shadowed-prims)))
+
+(def-op! def-peval-fun! env (shadowing name vau-list &rest body)
+  (eval (list* def-fun! name vau-list body) env)
+  (push! (eval name env) peval-prims)
+  (push! (cons (eval shadowing env) (eval name env)) shadowed-prims))
+
+(def-op! def-peval-op! env (shadowing name vau-list &rest body)
+  (eval (list* def-op! name vau-list body) env)
+  (push! (eval name env) peval-prims)
+  (push! (cons (eval shadowing env) (eval name env)) shadowed-prims))
+
+(def-peval-fun! + emit-+ (&rest values)
   (cond
     ((every? static? values) (apply + values))
     (#t (emit (list* + (map ensure-literal-code values))))))
-(push! emit-+ peval-prims)
 
-(def-fun! emit-- (&rest values)
+(def-peval-fun! - emit-- (&rest values)
   (cond
     ((every? static? values) (apply - values))
     (#t (emit (list* - (map ensure-literal-code values))))))
-(push! emit-+ peval-prims)
 
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
@@ -47,12 +63,15 @@
         (if (not? (peval-prim? op))
             (if (primitive? op)
                 (do (print "WARNING: Unsupported partial eval primitive!")
-                    (eval form env))
+                    form)
                 (inline (list* op (rest form)) env))
             (eval form env))
-        (if (or? (peval-prim? op)
+        (if (or? (peval-prim? op) (shadowed-prim? op)
                  (and? (pure? op) (every? static? (rest form))))
-            (eval form env)
+            (eval (if (shadowed-prim? op)
+                      (list* (shadowing-prim op) (rest form))
+                      form)
+                  env)
             (emit (list* op
                          (map (lambda (arg) (if (static? arg)
                                                 (list quote (eval arg env))
@@ -74,12 +93,12 @@
 
 (def-fun! finalize (tree)
   (cond
-    ((code? tree) (code-literal (map finalize tree)))
+    ((code? tree) (map finalize (code-literal tree)))
     ((sequence? tree) (map finalize tree))
     ((placeholder? tree) (placeholder-symbol tree))
     (#t tree)))
 
-(def-op! emit-vau static-env (env-var vau-list &rest body)
+(def-peval-op! vau emit-vau static-env (env-var vau-list &rest body)
   (let (vau-env (make-env static-env))
     (eval (list def! env-var (make-placeholder env-var)) vau-env)
     (map (lambda (binding)
@@ -89,7 +108,6 @@
                  (finalize (map (rcurry smart-eval vau-env)
                                         body)))
           static-env)))
-(push! emit-vau peval-prims)
 
 ;;; Should be internal to peval to discourage external use.
 (def-op! quote #ignore (x) x)
@@ -106,23 +124,23 @@
                (list* (list (vau-denv-var op) outer-env)
                       (zip (vau-args op) (rest call-form)))
                (zip (vau-args op) (rest call-form))))
-      (eval (list* do (vau-body op)) env))))
+      (map (rcurry smart-eval env) (vau-body op)))))
 
-(def-op! emit-eval callsite-env (expr-code env-code)
+(def-peval-op! eval emit-eval callsite-env (expr-code env-code)
   (let (expr (eval expr-code callsite-env)
         env  (eval env-code callsite-env))
     (cond
       ((static? env) (eval expr env))
       (#t (emit (list eval expr-code env-code))))))
-(push! emit-eval peval-prims)
 
 (def-fun! peval (form)
   (let (peval-env (make-env global-env))
-    (with-env peval-env
-      (def! + emit-+)
-      (def! - emit--)
-      (def! eval emit-eval)
-      (def! vau emit-vau))
+    ;; primitives
+    (def-in! peval-env + emit-+)
+    (def-in! peval-env - emit--)
+    (def-in! peval-env eval emit-eval)
+    (def-in! peval-env vau emit-vau)
+
     (eval form peval-env)))
 
 (def-op! pe #ignore (form)
