@@ -41,8 +41,8 @@
   (push! (eval name env) peval-prims)
   (push! (cons (eval shadowing env) (eval name env)) shadowed-prims))
 
-(def-op! def-peval-op! env (shadowing name vau-list &rest body)
-  (eval (list* def-op! name vau-list body) env)
+(def-op! def-peval-op! env (shadowing name env-var vau-list &rest body)
+  (eval (list* def-op! name env-var vau-list body) env)
   (push! (eval name env) peval-prims)
   (push! (cons (eval shadowing env) (eval name env)) shadowed-prims))
 
@@ -56,16 +56,32 @@
     ((every? static? values) (apply - values))
     (#t (emit (list* - (map ensure-literal-code values))))))
 
+(def-peval-op! def-in! emit-def-in! denv (target-env name value)
+  (if (static? target-env)
+      (let (target-env-val (eval target-env denv))
+        (if (static? value)
+            (let (value-val (eval value denv))
+              ;; TODO: Is this safe?  Might mess with interp state.
+              (dyn-def-in! target-env-val name value-val)
+              (emit (list def-in! target-env-val name value-val)))
+            (progn
+              (dyn-def-in! target-env-val name (make-placeholder name))
+              (emit (list def-in! target-env-val name value)))))
+      (emit (list* def-in! target-env name value))))
+
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
   (let (op (eval (first form) env))
     (if (operative? op)
-        (if (not? (peval-prim? op))
+        (if (not? (or? (peval-prim? op) (shadowed-prim? op)))
             (if (primitive? op)
                 (do (print "WARNING: Unsupported partial eval primitive!")
                     form)
                 (inline (list* op (rest form)) env))
-            (eval form env))
+            (eval (if (shadowed-prim? op)
+                      (list* (shadowing-prim op) (rest form))
+                      form)
+                  env))
         (if (or? (peval-prim? op) (shadowed-prim? op)
                  (and? (pure? op) (every? static? (rest form))))
             (eval (if (shadowed-prim? op)
@@ -73,9 +89,10 @@
                       form)
                   env)
             (emit (list* op
-                         (map (lambda (arg) (if (static? arg)
-                                                (list quote (eval arg env))
-                                                arg))
+                         (map (lambda (arg)
+                                (if (static? arg)
+                                    (list quote (eval arg env))
+                                    arg))
                               (rest form))))))))
 
 (def-fun! smart-eval (form env)
@@ -130,7 +147,7 @@
   (let (expr (eval expr-code callsite-env)
         env  (eval env-code callsite-env))
     (cond
-      ((static? env) (eval expr env))
+      ((static? env) (smart-eval expr env))
       (#t (emit (list eval expr-code env-code))))))
 
 (def-fun! peval (form)
