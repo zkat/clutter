@@ -56,19 +56,19 @@
     ((every? static? values) (apply - values))
     (#t (emit (list* - (map ensure-literal-code values))))))
 
-;;; FIXME: Why do emitted def-in! forms end up inside a list?
 (def-peval-op! def-in! emit-def-in! denv (target-env name value)
-  (if (static? target-env)
-      (let (target-env-val (eval target-env denv))
-        (if (static? value)
-            (let (value-val (eval value denv))
+  (let (target-env-val (eval target-env denv)
+        value-val (eval value denv))
+    (if (static? target-env-val)
+        (if (static? value-val)
+            (progn
               ;; TODO: Is this safe?  Might mess with interp state.
               (dyn-def-in! target-env-val name value-val)
               (emit (list def-in! target-env-val name value-val)))
             (progn
               (dyn-def-in! target-env-val name (make-placeholder name))
-              (emit (list def-in! target-env-val name value)))))
-      (emit (list def-in! target-env name value))))
+              (emit (list def-in! target-env-val name value))))
+        (emit (list def-in! target-env name value)))))
 
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
@@ -110,10 +110,9 @@
 
 (def-peval-op! vau emit-vau static-env (env-var vau-list &rest body)
   (let (vau-env (make-env static-env))
-    (eval (list def! env-var (make-placeholder env-var)) vau-env)
     (map (lambda (binding)
-           (eval (list def! binding (make-placeholder binding)) vau-env))
-         vau-list)
+           (dyn-def-in! vau-env binding (make-placeholder binding)))
+         (cons env-var vau-list))
     (eval (list* vau env-var vau-list
                  (map finalize (map (rcurry smart-eval vau-env)
                                     body)))
