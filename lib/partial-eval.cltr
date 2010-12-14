@@ -56,6 +56,7 @@
     ((every? static? values) (apply - values))
     (#t (emit (list* - (map ensure-literal-code values))))))
 
+;;; FIXME: Why do emitted def-in! forms end up inside a list?
 (def-peval-op! def-in! emit-def-in! denv (target-env name value)
   (if (static? target-env)
       (let (target-env-val (eval target-env denv))
@@ -67,7 +68,7 @@
             (progn
               (dyn-def-in! target-env-val name (make-placeholder name))
               (emit (list def-in! target-env-val name value)))))
-      (emit (list* def-in! target-env name value))))
+      (emit (list def-in! target-env name value))))
 
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
@@ -91,28 +92,20 @@
             (emit (list* op
                          (map (lambda (arg)
                                 (if (static? arg)
-                                    (list quote (eval arg env))
-                                    arg))
+                                    (smart-eval arg env)
+                                    (emit arg)))
                               (rest form))))))))
 
 (def-fun! smart-eval (form env)
-  (let (result
-        (cond
-          ((list? form) (smart-eval-operator form env))
-          (#t (eval form env))))
-    (cond ((static? result)
-           (list quote result))
-          ((code? result)
-           (code-literal result))
-          ((list? result)
-           (cons list result))
-          (#t result))))
+  (cond
+    ((list? form) (smart-eval-operator form env))
+    (#t (eval form env))))
 
 (def-fun! finalize (tree)
   (cond
     ((code? tree) (map finalize (code-literal tree)))
-    ((sequence? tree) (map finalize tree))
     ((placeholder? tree) (placeholder-symbol tree))
+    ((or? (list? tree) (symbol? tree)) (list quote tree))
     (#t tree)))
 
 (def-peval-op! vau emit-vau static-env (env-var vau-list &rest body)
@@ -122,8 +115,8 @@
            (eval (list def! binding (make-placeholder binding)) vau-env))
          vau-list)
     (eval (list* vau env-var vau-list
-                 (finalize (map (rcurry smart-eval vau-env)
-                                        body)))
+                 (map finalize (map (rcurry smart-eval vau-env)
+                                    body)))
           static-env)))
 
 ;;; Should be internal to peval to discourage external use.
