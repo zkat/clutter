@@ -247,9 +247,3 @@
               (eval (list* anaphoric returning var first body) env))
 
             ))
-
-(def-op! destructuring-bind env (lambda-list list &rest body)
-  (eval (list* let
-               (flatten (zip lambda-list (eval list env)))
-               body)
-        env))
