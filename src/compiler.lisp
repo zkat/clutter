@@ -62,6 +62,48 @@
     (llvm:position-builder-at-end *builder* continue-block)
     return-value))
 
+(def-compiler-primop "lambda" env (vau-list &rest body)
+  (let* ((argtypes (make-array (length vau-list) :initial-element (llvm:int32-type)))
+         (ftype (llvm:function-type (llvm:int32-type) argtypes))
+         (fobj (llvm:add-function *module* "lambda" ftype))
+         (fenv (make-env env)))
+    (llvm:position-builder-at-end *builder* (llvm:append-basic-block fobj "entry"))
+    ;; Establish argument bindings
+    ;; TODO: Handle &rest
+    (mapc (lambda (arg name)
+            (setf (llvm:value-name arg) (clutter-symbol-name name))
+            (extend fenv name
+                    (split-val (llvm:build-alloca *builder* (llvm:type-of arg) (clutter-symbol-name name))
+                               nil))
+            (llvm:build-store *builder* arg (split-val-llvm (lookup name fenv))))
+          (llvm:params fobj)
+          vau-list)
+    ;; Compile body
+    (let ((ret))
+      (mapc (compose (lambda (x) (setf ret x))
+                     (rcurry #'compile-form fenv))
+            body)
+      (llvm:build-ret *builder* (llvm:build-int-cast *builder* ret (llvm:int32-type) "ret")))
+    fobj))
+
+;;; Binding
+(def-compiler-primop "def-in!" callsite-env (target-env symbol &optional value)
+  (let ((llvm-value (if value
+                        (compile-form value callsite-env)
+                        (llvm:undef (llvm:int32-type))))
+        (target-env (split-val-clutter (lookup target-env callsite-env))))
+    (extend target-env symbol
+            (split-val
+             (llvm:add-global *module* (llvm:type-of llvm-value)
+                              (clutter-symbol-name symbol)) nil))
+    (llvm::set-initializer (split-val-llvm (lookup symbol target-env)) llvm-value)))
+
+(def-compiler-primop "set-in!" callsite-env (target-env name value)
+  (setf (lookup name target-env) (compile-form value callsite-env))
+  (llvm:build-store *builder*
+                    (compile-form value callsite-env)
+                    (split-val-llvm (lookup name (lookup target-env callsite-env)))))
+
 ;;; Arithmetic
 (defun build-arith-op (name initial func args)
   (reduce (rcurry (curry #'funcall func *builder*) name)
@@ -79,16 +121,20 @@
   (build-arith-op "product" first #'llvm:build-s-div args))
 
 ;;; Arithmetic comparison
-(def-compiler-primfun "=?" (a b)
-  (llvm:build-i-cmp *builder* := a b "equality"))
+(def-compiler-primfun "=?" (first &rest rest)
+  (build-arith-op "equality" first
+                  (lambda (b l r n) (llvm:build-i-cmp b := l r n))
+                  rest))
 
 (defun compile-form (form env)
   (typecase form
     (integer (llvm:const-int (llvm:int32-type) form))
     (clutter-symbol (llvm:build-load *builder* (or (split-val-llvm (lookup form env)) (error "No binding for: ~A" form)) (clutter-symbol-name form)))
     (list
-       (let ((cfunc (lookup (car form) env)))
-         (if (primitive? (split-val-clutter cfunc))
+       (let ((cfunc (if (listp (car form))
+                        (compile-form (car form) env)
+                        (lookup (car form) env))))
+         (if (compiler-prim? (split-val-clutter cfunc))
              (build-prim-call (split-val-clutter cfunc) (rest form) env)
              (progn
                ;; Ensure that the function has been compiled.
@@ -101,30 +147,6 @@
                                             :initial-contents (mapcar (rcurry #'compile-form env)
                                                                       (rest form)))
                                 "")))))))
-
-(defun compile-func (split env)
-  (let* ((op (clutter-function-operator (split-val-clutter split)))
-         (args (clutter-operator-args op))
-         (argtypes (make-array (length args) :initial-element (llvm:int32-type)))
-         (ftype (llvm:function-type (llvm:int32-type) argtypes))
-         (fobj (llvm:add-function *module* (clutter-symbol-name (clutter-operator-name op)) ftype))
-         (fenv (make-env env)))
-    (setf (split-val-llvm split) fobj)
-    (llvm:position-builder-at-end *builder*
-                                  (llvm:append-basic-block fobj "entry"))
-    (mapc (lambda (arg name)
-            (setf (llvm:value-name arg) (clutter-symbol-name name))
-            (extend fenv name
-                    (split-val (llvm:build-alloca *builder* (llvm:type-of arg) (clutter-symbol-name name))
-                               nil))
-            (llvm:build-store *builder* arg (split-val-llvm (lookup name fenv))))
-          (llvm:params fobj)
-          args)
-    (let ((ret))
-      (mapc (compose (lambda (x) (setf ret x))
-                     (rcurry #'compile-form fenv))
-            (clutter-operator-body op))
-      (llvm:build-ret *builder* (llvm:build-int-cast *builder* ret (llvm:int32-type) "ret")))))
 
 (defun clone-env-tree (env)
   (let ((result (apply #'make-env (mapcar #'clone-env-tree (env-parents env)))))
@@ -145,14 +167,14 @@
      (llvm:initialize-native-target)
      (setf llvm-inited t))))
 
-(defun clutter-compile (func-name env &optional (output "binary"))
-  "Write compiled code, which invokes clutter function named FUNC-NAME in ENV on execution, to OUTPUT."
+(defun clutter-compile (form interp-env &optional (output "binary"))
+  "Write compiled code to OUTPUT."
   (init-llvm)
   (setf *module* (llvm:make-module output))
   (setf *builder* (llvm:make-builder))
   (unwind-protect
-       (let ((env (clone-env-tree env)))
-         (compile-func (lookup func-name env) env)
+       (let ((env (clone-env-tree interp-env)))
+         (compile-form form env)
          (llvm:dump-module *module*)
          (unless (llvm:verify-module *module*)
            (llvm:write-bitcode-to-file *module* output)))
