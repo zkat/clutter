@@ -163,6 +163,8 @@
 (defprimfun t "intern" (string)
   (clutter-symbol string))
 
+(defprimfun t "boolean?" (x)
+  (if (or (eql x *true*) (eql x *false*)) *true* *false*))
 (defprimfun t "symbol?" (x)
   (if (clutter-symbol-p x) *true* *false*))
 (defprimfun t "keyword?" (x)
