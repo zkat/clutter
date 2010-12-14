@@ -70,11 +70,11 @@
 (def-fun! flatten (sequence)
   (reduce append (list) sequence))
 
-(def-op! destructuring-bind env (lambda-list list &rest body)
-  (eval (list* let
-               (flatten (zip lambda-list (eval list env)))
-               body)
-        env))
+(def-op! destructuring-bind dyn-env (lambda-list values &rest body)
+  (let (env (make-env dyn-env))
+    (map (lambda (name value) (dyn-def-in! env name value)
+         lambda-list (eval values dyn-env)))
+    (eval (cons do body) env)))
 
 (def-op! do env (&rest body)
   (let (last-value ())
