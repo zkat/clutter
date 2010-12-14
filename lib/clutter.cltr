@@ -35,10 +35,18 @@
 (def-op! lookup env (var lookup-env)
   (eval var (eval lookup-env env)))
 
+(def-fun! map1 (function values)
+  (if (eql? (list) values)
+      (list)
+      (cons (function (car values)) (map function (cdr values)))))
+
 (def-fun! zip (&rest sequences)
   (if (eql? (list) (first sequences))
       (list)
-      (list* (map first sequences) (apply zip (map rest sequences)))))
+      (list* (map1 first sequences) (apply zip (map1 rest sequences)))))
+
+(def-fun! map (function &rest lists)
+  (map1 (curry apply function) (apply zip lists)))
 
 (def-fun! reduce (function initial values)
   (if (eql? (list) values)
@@ -48,10 +56,11 @@
 (def-fun! flatten (sequence)
   (reduce append (list) sequence))
 
-(def-fun! map (function values)
-  (if (eql? (list) values)
-      (list)
-      (cons (function (car values)) (map function (cdr values)))))
+(def-op! destructuring-bind dyn-env (lambda-list values &rest body)
+  (let (env (make-env dyn-env))
+    (map (lambda (name value) (dyn-def-in! env name value))
+         lambda-list (eval values dyn-env))
+    (eval (cons do body) env)))
 
 (def-op! do env (&rest body)
   (let (last-value ())
