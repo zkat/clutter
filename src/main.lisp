@@ -14,6 +14,10 @@
           (format t "~S" (clutter-eval (clutter-read)))))
     (quit () (values))))
 
+(defun clutter-read-str (str)
+  (with-input-from-string (stream str)
+    (clutter-read stream nil)))
+
 ;; #+sbcl
 ;; (defun main ()
 ;;   (defprimitive "http-get" (url)
