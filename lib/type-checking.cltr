@@ -1,11 +1,36 @@
 (def-op! declare! (&rest #ignore)
   #t)
 
+(def-op! enum (&rest keywords)
+  (list :enum keywords))
+
+(def-op! enum-case env (var &rest forms)
+  (if (eql? (eval var env) (eval (car (car forms)) env))
+      (eval (list* do (cdr (car forms)))
+            env)
+      (eval (list* enum-case var (cdr forms)) env)))
+
+(def! type :type)
+(def! number :number)
+(def! char :char)
+(def! bool :bool)
+
 (def-fun! type-combiner (type left right)
   (list type left right))
 
+(def-fun! tc? (tc)
+  (and? (sequence? tc)
+        (some? (lambda (x) (eql? x (car (cdr tc))))
+              (list :op :fun :prod))))
+
 (def-fun! tc-constructor (tc)
   (first tc))
+
+(def-fun! tc-constructor-fun (tc)
+  (enum-case (tc-constructor tc)
+    (:prod prod)
+    (:op op)
+    (:fun fun)))
 
 (def-fun! tc-left (tc)
   (second tc))
@@ -14,13 +39,13 @@
   (third tc))
 
 (def-fun! op (from to)
-  (type-combiner op from to))
+  (type-combiner :op from to))
 
 (def-fun! fun (from to)
-  (type-combiner fun from to))
+  (type-combiner :fun from to))
 
 (def-fun! prod (left right)
-  (type-combiner prod left right))
+  (type-combiner :prod left right))
 
 (def-fun! prod-list (&rest values)
   (if (empty? (car values))
@@ -29,38 +54,115 @@
           (car values)
           (prod (car values) (prod (cdr values))))))
 
-(def-fun! check-type-constructor (form type decl)
-  (destructuring-bind (#ignore left right) form
-    (let ((left-value (normalize left decl))
-          (right-type (right left-value)))
-      (type-equal? ((tc-constructor type) (infer left-value decl) right-type) type))))
+(def-fun! tc-equal? (left right)
+  (and?
+   (eql? (tc-constructor left) (tc-constructor right))
+   (type-equal? (tc-left left) (tc-left right))
+   (type-equal? (tc-right left) (tc-right right))))
+
+(def-fun! make-base-decl ()
+  (let (decl (make-env))
+    (def-in! decl declare! :declare-type)
+    (def-in! decl lambda :lambda-type)
+    (def-in! decl cons :cons-type)
+    (def-in! decl prod :prod-type)
+    (def-in! decl op :op-type)
+    (def-in! decl fun :fun-type)
+    (def-in! decl type :type)
+    (def-in! decl number :type)
+    (def-in! decl char :type)
+    (def-in! decl bool :type)
+    decl))
+
+(def-op! normalize env (type #ignore) ;; TODO: decent normalization
+   type)
+
+(def-fun! type-equal? (left right)
+  (if (and? (tc? left) (tc? right))
+      (tc-equal? left right)
+      (eql? left right)))
+
+(def-op! check-op env (form type decl)
+  (check form type (eval decl env)))
+
+(def-fun! check (form type decl)
+  (let (type (infer type decl))
+    (if (not? (cons? form))
+        (type-equal? type (infer form decl))
+        (let (comb (eval (car form) decl))
+          (cond
+            ((eql? comb :cons-type) (check-pair form type decl))
+            ((eql? comb :lambda-type) (check-lambda form type decl)) ;; Should be vau
+            (#t (type-equal? type (infer form decl))))))))
+
+(def-fun! check-type-constructor (left right type decl)
+  (let (left-value (normalize left decl))
+    (and?
+     (check left-value (tc-left type) decl)
+     (check right-value ((tc-rigth type) left-value) decl))))
+
+(def-fun! check-pair (form type decl)
+  (destructuring-bind (_ left right) form
+    (check-type-constructor left right type decl)))
+
+(def-fun! check-lambda (form type decl)
+  (destructuring-bind (_ lambda-list body) form ;; TODO - &rest handling
+    (check-type-constructor (car lambda-list) body))) ;; TODO - should handle multi-argument lambda-lists
+
+(def-op! infer-op env (form decl)
+  (infer form (eval decl env)))
+
+(def-fun! infer (form decl)
+  (if (not? (cons? form))
+      (infer-atom form decl)
+      (let (comb (eval (car form) decl))
+       (cond
+         ((eql? comb :declare-type) (infer-annotation form decl))
+         ((some? (curry eql? comb) (list :prod-type :op-type :fun-type)) (infer-type-combiner form decl))
+         ((eql? comb :cons-type) (infer-pair form decl))
+         ((eql? comb :lambda-type ) (infer-lambda form decl))
+         (#t (infer-comb form decl))))))
+
+(def-fun! infer-atom (atom decl)
+  (cond
+    ((number? atom) number)
+    ((boolean? atom) bool)
+    (#t (eval atom decl))))
 
 (def-fun! infer-annotation (form decl)
-  (destructuring-bind (#ignore symbol value) form
+  (destructuring-bind (_ symbol value) form
     (if (check value type decl)
         (do
-         (def-in! decl symbol (infer value decl))
-         value)
+         (dyn-def-in! decl symbol (infer value decl))
+         bool)
         #f)))
 
 (def-fun! infer-type-combiner (form decl)
-  (destructuring-bind (comb left right) form
-    (if (and
+  (destructuring-bind (_ left right) form
+    (if (and?
          (check left type decl)
-         (check right (fun left type) decl))
+         (or?
+          (check right type decl)
+          (check right (fun left type) decl)))
         type
         #f)))
 
 (def-fun! infer-pair (form decl)
-  (destructuring-bind (#ignore left right) form
-    (if (and (check left type decl)
-             (check right type decl))
-        (prod left right))))
+  (destructuring-bind (_ left right) form
+    (prod (infer left decl) (infer right decl))))
 
 (def-fun! infer-lambda (form decl)
-  (destructuring-bind (#ignore lambda-list body) form
+  (destructuring-bind (_ lambda-list body) form ;; TODO - should handle &rest for body
     (let (lambda-decl (make-env decl)
           type-variables (make-type-variable-list (length lambda-list)))
       (map (lambda (p) (extend lambda-decl (car p) (cdr p)))
            (zip (lambda-list) type-variables))
-      (fun (apply prod-list type-combiner) (infer body lambda-decl))))) ;; TODO: Substitute tv correctly
+      (fun (apply prod-list type-combiner) (infer body lambda-decl)))))
+
+(def-fun! infer-comb (form decl)
+  (destructuring-bind (comb arg) form ;; TODO should handle multi-argument functions and should handle vau
+    (let (comb-type (infer comb decl)
+                    arg-type (infer arg decl))
+      (if (check (tc-left comb-type) arg-type decl)
+          (tc-right comb-type)
+          #f))))
