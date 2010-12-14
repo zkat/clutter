@@ -260,8 +260,39 @@
   (eval (list set! place (list cons value place))
         env))
 
-(def-op! or? env (&rest expressions)
-  (if (=? (length expressions) 0)
+(def-fun! curry (function &rest first-args)
+  (lambda (&rest last-args)
+    (apply function (append first-args last-args))))
+
+(def-fun! rcurry (function &rest last-args)
+  (lambda (&rest first-args)
+    (apply function (append first-args last-args))))
+
+(def-fun! nth (n sequence)
+  (if (=? n 0)
+      (car sequence)
+      (nth (- n 1) (cdr sequence))))
+
+(def-fun! first (sequence)
+  (car sequence))
+
+(def-fun! second (sequence)
+  (nth 1 sequence))
+
+(def-fun! third (sequence)
+  (nth 2 sequence))
+
+(def-fun! fourth (sequence)
+  (nth 3 sequence))
+
+(def-fun! fifth (sequence)
+  (nth 4 sequence))
+
+(def-fun! rest (sequence)
+  (cdr sequence))
+
+(def-op! or? env (&rest values)
+  (if (=? (length values) 0)
       #f
       (let (result (eval (first expressions) env))
         (if result
