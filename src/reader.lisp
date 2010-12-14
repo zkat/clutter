@@ -163,11 +163,6 @@
                       (setf collecting-token t))))
         finally (return token)))
 
-(set-clutter-reader-macro-function *keyword-marker*
-                                   (lambda (stream char)
-                                     (declare (ignore char))
-                                     (clutter-keyword (read-token stream))))
-
 (defun parse-token (token)
   (or (parse-integer-token token)
       (parse-float-token token)
@@ -259,19 +254,16 @@
 (defun symbol-illegal-characters-p (symbol)
   (find *keyword-marker* symbol))
 
-;; (defun parse-keyword-token (token)
-;;   (let ((symbol-name (subseq token 1)))
-;;     (if *keyword-marker-in-front*
-;;         (when (char= (char symbol-name 0) *keyword-marker*)
-;;           (setf symbol-name (subseq symbol-name 1)))
-;;         (when (char= (char symbol-name (1- (length symbol-name))) *keyword-marker*)
-;;           (setf symbol-name (subseq symbol-name (1- (length symbol-name))))))
-;;     (if (not (symbol-illegal-characters-p symbol-name))
-;;         (let* ((symbol (clutter-intern symbol-name *keyword-env*)))
-;;           (unless (clutter-bound? symbol :lexical)
-;;             (bind symbol symbol :lexical))
-;;           symbol)
-;;         (error "Illegal characters in symbol name"))))
+(defun parse-keyword-token (token)
+  (let ((symbol-name (subseq token 1)))
+    (if *keyword-marker-in-front*
+        (when (char= (char symbol-name 0) *keyword-marker*)
+          (setf symbol-name (subseq symbol-name 1)))
+        (when (char= (char symbol-name (1- (length symbol-name))) *keyword-marker*)
+          (setf symbol-name (subseq symbol-name (1- (length symbol-name))))))
+    (if (not (symbol-illegal-characters-p symbol-name))
+        (clutter-keyword symbol-name)
+        (error "Illegal characters in symbol name"))))
 
 (defun build-namespace-lookup (token)
   (reduce (lambda (accum arg) (list (clutter-symbol "lookup") arg accum))
@@ -291,11 +283,11 @@
 
 (defun parse-symbol-token (token)
   (cond
-    ;; ((or (and *keyword-marker-in-front*
-    ;;           (char= (char token 0) *keyword-marker*))
-    ;;      (and (not *keyword-marker-in-front*)
-    ;;           (char= (char token (- (length token) 1)) *keyword-marker*)))
-    ;;  (parse-keyword-token token))
+    ((or (and *keyword-marker-in-front*
+               (char= (char token 0) *keyword-marker*))
+         (and (not *keyword-marker-in-front*)
+              (char= (char token (- (length token) 1)) *keyword-marker*)))
+     (parse-keyword-token token))
     ((find *namespace-marker* token :from-end t)
      (build-namespace-lookup token))
     ;; Normal, unqualified symbol
