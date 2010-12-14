@@ -11,10 +11,6 @@
         (eql? (car value) :code)))
 (def-fun! code-literal (code)
   (cdr code))
-(def-fun! ensure-literal-code (val)
-  (if (code? val)
-      (code-literal val)
-      val))
 
 (def-fun! dynamic? (value)
   (or? (placeholder? value)
@@ -49,12 +45,12 @@
 (def-peval-fun! + emit-+ (&rest values)
   (cond
     ((every? static? values) (apply + values))
-    (#t (emit (list* + (map ensure-literal-code values))))))
+    (#t (emit (list* + values)))))
 
 (def-peval-fun! - emit-- (&rest values)
   (cond
     ((every? static? values) (apply - values))
-    (#t (emit (list* - (map ensure-literal-code values))))))
+    (#t (emit (list* - values)))))
 
 (def-peval-op! def-in! emit-def-in! denv (target-env name value)
   (let (target-env-val (smart-eval target-env denv)
@@ -64,7 +60,7 @@
       (if (static? value-val)
           (dyn-def-in! target-env-val name value-val)
           (dyn-def-in! target-env-val name (make-placeholder name))))
-    (emit (list def-in! target-env-val (make-placeholder name) value-val))))
+    (emit (map finalize (list def-in! target-env-val (make-placeholder name) value-val)))))
 
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
@@ -73,7 +69,7 @@
         (if (not? (or? (peval-prim? op) (shadowed-prim? op)))
             (if (primitive? op)
                 (do (print "WARNING: Unsupported partial eval primitive!")
-                    form)
+                    (emit form))
                 (inline (list* op (rest form)) env))
             (eval (if (shadowed-prim? op)
                       (list* (shadowing-prim op) (rest form))
@@ -99,7 +95,11 @@
 
 (def-fun! finalize (tree)
   (cond
-    ((code? tree) (map finalize (code-literal tree)))
+    ((code? tree)
+     (let (literal (code-literal tree))
+       (if (operative? (first literal))
+           literal
+           (map finalize (code-literal tree)))))
     ((placeholder? tree) (placeholder-symbol tree))
     ((or? (list? tree) (symbol? tree)) (list quote tree))
     (#t tree)))
@@ -130,7 +130,7 @@
                (list* (list (vau-denv-var op) outer-env)
                       (zip (vau-args op) (rest call-form)))
                (zip (vau-args op) (rest call-form))))
-      (emit (cons do (map (rcurry smart-eval env) (vau-body op)))))))
+      (emit (cons do (map finalize (map (rcurry smart-eval env) (vau-body op))))))))
 
 (def-peval-op! eval emit-eval callsite-env (expr-code env-code)
   (let (expr (eval expr-code callsite-env)
