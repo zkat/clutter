@@ -106,20 +106,6 @@
     (perform-binding vau-list (eval values dyn-env))
     (eval (cons do body) env)))
 
-(def-fun! reduce (function initial values)
-  (if (eql? (list) values)
-      initial
-      (function initial (reduce function (car values) (cdr values)))))
-
-(def-fun! flatten (sequence)
-  (reduce append (list) sequence))
-
-(def-op! destructuring-bind dyn-env (lambda-list values &rest body)
-  (let (env (make-env dyn-env))
-    (map (lambda (name value) (dyn-def-in! env name value)
-         lambda-list (eval values dyn-env)))
-    (eval (cons do body) env)))
-
 (def-op! do env (&rest body)
   (if (eql? (length body) 1)
       (eval (first body) env)
