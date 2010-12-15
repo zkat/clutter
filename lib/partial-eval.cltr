@@ -101,6 +101,8 @@
 
 (def-fun! smart-eval (form env)
   (cond
+    ((code? form) (smart-eval (code-literal form) env)) ;Should this be necessary?
+    ((null? form) form)
     ((list? form) (smart-eval-operator form env))
     (#t (eval form env))))
 
