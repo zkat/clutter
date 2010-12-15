@@ -52,6 +52,16 @@
     ((every? static? values) (apply - values))
     (#t (emit (list* - values)))))
 
+(def-peval-op! if emit-if denv (condition then else)
+  (let (condition-val (smart-eval condition denv))
+    (if (static? condition-val)
+        (if condition-val
+            (smart-eval then denv)
+            (smart-eval else denv))
+        (emit (list if (finalize condition-val)
+                    (finalize (smart-eval then denv))
+                    (finalize (smart-eval else denv)))))))
+
 (def-peval-op! def-in! emit-def-in! denv (target-env name value)
   (let (target-env-val (smart-eval target-env denv)
         value-val (smart-eval value denv))
