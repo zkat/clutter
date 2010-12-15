@@ -16,6 +16,13 @@
     (vau env (name env-var vau-list &rest body)
          (eval (list def! name (list name-vau! (list* vau env-var vau-list body) name)) env)))
 
+(def-op! dyn-def-in! dyn-env (env var value)
+  (eval (list def-in!
+              (list (unwrap eval) env dyn-env)
+              (eval var dyn-env)
+              (list (unwrap eval) value dyn-env))
+        dyn-env))
+
 (def-op! lambda env (vau-list &rest body)
   (wrap (eval (list* vau #ignore vau-list body) env)))
 
