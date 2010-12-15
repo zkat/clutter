@@ -109,7 +109,7 @@
   (cond
     ((code? tree)
      (let (literal (code-literal tree))
-       (if (operative? (first literal))
+       (if (or? (symbol? literal) (operative? (first literal)))
            literal
            (map finalize (code-literal tree)))))
     ((placeholder? tree) (placeholder-symbol tree))
@@ -128,6 +128,13 @@
                             body))
                   vau-env (list get-current-env)))
           static-env)))
+
+(def-peval-op! eval emit-eval callsite-env (expr-code env-code)
+  (let (expr (smart-eval expr-code callsite-env)
+        env  (smart-eval env-code callsite-env))
+    (cond
+      ((static? env) (smart-eval expr env))
+      (#t (emit (list eval (emit (finalize expr)) (emit (finalize env))))))))
 
 ;;; Should be internal to peval to discourage external use.
 (def-op! quote #ignore (x) x)
@@ -150,13 +157,6 @@
       (perform-binding (cons (vau-denv-var op) (vau-args op)) (cons outer-env (rest call-form)))
 
       (emit (cons do (map finalize (map (rcurry smart-eval env) (vau-body op))))))))
-
-(def-peval-op! eval emit-eval callsite-env (expr-code env-code)
-  (let (expr (eval expr-code callsite-env)
-        env  (eval env-code callsite-env))
-    (cond
-      ((static? env) (smart-eval expr env))
-      (#t (emit (list eval expr-code env-code))))))
 
 (def-fun! peval (form)
   (let (peval-env (make-env global-env))
