@@ -123,6 +123,14 @@
                  clauses))
         env))
 
+(def-op! let* dyn-env (bindings &rest body)
+  (let (env (make-env dyn-env))
+    (if (null? bindings)
+        (eval (cons do body) env)
+        (do
+         (dyn-def-in! env (car bindings) (eval (car (cdr bindings)) dyn-env))
+         (eval (list* let* (cdr (cdr bindings)) body) env)))))
+
 (def-op! when env (test &rest body)
   (if (eval test env)
       (eval (list* do body) env)
