@@ -146,6 +146,23 @@
          (dyn-def-in! env (car bindings) (eval (car (cdr bindings)) dyn-env))
          (eval (list* let* (cdr (cdr bindings)) body) env)))))
 
+(def-op! letrec dyn-env (bindings &rest body)
+  (let* (vars (filter (let (x 0) (lambda (#ignore) (odd? (inc! x)))) bindings)
+         values (filter (let (x 0) (lambda (#ignore) (even? (inc! x)))) bindings)
+         def-forms (cons do (map (lambda (var val) (list def! var val)) vars values)))
+    (eval (list* let ()
+                 def-forms
+                 body)
+          dyn-env)))
+
+(def-op! letrec* dyn-env (bindings &rest body)
+  (eval (if (null? bindings)
+            (list* letrec bindings body)
+            (list letrec
+                  (list (car bindings) (car (cdr bindings)))
+                  (list* letrec* (cdr (cdr bindings)) body)))
+        dyn-env))
+
 (def-op! when env (test &rest body)
   (if (eval test env)
       (eval (list* do body) env)
