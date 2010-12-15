@@ -175,7 +175,7 @@
 
 (def-op! returning env (first &rest body)
   (let (return-val (eval first env))
-    (map (curry eval env) body)
+    (map (rcurry eval env) body)
     return-val))
 
 (def-op! push! env (value place)
