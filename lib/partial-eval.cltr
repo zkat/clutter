@@ -1,22 +1,11 @@
 ;;; TODO: Structs here.
-(def-fun! make-placeholder (x) (symbol-name x))
-(def! placeholder? string?)
-(def-fun! placeholder-symbol (x)
-  (intern x))
-
 (def-fun! emit (code)
-  (cons :code code))
-(def-fun! code? (value)
-  (and? (sequence? value)
-        (eql? (car value) :code)))
-(def-fun! code-literal (code)
-  (cdr code))
-
+  (cons :dynamic code))
 (def-fun! dynamic? (value)
-  (or? (placeholder? value)
-       (code? value)
-       (and? (sequence? value)
-             (some? dynamic? value))))
+  (and? (sequence? value)
+        (eql? (car value) :dynamic)))
+(def-fun! dynamic-code (dynamic)
+  (cdr dynamic))
 
 (def! static? (complement dynamic?))
 
@@ -45,12 +34,17 @@
 (def-peval-fun! + emit-+ (&rest values)
   (cond
     ((every? static? values) (apply + values))
-    (#t (emit (list* + values)))))
+    (#t (emit (list* + (map finalize values))))))
 
 (def-peval-fun! - emit-- (&rest values)
   (cond
     ((every? static? values) (apply - values))
-    (#t (emit (list* - values)))))
+    (#t (emit (list* - (map finalize values))))))
+
+(def-peval-fun! =? emit-=? (&rest values)
+  (cond
+    ((every? static? values) (apply =? values))
+    (#t (emit (list* =? (map finalize values))))))
 
 (def-peval-op! if emit-if denv (condition then else)
   (let (condition-val (smart-eval condition denv))
@@ -63,64 +57,79 @@
                     (finalize (smart-eval else denv)))))))
 
 (def-peval-op! def-in! emit-def-in! denv (target-env name value)
+  (print "DEF-IN!")
   (let (target-env-val (smart-eval target-env denv)
         value-val (smart-eval value denv))
     ;; TODO: Is this safe?  Might mess with interp state by side-effecting shared envs
     (when (static? target-env-val)
       (if (static? value-val)
           (dyn-def-in! target-env-val name value-val)
-          (dyn-def-in! target-env-val name (make-placeholder name))))
-    (emit (map finalize (list def-in! target-env-val (make-placeholder name) value-val)))))
+          (dyn-def-in! target-env-val name (emit name))))
+    (emit (list def-in! (finalize target-env-val) name (finalize value-val)))))
+
+(def-peval-op! set-in! emit-set-in! denv (target-env name value)
+  (let (target-env-val (smart-eval target-env denv)
+        value-val (smart-eval value denv))
+    (print "SET-IN!")
+    (print value-val)
+    ;; TODO: Is this safe?  Might mess with interp state by side-effecting shared envs
+    (when (static? target-env-val)
+      (if (static? value-val)           ;TODO: Fix multiple evaluation of values
+          (eval (list set-in! target-env-val name value-val) denv)
+          (eval (list set-in! target-env-val name (emit name)) denv)))
+    (emit (list set-in! (finalize target-env-val) name (finalize value-val)))))
+
+(def-peval-fun! wrap emit-wrap (obj)
+  (print "wrapping")
+  (cond
+    ((dynamic? obj) (emit (list wrap (finalize obj))))
+    (#t (wrap obj))))
 
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
   (let (comb (smart-eval (first form) env))
     (if (operative? comb)
-        (if (not? (or? (peval-prim? comb) (shadowed-prim? comb)))
-            (if (primitive? comb)
-                (do (print "WARNING: Unsupported partial eval primitive!")
-                    (print comb)
-                  (emit form))
-                (inline (list* comb (rest form)) env))
-            (eval (if (shadowed-prim? comb)
-                      (list* (shadowing-prim comb) (rest form))
-                      form)
-                  env))
-        (let (args (map (lambda (arg)
-                          (if (static? arg)
-                              (smart-eval arg env)
-                              (emit arg)))
-                     (rest form)))
-          (if (or? (peval-prim? comb) (shadowed-prim? comb)
-                   (and? (pure? comb) (every? static? args)))
-              (eval (if (shadowed-prim? comb)
-                        (list* (unwrap (shadowing-prim comb)) args)
-                        (cons (unwrap comb) args))
-                    env)
-              (emit (list* comb args)))))))
+        (do
+            (print "TESTING")
+            (print comb)
+         (if (print (or? (peval-prim? comb) (shadowed-prim? comb)))
+             (eval (if (shadowed-prim? comb)
+                       (list* (shadowing-prim comb) (rest form))
+                       (list* comb (rest form)))
+                   env)
+             (if (primitive? comb)
+                 (do (print "WARNING: Unsupported partial eval primitive!")
+                     (print comb)
+                   (emit form))
+                 (inline (list* comb (rest form)) env))))
+        (eval (list* (unwrap
+                      (if (shadowed-prim? comb)
+                          (shadowing-prim comb)
+                          comb))
+                     (map (rcurry smart-eval env) (rest form)))
+              env))))
 
 (def-fun! smart-eval (form env)
-  (cond
-    ((code? form) (smart-eval (code-literal form) env)) ;Should this be necessary?
-    ((null? form) form)
-    ((list? form) (smart-eval-operator form env))
-    (#t (eval form env))))
+  (print "(")
+  (print form)
+  (let (result (cond
+                 ((null? form) form)
+                 ((list? form) (smart-eval-operator form env))
+                 (#t (eval form env))))
+    (print result)
+    (print ")")
+    result))
 
 (def-fun! finalize (tree)
   (cond
-    ((code? tree)
-     (let (literal (code-literal tree))
-       (if (or? (not? (list? literal)) (operative? (first literal)))
-           literal
-           (map finalize (code-literal tree)))))
-    ((placeholder? tree) (placeholder-symbol tree))
+    ((dynamic? tree) (dynamic-code tree))
     ((or? (list? tree) (symbol? tree)) (list quote tree))
     (#t tree)))
 
 (def-peval-op! vau emit-vau static-env (env-var vau-list &rest body)
   (let (vau-env (make-env static-env))
     (map (lambda (binding)
-           (dyn-def-in! vau-env binding (make-placeholder binding)))
+           (dyn-def-in! vau-env binding (emit binding)))
          (cons env-var vau-list))
     (eval (list* vau env-var vau-list
                  (replace-tree
@@ -131,15 +140,26 @@
           static-env)))
 
 (def-peval-fun! eval emit-eval (expr env)
+  (print "EVALLING")
+  (def-fun! quote-dynamics (l)
+    (cond
+      ((not? (list? l)) l)
+      ((empty? l) (list))
+      ((eql? (first l) quote) l)
+      ((dynamic? (first l)) (list* (list quote (first l))
+                                   (quote-dynamics (rest l))))
+      ((list? (first l)) (list* (quote-dynamics (first l)) (quote-dynamics (rest l))))
+      (#t (list* (first l) (quote-dynamics (rest l))))))
   (cond
-    ((static? env) (smart-eval expr env))
-    (#t (emit (list eval (emit (finalize expr)) (emit (finalize env)))))))
+    ((static? env) (smart-eval (quote-dynamics expr) env))
+    (#t (emit (list eval (finalize expr) (finalize env))))))
 
 ;;; Should be internal to peval to discourage external use.
 (def-op! quote #ignore (x) x)
 
 ;;; Produce code that may be substituted for the supplied operator invocation.
 (def-fun! inline (call-form outer-env)
+  (print "inlining")
   (let (op (if (operative? (first call-form))
                (first call-form)
                (unwrap (first call-form))))
@@ -155,18 +175,25 @@
       
       (perform-binding (cons (vau-denv-var op) (vau-args op)) (cons outer-env (rest call-form)))
 
-      (let (forms (map finalize (map (rcurry smart-eval env) (vau-body op))))
-        (emit (if (=? (length forms) 1)
-                  (first forms)
-                  (list* do forms)))))))
+      (let (results (map (rcurry smart-eval env)
+                      (vau-body op)))
+        (if (=? (length results) 1)
+            (first results)
+            (list* do results))))))
 
 (def-fun! peval (form)
   (let (peval-env (make-env global-env))
     ;; primitives
+    ;; TODO: automate
     (def-in! peval-env + emit-+)
     (def-in! peval-env - emit--)
+    (def-in! peval-env =? emit-=?)
     (def-in! peval-env eval emit-eval)
     (def-in! peval-env vau emit-vau)
+    (def-in! peval-env if emit-if)
+    (def-in! peval-env def-in! emit-def-in!)
+    (def-in! peval-env set-in! emit-set-in!)
+    (def-in! peval-env wrap emit-wrap)
 
     (eval form peval-env)))
 
