@@ -110,7 +110,7 @@
   (cond
     ((code? tree)
      (let (literal (code-literal tree))
-       (if (or? (symbol? literal) (operative? (first literal)))
+       (if (or? (not? (list? literal)) (operative? (first literal)))
            literal
            (map finalize (code-literal tree)))))
     ((placeholder? tree) (placeholder-symbol tree))
