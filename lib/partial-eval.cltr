@@ -155,7 +155,10 @@
       
       (perform-binding (cons (vau-denv-var op) (vau-args op)) (cons outer-env (rest call-form)))
 
-      (emit (cons do (map finalize (map (rcurry smart-eval env) (vau-body op))))))))
+      (let (forms (map finalize (map (rcurry smart-eval env) (vau-body op))))
+        (emit (if (=? (length forms) 1)
+                  (first forms)
+                  (list* do forms)))))))
 
 (def-fun! peval (form)
   (let (peval-env (make-env global-env))
