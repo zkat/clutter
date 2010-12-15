@@ -4,10 +4,15 @@
 (def-fun! dynamic? (value)
   (and? (sequence? value)
         (eql? (car value) :dynamic)))
+(def! static? (complement dynamic?))
 (def-fun! dynamic-code (dynamic)
   (cdr dynamic))
 
-(def! static? (complement dynamic?))
+(def-fun! finalize (tree)
+  (cond
+    ((dynamic? tree) (dynamic-code tree))
+    ((or? (list? tree) (symbol? tree)) (list quote tree))
+    (#t tree)))
 
 (def! peval-prims (list))
 (def-fun! peval-prim? (obj)
@@ -81,7 +86,7 @@
     (print value-val)
     ;; TODO: Is this safe?  Might mess with interp state by side-effecting shared envs
     (when (static? target-env-val)
-      (if (static? value-val)           ;TODO: Fix multiple evaluation of values
+      (if (static? value-val)
           (dyn-set-in! target-env name value)
           (dyn-set-in! target-env name (emit name))))
     (emit (list set-in! (finalize target-env-val) name (finalize value-val)))))
@@ -109,10 +114,10 @@
         (let (args (map (rcurry smart-eval env) (rest form)))
           (if (or? (peval-prim? comb) (shadowed-prim? comb)
                    (and? (pure? comb) (every? static? args)))
-              (eval (list* (if (shadowed-prim? comb)
-                               (shadowing-prim comb)
-                               comb)
-                           (map finalize args))
+              (eval (list* (unwrap (if (shadowed-prim? comb)
+                                       (shadowing-prim comb)
+                                       comb))
+                           args)
                     env)
               (do
                   (print "Emitting function")
@@ -129,12 +134,6 @@
     (print ")")
     result))
 
-(def-fun! finalize (tree)
-  (cond
-    ((dynamic? tree) (dynamic-code tree))
-    ((or? (list? tree) (symbol? tree)) (list quote tree))
-    (#t tree)))
-
 (def-peval-op! vau emit-vau static-env (env-var vau-list &rest body)
   (let (vau-env (make-env static-env))
     (map (lambda (binding)
@@ -150,16 +149,16 @@
 
 (def-peval-fun! eval emit-eval (expr env)
   (print "EVALLING")
-  (print expr)
   (def-fun! quote-dynamics (l)
-    (cond
-      ((not? (list? l)) l)
-      ((empty? l) (list))
-      ((eql? (first l) quote) l)
-      ((dynamic? l) (list quote l))
-      ((list? (first l)) (list* (quote-dynamics (first l)) (quote-dynamics (rest l))))
-      (#t (list* (first l) (quote-dynamics (rest l))))))
   (cond
+    ((not? (list? l)) l)
+    ((empty? l) (list))
+    ((eql? (first l) quote) l)
+    ((dynamic? l) (list quote l))
+    ((list? (first l)) (list* (quote-dynamics (first l)) (quote-dynamics (rest l))))
+    (#t (list* (first l) (quote-dynamics (rest l))))))
+  (print expr)
+    (cond
     ((static? env) (smart-eval (quote-dynamics expr) env))
     (#t (emit (list eval (finalize expr) (finalize env))))))
 
