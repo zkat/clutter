@@ -195,6 +195,13 @@
           (member? item (rest sequence)))
       #f))
 
+(def-fun! replace-tree (tree old-value new-value)
+  (if (sequence? tree)
+      (if (empty? tree)
+          (list)
+          (map (rcurry replace-tree old-value new-value) tree))
+      (if (eql? tree old-value) new-value tree)))
+
 (def-fun! apply (function args)
   (eval (cons (unwrap function) args) (get-current-env)))
 
