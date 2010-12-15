@@ -8,16 +8,9 @@
 
 (declaim (optimize debug))
 
-(defclass env ()
-  ((parents :accessor env-parents :initarg :parents)
-   (bindings :accessor env-bindings :initarg :bindings :initform (make-hash-table :test 'eq))))
-
-(defgeneric lookup (symbol env))
-(defgeneric (setf lookup) (new-value symbol env))
-(defgeneric extend (symbol env &optional value))
-
-(defun make-env (&rest parents)
-  (make-instance 'env :parents parents))
+(defstruct (env (:constructor make-env (&rest parents)))
+  parents
+  (bindings (make-hash-table :test 'eq)))
 
 (defmethod print-object ((o env) s)
   (print-unreadable-object (o s :type t :identity t)
@@ -32,7 +25,7 @@
 
 (defun get-current-env () *denv*)
 
-(defmethod lookup (symbol (env env))
+(defun lookup (symbol &optional (env *global-env*))
   (when (eq symbol *ignore*)
     (error "Attempted to lookup #ignore in ~A" env))
   (if env
@@ -45,7 +38,7 @@
                  (error "No binding for ~A in or above ~A" symbol env))))
       (error "No binding for ~A in or above ~A" symbol env)))
 
-(defmethod (setf lookup) (new-value symbol (env env))
+(defun (setf lookup) (new-value symbol &optional (env *global-env*))
   (when (eq symbol *ignore*)
     (error "Attempted to set #ignore in ~A" env))
   (if env
@@ -56,7 +49,7 @@
                (error "No binding for ~A in or above ~A" symbol env)))
       (error "No binding for ~A in or above ~A" symbol env)))
 
-(defmethod clutter-bound? (symbol (env env))
+(defun clutter-bound? (symbol &optional (env *global-env*))
   (if env
       (if (nth-value 1 (gethash symbol (env-bindings env)))
           t
@@ -64,7 +57,7 @@
             t))
       nil))
 
-(defmethod extend ((env env) symbol &optional value)
+(defun extend (env symbol &optional value)
   (assert (clutter-symbol-p symbol))
   (unless (eq symbol *ignore*)
     (when (nth-value 1 (gethash symbol (env-bindings env)))
