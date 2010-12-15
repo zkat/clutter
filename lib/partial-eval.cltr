@@ -93,9 +93,9 @@
                      (rest form)))
           (if (or? (peval-prim? comb) (shadowed-prim? comb)
                    (and? (pure? comb) (every? static? args)))
-              (eval (print (if (shadowed-prim? comb)
-                               (list* (unwrap (shadowing-prim comb)) args)
-                               (cons (unwrap comb) args)))
+              (eval (if (shadowed-prim? comb)
+                        (list* (unwrap (shadowing-prim comb)) args)
+                        (cons (unwrap comb) args))
                     env)
               (emit (list* comb args)))))))
 
