@@ -32,6 +32,7 @@
   (push! (cons (eval shadowing env) (eval name env)) shadowed-prims))
 
 (def-peval-fun! + emit-+ (&rest values)
+  (print "SUMMING")
   (cond
     ((every? static? values) (apply + values))
     (#t (emit (list* + (map finalize values))))))
@@ -45,6 +46,12 @@
   (cond
     ((every? static? values) (apply =? values))
     (#t (emit (list* =? (map finalize values))))))
+
+(def-peval-fun! rem emit-rem (x divisor)
+  (print "REMMING")
+  (cond
+    ((and? (static? x) (static? divisor)) (rem x divisor))
+    (#t (emit (list rem (finalize x) (finalize divisor))))))
 
 (def-peval-op! if emit-if denv (condition then else)
   (let (condition-val (smart-eval condition denv))
@@ -75,8 +82,8 @@
     ;; TODO: Is this safe?  Might mess with interp state by side-effecting shared envs
     (when (static? target-env-val)
       (if (static? value-val)           ;TODO: Fix multiple evaluation of values
-          (eval (list set-in! target-env-val name value-val) denv)
-          (eval (list set-in! target-env-val name (emit name)) denv)))
+          (dyn-set-in! target-env name value)
+          (dyn-set-in! target-env name (emit name))))
     (emit (list set-in! (finalize target-env-val) name (finalize value-val)))))
 
 (def-peval-fun! wrap emit-wrap (obj)
@@ -89,25 +96,27 @@
   ;; TODO: Also inline functions being passed constant envs.
   (let (comb (smart-eval (first form) env))
     (if (operative? comb)
-        (do
-            (print "TESTING")
-            (print comb)
-         (if (print (or? (peval-prim? comb) (shadowed-prim? comb)))
-             (eval (if (shadowed-prim? comb)
-                       (list* (shadowing-prim comb) (rest form))
-                       (list* comb (rest form)))
-                   env)
-             (if (primitive? comb)
-                 (do (print "WARNING: Unsupported partial eval primitive!")
-                     (print comb)
-                   (emit form))
-                 (inline (list* comb (rest form)) env))))
-        (eval (list* (unwrap
-                      (if (shadowed-prim? comb)
-                          (shadowing-prim comb)
-                          comb))
-                     (map (rcurry smart-eval env) (rest form)))
-              env))))
+        (if (or? (peval-prim? comb) (shadowed-prim? comb))
+            (eval (if (shadowed-prim? comb)
+                      (list* (shadowing-prim comb) (rest form))
+                      (list* comb (rest form)))
+                  env)
+            (if (primitive? comb)
+                (do (print "WARNING: Unsupported partial eval primitive!")
+                    (print comb)
+                  (emit form))
+                (inline (list* comb (rest form)) env)))
+        (let (args (map (rcurry smart-eval env) (rest form)))
+          (if (or? (peval-prim? comb) (shadowed-prim? comb)
+                   (and? (pure? comb) (every? static? args)))
+              (eval (list* (if (shadowed-prim? comb)
+                               (shadowing-prim comb)
+                               comb)
+                           (map finalize args))
+                    env)
+              (do
+                  (print "Emitting function")
+                  (emit (list* comb (map finalize args)))))))))
 
 (def-fun! smart-eval (form env)
   (print "(")
@@ -141,13 +150,13 @@
 
 (def-peval-fun! eval emit-eval (expr env)
   (print "EVALLING")
+  (print expr)
   (def-fun! quote-dynamics (l)
     (cond
       ((not? (list? l)) l)
       ((empty? l) (list))
       ((eql? (first l) quote) l)
-      ((dynamic? (first l)) (list* (list quote (first l))
-                                   (quote-dynamics (rest l))))
+      ((dynamic? l) (list quote l))
       ((list? (first l)) (list* (quote-dynamics (first l)) (quote-dynamics (rest l))))
       (#t (list* (first l) (quote-dynamics (rest l))))))
   (cond
@@ -188,6 +197,7 @@
     (def-in! peval-env + emit-+)
     (def-in! peval-env - emit--)
     (def-in! peval-env =? emit-=?)
+    (def-in! peval-env rem emit-rem)
     (def-in! peval-env eval emit-eval)
     (def-in! peval-env vau emit-vau)
     (def-in! peval-env if emit-if)
