@@ -23,6 +23,13 @@
               (list (unwrap eval) value dyn-env))
         dyn-env))
 
+(def-op! dyn-set-in! dyn-env (env var value)
+    (eval (list set-in!
+                (list (unwrap eval) env dyn-env)
+                (eval var dyn-env)
+                (list (unwrap eval) value dyn-env))
+          dyn-env))
+
 (def-op! lambda env (vau-list &rest body)
   (wrap (eval (list* vau #ignore vau-list body) env)))
 
@@ -110,7 +117,7 @@
     (not? (apply function args))))
 
 (def-fun! empty? (sequence)
-  (=? (length sequence) 0))
+  (null? sequence))
 
 (def-fun! filter (predicate sequence)
   (if (empty? sequence)
