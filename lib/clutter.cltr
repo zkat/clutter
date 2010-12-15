@@ -78,13 +78,13 @@
     (eval (cons do body) env)))
 
 (def-op! do env (&rest body)
-  (let (last-value ())
+  (let (last-value #f)
     (map (lambda (exp) (set! last-value (eval exp env)))
          body)
     last-value))
 
 (def-op! cond env (&rest forms)
-  (if (eql? forms ())
+  (if (empty? forms)
       #f
       (if (eval (car (car forms)) env)
           (eval (list* do (cdr (car forms)))
