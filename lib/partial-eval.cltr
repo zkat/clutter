@@ -130,12 +130,10 @@
                   vau-env (list get-current-env)))
           static-env)))
 
-(def-peval-op! eval emit-eval callsite-env (expr-code env-code)
-  (let (expr (smart-eval expr-code callsite-env)
-        env  (smart-eval env-code callsite-env))
-    (cond
-      ((static? env) (smart-eval expr env))
-      (#t (emit (list eval (emit (finalize expr)) (emit (finalize env))))))))
+(def-peval-fun! eval emit-eval (expr env)
+  (cond
+    ((static? env) (smart-eval expr env))
+    (#t (emit (list eval (emit (finalize expr)) (emit (finalize env)))))))
 
 ;;; Should be internal to peval to discourage external use.
 (def-op! quote #ignore (x) x)
