@@ -16,6 +16,13 @@
     (vau env (name env-var vau-list &rest body)
          (eval (list def! name (list name-vau! (list* vau env-var vau-list body) name)) env)))
 
+(def-op! dyn-def-in! dyn-env (env var value)
+  (eval (list def-in!
+              (list (unwrap eval) env dyn-env)
+              (eval var dyn-env)
+              (list (unwrap eval) value dyn-env))
+        dyn-env))
+
 (def-op! lambda env (vau-list &rest body)
   (wrap (eval (list* vau #ignore vau-list body) env)))
 
@@ -122,6 +129,14 @@
          (filter ((lambda (x) (lambda (#ignore) (even? (inc! x)))) 0)
                  clauses))
         env))
+
+(def-op! let* dyn-env (bindings &rest body)
+  (let (env (make-env dyn-env))
+    (if (null? bindings)
+        (eval (cons do body) env)
+        (do
+         (dyn-def-in! env (car bindings) (eval (car (cdr bindings)) dyn-env))
+         (eval (list* let* (cdr (cdr bindings)) body) env)))))
 
 (def-op! when env (test &rest body)
   (if (eval test env)
