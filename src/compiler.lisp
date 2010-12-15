@@ -133,10 +133,8 @@
   (build-arith-op "product" first #'llvm:build-s-div args))
 
 ;;; Arithmetic comparison
-(def-compiler-primfun "=?" (first &rest rest)
-  (build-arith-op "equality" first
-                  (lambda (b l r n) (llvm:build-i-cmp b := l r n))
-                  rest))
+(def-compiler-primfun "=?" (a b)
+  (llvm:build-i-cmp *builder* := a b "equality"))
 
 (defun compile-form (form env)
   (typecase form
