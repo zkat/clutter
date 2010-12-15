@@ -110,9 +110,11 @@
            (dyn-def-in! vau-env binding (make-placeholder binding)))
          (cons env-var vau-list))
     (eval (list* vau env-var vau-list
-                 (map finalize
-                      (map (rcurry smart-eval vau-env)
-                           body)))
+                 (replace-tree
+                  (map finalize
+                       (map (rcurry smart-eval vau-env)
+                            body))
+                  vau-env (list get-current-env)))
           static-env)))
 
 ;;; Should be internal to peval to discourage external use.
