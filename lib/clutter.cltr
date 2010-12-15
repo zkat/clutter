@@ -63,10 +63,18 @@
 (def-fun! flatten (sequence)
   (reduce append (list) sequence))
 
-(def-op! destructuring-bind dyn-env (lambda-list values &rest body)
+(def-op! destructuring-bind dyn-env (vau-list values &rest body)
+  (def-fun! bindings-zip (vau-list values)
+    (cond
+      ((empty? vau-list) (list))
+      ((eql? (first vau-list) ((vau #ignore (x) x) &rest))
+       (list (cons (second vau-list) values)))
+      (#t (cons (cons (first vau-list) (first values))
+                (bindings-zip (rest vau-list) (rest values))))))
+  
   (let (env (make-env dyn-env))
-    (map (lambda (name value) (dyn-def-in! env name value))
-         lambda-list (eval values dyn-env))
+    (map (lambda (binding) (dyn-def-in! env (car binding) (cdr binding)))
+         (bindings-zip vau-list (eval values dyn-env)))
     (eval (cons do body) env)))
 
 (def-op! do env (&rest body)
