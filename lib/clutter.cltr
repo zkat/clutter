@@ -236,7 +236,7 @@
       #f))
 
 (def-fun! replace-tree (tree old-value new-value)
-  (if (sequence? tree)
+  (if (and? (sequence? tree) (sequence? (rest tree)))
       (if (empty? tree)
           (list)
           (map (rcurry replace-tree old-value new-value) tree))
