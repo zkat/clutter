@@ -36,27 +36,39 @@
   (push! (eval name env) peval-prims)
   (push! (cons (eval shadowing env) (eval name env)) shadowed-prims))
 
-(def-peval-fun! + emit-+ (&rest values)
-  (print "SUMMING")
-  (cond
-    ((every? static? values) (apply + values))
-    (#t (emit (list* + (map finalize values))))))
+(def-fun! make-math-prim (shadowing)
+  (lambda (&rest values)
+    (cond
+      ((every? static? values) (apply shadowing values))
+      (#t (emit (list* shadowing (map finalize values)))))))
 
-(def-peval-fun! - emit-- (&rest values)
-  (cond
-    ((every? static? values) (apply - values))
-    (#t (emit (list* - (map finalize values))))))
+(def-fun! make-bin-prim (shadowing)
+  (lambda (a b)
+    (cond
+      ((and? (static? a) (static? b)) (shadowing a b))
+      (#t (emit (list shadowing (finalize a) (finalize b)))))))
 
-(def-peval-fun! =? emit-=? (&rest values)
-  (cond
-    ((every? static? values) (apply =? values))
-    (#t (emit (list* =? (map finalize values))))))
+(def-op! def-math-prim! env (shadowing name)
+  (dyn-def-in! env name (make-math-prim (eval shadowing env)))
+  (push! (eval name env) peval-prims)
+  (push! (cons (eval shadowing env) (eval name env)) shadowed-prims))
 
-(def-peval-fun! rem emit-rem (x divisor)
-  (print "REMMING")
-  (cond
-    ((and? (static? x) (static? divisor)) (rem x divisor))
-    (#t (emit (list rem (finalize x) (finalize divisor))))))
+(def-op! def-bin-prim! env (shadowing name)
+  (dyn-def-in! env name (make-bin-prim (eval shadowing env)))
+  (push! (eval name env) peval-prims)
+  (push! (cons (eval shadowing env) (eval name env)) shadowed-prims))
+
+(def-math-prim! + emit-+)
+(def-math-prim! - emit--)
+(def-math-prim! * emit-*)
+(def-math-prim! / emit-/)
+
+(def-bin-prim! rem emit-rem)
+(def-bin-prim! =? emit-=?)
+(def-bin-prim! >? emit->?)
+(def-bin-prim! >=? emit->=?)
+(def-bin-prim! <? emit-<?)
+(def-bin-prim! <=? emit-<=?)
 
 (def-peval-op! if emit-if denv (condition then else)
   (let (condition-val (smart-eval condition denv))
@@ -69,7 +81,6 @@
                     (finalize (smart-eval else denv)))))))
 
 (def-peval-op! def-in! emit-def-in! denv (target-env name value)
-  (print "DEF-IN!")
   (let (target-env-val (smart-eval target-env denv)
         value-val (smart-eval value denv))
     ;; TODO: Is this safe?  Might mess with interp state by side-effecting shared envs
@@ -82,8 +93,6 @@
 (def-peval-op! set-in! emit-set-in! denv (target-env name value)
   (let (target-env-val (smart-eval target-env denv)
         value-val (smart-eval value denv))
-    (print "SET-IN!")
-    (print value-val)
     ;; TODO: Is this safe?  Might mess with interp state by side-effecting shared envs
     (when (static? target-env-val)
       (if (static? value-val)
@@ -92,7 +101,6 @@
     (emit (list set-in! (finalize target-env-val) name (finalize value-val)))))
 
 (def-peval-fun! wrap emit-wrap (obj)
-  (print "wrapping")
   (cond
     ((dynamic? obj) (emit (list wrap (finalize obj))))
     (#t (wrap obj))))
@@ -119,20 +127,13 @@
                                        comb))
                            args)
                     env)
-              (do
-                  (print "Emitting function")
-                  (emit (list* comb (map finalize args)))))))))
+              (emit (list* comb (map finalize args))))))))
 
 (def-fun! smart-eval (form env)
-  (print "(")
-  (print form)
-  (let (result (cond
-                 ((null? form) form)
-                 ((list? form) (smart-eval-operator form env))
-                 (#t (eval form env))))
-    (print result)
-    (print ")")
-    result))
+  (cond
+    ((null? form) form)
+    ((list? form) (smart-eval-operator form env))
+    (#t (eval form env))))
 
 (def-peval-op! vau emit-vau static-env (env-var vau-list &rest body)
   (let (vau-env (make-env static-env))
@@ -148,7 +149,6 @@
           static-env)))
 
 (def-peval-fun! eval emit-eval (expr env)
-  (print "EVALLING")
   (def-fun! quote-dynamics (l)
     (cond
       ((not? (list? l)) l)
@@ -166,7 +166,6 @@
 
 ;;; Produce code that may be substituted for the supplied operator invocation.
 (def-fun! inline (call-form outer-env)
-  (print "inlining")
   (let (op (if (operative? (first call-form))
                (first call-form)
                (unwrap (first call-form))))
