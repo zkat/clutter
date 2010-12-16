@@ -133,7 +133,7 @@
   (not? (even? number)))
 
 (def-op! inc! env (var)
-  (eval (list set! var (+ 1 (eval var env))) env))
+  (eval (list set! var (list + 1 var)) env))
 
 (def-op! let env (clauses &rest body)
   (eval (list*
