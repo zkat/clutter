@@ -195,12 +195,13 @@
     (when (and /-position (plusp /-position))
       (let ((num-str (subseq token 0 /-position))
             (den-str (subseq token (1+ /-position))))
-        (let ((numerator (or (parse-integer-token num-str)
-                             (parse-float-token num-str)))
-              (denominator (or (parse-integer-token den-str)
-                               (parse-float-token den-str))))
-          (when (and numerator denominator)
-            (/ numerator denominator)))))))
+        (when (and (plusp (length num-str)) (plusp (length den-str)))
+          (let ((numerator (or (parse-integer-token num-str)
+                               (parse-float-token num-str)))
+                (denominator (or (parse-integer-token den-str)
+                                 (parse-float-token den-str))))
+            (when (and numerator denominator)
+              (/ numerator denominator))))))))
 
 ;; todo: rewrite this, a lot of it was taken from
 ;; ftp://ftp.cs.cmu.edu/user/ai/lang/lisp/code/math/atof/atof.cl
