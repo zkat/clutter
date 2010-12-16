@@ -157,10 +157,11 @@
     ((dynamic? l) (list quote l))
     ((list? (first l)) (list* (quote-dynamics (first l)) (quote-dynamics (rest l))))
     (#t (list* (first l) (quote-dynamics (rest l))))))
+  (set! expr (smart-eval (finalize expr) env))
   (print expr)
     (cond
-    ((static? env) (smart-eval (quote-dynamics expr) env))
-    (#t (emit (list eval (finalize expr) (finalize env))))))
+      ((static? env) (smart-eval (quote-dynamics expr) env))
+      (#t (emit (list eval (finalize expr) (finalize env))))))
 
 ;;; Should be internal to peval to discourage external use.
 (def-op! quote #ignore (x) x)
