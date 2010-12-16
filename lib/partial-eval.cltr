@@ -105,6 +105,9 @@
     ((dynamic? obj) (emit (list wrap (finalize obj))))
     (#t (wrap obj))))
 
+(def-peval-fun! name-vau! emit-name-vau! (obj name)
+  obj)
+
 (def-fun! smart-eval-operator (form env)
   ;; TODO: Also inline functions being passed constant envs.
   (let (comb (smart-eval (first form) env))
@@ -201,6 +204,7 @@
     (def-in! peval-env def-in! emit-def-in!)
     (def-in! peval-env set-in! emit-set-in!)
     (def-in! peval-env wrap emit-wrap)
+    (def-in! peval-env name-vau! emit-name-vau!)
 
     (eval form peval-env)))
 
