@@ -105,13 +105,13 @@
                  (llvm:build-alloca *builder* (llvm:type-of llvm-value)
                                     (clutter-symbol-name symbol)))
              nil))
-    (llvm::set-initializer (split-val-llvm (lookup symbol target-env)) llvm-value)))
+    (llvm:set-initializer (split-val-llvm (lookup symbol target-env)) llvm-value)))
 
 (def-compiler-primop "set-in!" callsite-env (target-env name value)
   (let ((compiled-val (compile-form value callsite-env)))
-   (setf (split-val-clutter (lookup name target-env)) compiled-val)
+   (setf (split-val-llvm (lookup name target-env)) compiled-val)
    (if *toplevel*
-       (llvm::set-initializer (split-val-llvm (lookup name target-env)) compiled-val)
+       (llvm:set-initializer (split-val-llvm (lookup name target-env)) compiled-val)
        (llvm:build-store *builder*
                          compiled-val
                          (split-val-llvm (lookup name (lookup target-env callsite-env)))))))
@@ -131,10 +131,20 @@
   (build-arith-op "product" first #'llvm:build-mul args))
 (def-compiler-primfun "/" (first &rest args)
   (build-arith-op "product" first #'llvm:build-s-div args))
+(def-compiler-primfun "rem" (number divisor)
+  (llvm:build-s-rem *builder* number divisor "remainder"))
 
 ;;; Arithmetic comparison
 (def-compiler-primfun "=?" (a b)
   (llvm:build-i-cmp *builder* := a b "equality"))
+(def-compiler-primfun ">?" (a b)
+  (llvm:build-i-cmp *builder* :> a b "greater"))
+(def-compiler-primfun ">=?" (a b)
+  (llvm:build-i-cmp *builder* :>= a b "greater-eq"))
+(def-compiler-primfun "<?" (a b)
+  (llvm:build-i-cmp *builder* :< a b "less"))
+(def-compiler-primfun "<=?" (a b)
+  (llvm:build-i-cmp *builder* :<= a b "less-eq"))
 
 (defun compile-form (form env)
   (typecase form
@@ -165,6 +175,7 @@
                 ((primitive? value)
                  ;; (warn "Unsupported primitive: ~A" value)
                  )
+                ((split-val-p value) nil)
                 (t (extend result symbol (split-val nil value)))))
             env)
     result))
