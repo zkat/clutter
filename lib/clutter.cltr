@@ -206,20 +206,20 @@
 (def-fun! rest (sequence)
   (cdr sequence))
 
-(def-op! or? env (&rest values)
-  (if (=? (length values) 0)
+(def-op! or? env (&rest expressions)
+  (if (=? (length expressions) 0)
       #f
-      (let (result (eval (first values) env))
+      (let (result (eval (first expressions) env))
         (if result
             result
-            (eval (list* or? (rest values)) env)))))
+            (eval (list* or? (rest expressions)) env)))))
 
-(def-op! and? env (&rest values)
-  (if (=? (length values) 0)
+(def-op! and? env (&rest expressions)
+  (if (=? (length expressions) 0)
       #t
-      (let (result (eval (first values) env))
+      (let (result (eval (first expressions) env))
         (if result
-            (eval (list* and? (rest values)) env)
+            (eval (list* and? (rest expressions)) env)
             #f))))
 
 (def-fun! all? (predicate sequence)
