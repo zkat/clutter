@@ -222,10 +222,10 @@
             (eval (list* and? (rest values)) env)
             #f))))
 
-(def-fun! every? (predicate sequence)
+(def-fun! all? (predicate sequence)
   (apply (wrap and?) (map predicate sequence)))
 
-(def-fun! some? (predicate sequence)
+(def-fun! any? (predicate sequence)
   (apply (wrap or?) (map predicate sequence)))
 
 (def-fun! sequence? (object)
