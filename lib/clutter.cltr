@@ -276,7 +276,9 @@
 (def-op! import-from! dyn-env (from-env &rest bindings)
   (let (env (eval from-env dyn-env))
     (map (lambda (binding)
-           (eval (list def-in! dyn-env binding (eval binding env)) dyn-env))
+           (let (var (if (list? binding) (car binding) binding)
+                 val (list (unwrap eval) (if (list? binding) (car (cdr binding)) binding) env))
+             (eval (list def-in! dyn-env var val) dyn-env)))
          bindings))
   bindings)
 
