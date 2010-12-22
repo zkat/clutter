@@ -151,7 +151,7 @@
 (def-peval-fun! eval emit-eval (expr env)
   (def-fun! quote-dynamics (l)
     (cond
-      ((not? (list? l)) l)
+      ((not (list? l)) l)
       ((empty? l) (list))
       ((eql? (first l) quote) l)
       ((dynamic? l) (list quote l))
