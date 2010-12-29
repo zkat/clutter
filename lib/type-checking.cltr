@@ -82,6 +82,26 @@
       (tc-equal? left right)
       (eql? left right)))
 
+(def-fun! mark-ast (ast)
+  (let (counter 0)
+    (letrec (mark-ast-helper
+             (lambda (ast)
+               (let (current counter)
+                 (set! counter (+ counter 1))
+                 (cons (if (cons? ast)
+                           (map mark-ast-helper ast)
+                           ast)
+                       current))))
+      (mark-ast-helper ast))))
+
+(def-fun! substitute-vars (ast constraints)
+  (let* (form (car ast)
+         var (cdr ast))
+      (cons (if (cons? form)
+                (map (rcurry substitute-vars constraints) form)
+                form)
+            (cdr (assoc var constraints)))))
+
 (def-op! check-op env (form type decl)
   (check form type (eval decl env)))
 
