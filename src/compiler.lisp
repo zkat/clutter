@@ -9,6 +9,7 @@
 (defvar *context* (llvm:global-context))
 (defvar *module*)
 (defvar *builder*)
+(defvar *toplevel*)
 
 (defvar *compiler-prims* (make-hash-table :test 'eq))
 (defun compiler-prim? (clutter-val)
@@ -28,6 +29,9 @@
     (if primbuilder
         (apply primbuilder env args)
         (error "Unsupported primitive: ~A" prim))))
+
+;;; Special
+;(def-compiler-primfun "unwrap" )
 
 ;;; Control
 (def-compiler-primop "if" env (condition true-form false-form)
@@ -63,7 +67,8 @@
     return-value))
 
 (def-compiler-primop "lambda" env (vau-list &rest body)
-  (let* ((argtypes (make-array (length vau-list) :initial-element (llvm:int32-type)))
+  (let* ((*toplevel* nil)
+         (argtypes (make-array (length vau-list) :initial-element (llvm:int32-type)))
          (ftype (llvm:function-type (llvm:int32-type) argtypes))
          (fobj (llvm:add-function *module* "lambda" ftype))
          (fenv (make-env env)))
@@ -94,15 +99,22 @@
         (target-env (split-val-clutter (lookup target-env callsite-env))))
     (extend target-env symbol
             (split-val
-             (llvm:add-global *module* (llvm:type-of llvm-value)
-                              (clutter-symbol-name symbol)) nil))
-    (llvm::set-initializer (split-val-llvm (lookup symbol target-env)) llvm-value)))
+             (if (eq target-env *global-env*)
+                 (llvm:add-global *module* (llvm:type-of llvm-value)
+                                  (clutter-symbol-name symbol))
+                 (llvm:build-alloca *builder* (llvm:type-of llvm-value)
+                                    (clutter-symbol-name symbol)))
+             nil))
+    (llvm:set-initializer (split-val-llvm (lookup symbol target-env)) llvm-value)))
 
 (def-compiler-primop "set-in!" callsite-env (target-env name value)
-  (setf (lookup name target-env) (compile-form value callsite-env))
-  (llvm:build-store *builder*
-                    (compile-form value callsite-env)
-                    (split-val-llvm (lookup name (lookup target-env callsite-env)))))
+  (let ((compiled-val (compile-form value callsite-env)))
+   (setf (split-val-llvm (lookup name target-env)) compiled-val)
+   (if *toplevel*
+       (llvm:set-initializer (split-val-llvm (lookup name target-env)) compiled-val)
+       (llvm:build-store *builder*
+                         compiled-val
+                         (split-val-llvm (lookup name (lookup target-env callsite-env)))))))
 
 ;;; Arithmetic
 (defun build-arith-op (name initial func args)
@@ -119,34 +131,40 @@
   (build-arith-op "product" first #'llvm:build-mul args))
 (def-compiler-primfun "/" (first &rest args)
   (build-arith-op "product" first #'llvm:build-s-div args))
+(def-compiler-primfun "rem" (number divisor)
+  (llvm:build-s-rem *builder* number divisor "remainder"))
 
 ;;; Arithmetic comparison
-(def-compiler-primfun "=?" (first &rest rest)
-  (build-arith-op "equality" first
-                  (lambda (b l r n) (llvm:build-i-cmp b := l r n))
-                  rest))
+(def-compiler-primfun "=?" (a b)
+  (llvm:build-i-cmp *builder* := a b "equality"))
+(def-compiler-primfun ">?" (a b)
+  (llvm:build-i-cmp *builder* :> a b "greater"))
+(def-compiler-primfun ">=?" (a b)
+  (llvm:build-i-cmp *builder* :>= a b "greater-eq"))
+(def-compiler-primfun "<?" (a b)
+  (llvm:build-i-cmp *builder* :< a b "less"))
+(def-compiler-primfun "<=?" (a b)
+  (llvm:build-i-cmp *builder* :<= a b "less-eq"))
 
 (defun compile-form (form env)
   (typecase form
-    (integer (llvm:const-int (llvm:int32-type) form))
     (clutter-symbol (llvm:build-load *builder* (or (split-val-llvm (lookup form env)) (error "No binding for: ~A" form)) (clutter-symbol-name form)))
     (list
-       (let ((cfunc (if (listp (car form))
-                        (compile-form (car form) env)
-                        (lookup (car form) env))))
+       (let ((cfunc (if (clutter-symbol-p (car form))
+                        (lookup (car form) env)
+                        (compile-form (car form) env))))
          (if (compiler-prim? (split-val-clutter cfunc))
              (build-prim-call (split-val-clutter cfunc) (rest form) env)
              (progn
-               ;; Ensure that the function has been compiled.
-               ;; TODO: Ensure that *the relevant specialization* has been.
-               (unless (split-val-llvm cfunc)
-                 (setf (split-val-llvm cfunc)
-                       (compile-func (split-val-clutter cfunc) env)))
-               (llvm:build-call *builder* (split-val-llvm cfunc)
+               ;; TODO: Ensure that *the relevant specialization* has been compiled.
+               (llvm:build-call *builder* (or (split-val-llvm cfunc)
+                                              (error "Undefined combiner: ~A" (car form)))
                                 (make-array (length (rest form))
                                             :initial-contents (mapcar (rcurry #'compile-form env)
                                                                       (rest form)))
-                                "")))))))
+                                "")))))
+    (integer (llvm:const-int (llvm:int32-type) form))
+    (t form)))
 
 (defun clone-env-tree (env)
   (let ((result (apply #'make-env (mapcar #'clone-env-tree (env-parents env)))))
@@ -157,6 +175,7 @@
                 ((primitive? value)
                  ;; (warn "Unsupported primitive: ~A" value)
                  )
+                ((split-val-p value) nil)
                 (t (extend result symbol (split-val nil value)))))
             env)
     result))
@@ -174,7 +193,8 @@
   (setf *builder* (llvm:make-builder))
   (unwind-protect
        (let ((env (clone-env-tree interp-env)))
-         (compile-form form env)
+         (let ((*toplevel* t))
+           (compile-form form env))
          (llvm:dump-module *module*)
          (unless (llvm:verify-module *module*)
            (llvm:write-bitcode-to-file *module* output)))

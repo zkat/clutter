@@ -28,26 +28,24 @@
 
 (defmacro defprimop (name vau-list &body body)
   `(defprimitive ,name
-       (make-clutter-operator
+       (make-clutter-operative
         :name (cs ,name)
         :function (lambda ,vau-list ,@body)
-        :args ',vau-list
-        :body ',body)))
+        :args ',(rest vau-list))))
 
 (defmacro defprimfun (purity name vau-list &body body)
   `(defprimitive ,name
        (make-function
-        (make-clutter-operator
+        (make-clutter-operative
          :name (cs ,name)
          :function (lambda (*denv* ,@vau-list)
                      ,@body)
          :args ',vau-list
-         :pure ,purity
-         :body ',body))))
+         :pure ,purity))))
 
 (defprimop "vau" (static-env env-var vau-list &rest body)
   ;; TODO: Determine purity
-  (make-clutter-operator
+  (make-clutter-operative
    :function
    (lambda (*denv* &rest values)
      (multiple-value-bind (required optional rest)
@@ -75,11 +73,11 @@
   (make-function operative))
 
 (defprimfun t "unwrap" (function)
-  (clutter-function-operator function))
+  (clutter-function-operative function))
 
 (defprimop "name-vau!" (*denv* v name)
   (let ((value (clutter-eval v *denv*)))
-    (setf (clutter-operator-name value) name)
+    (setf (clutter-operative-name value) name)
     value))
 
 (defprimfun nil "eval" (expression environment)
@@ -103,10 +101,6 @@
   (extend (clutter-eval env *denv*) var (clutter-eval value *denv*))
   var)
 
-(defprimfun nil "dyn-def-in!" (env var value)
-  (extend env var value)
-  var)
-
 (defun clutter-true-p (exp)
   (not (eq exp *false*)))
 
@@ -117,12 +111,12 @@
 
 (defprimop "symbolize!" (*denv* var value)
   (let ((val (clutter-eval value *denv*)))
-    (assert (clutter-operator-p val))
-    (extend *denv* var (make-symbol-operator val))))
+    (assert (clutter-operative-p val))
+    (extend *denv* var (make-symbol-operative val))))
 
 (defprimfun nil "symbolize" (&rest values)
-  (assert (clutter-operator-p (car values)))
-  (make-symbol-operator (car values)))
+  (assert (clutter-operative-p (car values)))
+  (make-symbol-operative (car values)))
 
 (defprimfun t "symbol-name" (symbol)
   (clutter-symbol-name symbol))
@@ -171,29 +165,29 @@
 (defprimfun t "function?" (x)
   (if (clutter-function-p x) *true* *false*))
 (defprimfun t "operative?" (x)
-  (if (clutter-operator-p x) *true* *false*))
+  (if (clutter-operative-p x) *true* *false*))
 (defprimfun t "primitive?" (x)
   (if (primitive? x) *true* *false*))
 (defprimfun t "pure?" (x)
-  (if (clutter-operator-pure (clutter-function-operator x))
+  (if (clutter-operative-pure (clutter-function-operative x))
       *true*
       *false*))
 ;;; HACK FOR TESTING PURPOSES ONLY.
 ;;; TODO: Scrap this once we autodetect purity.
 (defprimfun nil "declare-pure!" (x purity)
-  (setf (clutter-operator-pure (clutter-function-operator x))
+  (setf (clutter-operative-pure (clutter-function-operative x))
         (if (eq purity *false*) nil t)))
 
 (defprimfun t "vau-name" (v)
-  (clutter-operator-name v))
+  (clutter-operative-name v))
 (defprimfun t "vau-denv-var" (v)
-  (clutter-operator-denv-var v))
+  (clutter-operative-denv-var v))
 (defprimfun t "vau-args" (v)
-  (clutter-operator-args v))
+  (clutter-operative-args v))
 (defprimfun t "vau-body" (v)
-  (clutter-operator-body v))
+  (clutter-operative-body v))
 (defprimfun t "vau-env" (v)
-  (clutter-operator-env v))
+  (clutter-operative-env v))
 
 (defprimfun t "<?" (x y)
   (if (< x y) *true* *false*))
