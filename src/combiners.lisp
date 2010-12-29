@@ -6,9 +6,9 @@
 ;;; Combiners
 ;;;
 
-(defstruct clutter-operator function name args body denv-var (env *global-env*) (pure t))
-(defun make-operator (variables body env &optional name)
-  (make-clutter-operator 
+(defstruct clutter-operative function name args body denv-var (env *global-env*) (pure t))
+(defun make-operative (variables body env &optional name)
+  (make-clutter-operative
    :function
    (lambda (*denv* &rest values)
      (let ((env (make-env env)))
@@ -23,21 +23,21 @@
    :env env
    :body body))
 
-(defstruct clutter-function operator)
-(defun make-function (operator)
-  (make-clutter-function :operator operator))
+(defstruct clutter-function operative)
+(defun make-function (operative)
+  (make-clutter-function :operative operative))
 
-(defstruct clutter-symbol-operator operator)
-(defun make-symbol-operator (operator)
-  (make-clutter-symbol-operator :operator operator))
+(defstruct clutter-symbol-operative operative)
+(defun make-symbol-operative (operative)
+  (make-clutter-symbol-operative :operative operative))
 
 (defun combiner-name (combiner)
   (cond
-    ((clutter-operator-p combiner) (clutter-operator-name combiner))
-    ((clutter-function-p combiner) (combiner-name (clutter-function-operator combiner)))
-    ((clutter-symbol-operator-p combiner) (combiner-name (clutter-symbol-operator-operator combiner)))))
+    ((clutter-operative-p combiner) (clutter-operative-name combiner))
+    ((clutter-function-p combiner) (combiner-name (clutter-function-operative combiner)))
+    ((clutter-symbol-operative-p combiner) (combiner-name (clutter-symbol-operative-operative combiner)))))
 
-(defmethod print-object ((o clutter-operator) s)
+(defmethod print-object ((o clutter-operative) s)
   (let ((name (combiner-name o)))
     (print-unreadable-object (o s :type t :identity (null name))
       (princ (combiner-name o) s))))
@@ -47,14 +47,12 @@
     (print-unreadable-object (o s :type t :identity (null name))
       (princ (combiner-name o) s))))
 
-(defmethod print-object ((o clutter-symbol-operator) s)
+(defmethod print-object ((o clutter-symbol-operative) s)
   (let ((name (combiner-name o)))
     (print-unreadable-object (o s :type t :identity (null name))
       (princ (combiner-name o) s))))
 
-(defun invoke (operator env args)
-  (if (clutter-operator-p operator)
-      (apply (clutter-operator-function operator) env args)
-      (error "Not a function: ~A." operator)))
-
-
+(defun invoke (operative env args)
+  (if (clutter-operative-p operative)
+      (apply (clutter-operative-function operative) env args)
+      (error "Not a function: ~A." operative)))

@@ -16,6 +16,20 @@
     (vau env (name env-var vau-list &rest body)
          (eval (list def! name (list name-vau! (list* vau env-var vau-list body) name)) env)))
 
+(def-op! dyn-def-in! dyn-env (env var value)
+  (eval (list def-in!
+              (list (unwrap eval) env dyn-env)
+              (eval var dyn-env)
+              (list (unwrap eval) value dyn-env))
+        dyn-env))
+
+(def-op! dyn-set-in! dyn-env (env var value)
+    (eval (list set-in!
+                (list (unwrap eval) env dyn-env)
+                (eval var dyn-env)
+                (list (unwrap eval) value dyn-env))
+          dyn-env))
+
 (def-op! lambda env (vau-list &rest body)
   (wrap (eval (list* vau #ignore vau-list body) env)))
 
@@ -56,24 +70,31 @@
 (def-fun! flatten (sequence)
   (reduce append (list) sequence))
 
-(def-op! destructuring-bind dyn-env (lambda-list values &rest body)
+(def-op! destructuring-bind dyn-env (vau-list values &rest body)
   (let (env (make-env dyn-env))
-    (map (lambda (name value) (dyn-def-in! env name value))
-         lambda-list (eval values dyn-env))
+    (def-fun! perform-binding (vau-list values)
+      (cond
+        ((empty? vau-list) #t)
+        ((eql? (first vau-list) ((vau #ignore (x) x) &rest))
+         (dyn-def-in! env (second vau-list) values))
+        (#t
+         (dyn-def-in! env (first vau-list) (first values))
+         (perform-binding (rest vau-list) (rest values)))))
+
+    (perform-binding vau-list (eval values dyn-env))
     (eval (cons do body) env)))
 
 (def-op! do env (&rest body)
-  (let (last-value ())
+  (let (last-value #f)
     (map (lambda (exp) (set! last-value (eval exp env)))
          body)
     last-value))
 
 (def-op! cond env (&rest forms)
-  (if (eql? forms ())
+  (if (empty? forms)
       #f
       (if (eval (car (car forms)) env)
-          (eval (list* do (cdr (car forms)))
-                env)
+          (eval (list* do (cdr (car forms))) env)
           (eval (list* cond (cdr forms)) env))))
 
 (def-fun! assoc (key alist)
@@ -83,19 +104,19 @@
           (car alist)
           (assoc key (cdr alist)))))
 
-(def-fun! not? (value)
-  (if value
-      #f
-      #t))
+(def-fun! not (value)
+  (if value #f #t))
+(def! false? not)
+
 (def-fun! null? (value)
   (if (eql? value (list)) #t #f))
 
 (def-fun! complement (function)
   (lambda (&rest args)
-    (not? (apply function args))))
+    (not (apply function args))))
 
 (def-fun! empty? (sequence)
-  (=? (length sequence) 0))
+  (null? sequence))
 
 (def-fun! filter (predicate sequence)
   (if (empty? sequence)
@@ -108,10 +129,10 @@
   (=? (rem number 2) 0))
 
 (def-fun! odd? (number)
-  (not? (even? number)))
+  (not (even? number)))
 
 (def-op! inc! env (var)
-  (eval (list set! var (+ 1 (eval var env))) env))
+  (eval (list set! var (list + 1 var)) env))
 
 (def-op! let env (clauses &rest body)
   (eval (list*
@@ -122,6 +143,31 @@
          (filter ((lambda (x) (lambda (#ignore) (even? (inc! x)))) 0)
                  clauses))
         env))
+
+(def-op! let* dyn-env (bindings &rest body)
+  (let (env (make-env dyn-env))
+    (if (null? bindings)
+        (eval (cons do body) env)
+        (do
+         (dyn-def-in! env (car bindings) (eval (car (cdr bindings)) dyn-env))
+         (eval (list* let* (cdr (cdr bindings)) body) env)))))
+
+(def-op! letrec dyn-env (bindings &rest body)
+  (let* (vars (filter (let (x 0) (lambda (#ignore) (odd? (inc! x)))) bindings)
+         values (filter (let (x 0) (lambda (#ignore) (even? (inc! x)))) bindings)
+         def-forms (cons do (map (lambda (var val) (list def! var val)) vars values)))
+    (eval (list* let ()
+                 def-forms
+                 body)
+          dyn-env)))
+
+(def-op! letrec* dyn-env (bindings &rest body)
+  (eval (if (null? bindings)
+            (list* letrec bindings body)
+            (list letrec
+                  (list (car bindings) (car (cdr bindings)))
+                  (list* letrec* (cdr (cdr bindings)) body)))
+        dyn-env))
 
 (def-op! when env (test &rest body)
   (if (eval test env)
@@ -135,7 +181,7 @@
 
 (def-op! returning env (first &rest body)
   (let (return-val (eval first env))
-    (map (curry eval env) body)
+    (map (rcurry eval env) body)
     return-val))
 
 (def-op! push! env (value place)
@@ -173,26 +219,26 @@
 (def-fun! rest (sequence)
   (cdr sequence))
 
-(def-op! or? env (&rest values)
-  (if (=? (length values) 0)
+(def-op! or? env (&rest expressions)
+  (if (=? (length expressions) 0)
       #f
-      (let (result (eval (first values) env))
+      (let (result (eval (first expressions) env))
         (if result
             result
-            (eval (list* or? (rest values)) env)))))
+            (eval (list* or? (rest expressions)) env)))))
 
-(def-op! and? env (&rest values)
-  (if (=? (length values) 0)
+(def-op! and? env (&rest expressions)
+  (if (=? (length expressions) 0)
       #t
-      (let (result (eval (first values) env))
+      (let (result (eval (first expressions) env))
         (if result
-            (eval (list* and? (rest values)) env)
+            (eval (list* and? (rest expressions)) env)
             #f))))
 
-(def-fun! every? (predicate sequence)
+(def-fun! all? (predicate sequence)
   (apply (wrap and?) (map predicate sequence)))
 
-(def-fun! some? (predicate sequence)
+(def-fun! any? (predicate sequence)
   (apply (wrap or?) (map predicate sequence)))
 
 (def-fun! sequence? (object)
@@ -208,6 +254,13 @@
           #t
           (member? item (rest sequence)))
       #f))
+
+(def-fun! replace-tree (tree old-value new-value)
+  (if (and? (sequence? tree) (sequence? (rest tree)))
+      (if (empty? tree)
+          (list)
+          (map (rcurry replace-tree old-value new-value) tree))
+      (if (eql? tree old-value) new-value tree)))
 
 (def-fun! apply (function args)
   (eval (cons (unwrap function) args) (get-current-env)))
@@ -236,7 +289,9 @@
 (def-op! import-from! dyn-env (from-env &rest bindings)
   (let (env (eval from-env dyn-env))
     (map (lambda (binding)
-           (eval (list def-in! dyn-env binding (eval binding env)) dyn-env))
+           (let (var (if (list? binding) (car binding) binding)
+                 val (list (unwrap eval) (if (list? binding) (car (cdr binding)) binding) env))
+             (eval (list def-in! dyn-env var val) dyn-env)))
          bindings))
   bindings)
 

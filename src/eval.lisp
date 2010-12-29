@@ -22,17 +22,17 @@
           (eq symbol *false*))
       symbol
       (let ((val (lookup symbol env)))
-        (if (clutter-symbol-operator-p val)
-            (invoke (clutter-symbol-operator-operator val) env nil)
+        (if (clutter-symbol-operative-p val)
+            (invoke (clutter-symbol-operative-operative val) env nil)
             val))))
 
 (defun eval/combiner (expression env)
   (let ((f (clutter-eval (car expression) env)))
-    (cond ((clutter-operator-p f)
+    (cond ((clutter-operative-p f)
            (invoke f env (cdr expression)))
           ((clutter-function-p f)
-           (let ((op (clutter-function-operator f))
+           (let ((op (clutter-function-operative f))
                  (values (mapcar (rcurry #'clutter-eval env) (cdr expression))))
              (clutter-eval (cons op values) env)))
           (t
-           (error "Not an operator: ~A." f)))))
+           (error "Not an operative: ~A." f)))))
