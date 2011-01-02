@@ -128,8 +128,7 @@
 (def-fun! even? (number)
   (=? (rem number 2) 0))
 
-(def-fun! odd? (number)
-  (not (even? number)))
+(def! odd? (complement even?))
 
 (def-op! inc! env (var)
   (eval (list set! var (list + 1 var)) env))
