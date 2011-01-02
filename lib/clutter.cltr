@@ -111,6 +111,13 @@
 (def-fun! null? (value)
   (if (eql? value (list)) #t #f))
 
+(def-fun! compose (function &rest more-functions)
+  (reduce (lambda (f g)
+            (lambda (&rest args)
+              (f (apply g args))))
+          function
+          more-functions))
+
 (def-fun! complement (function)
   (lambda (&rest args)
     (not (apply function args))))
