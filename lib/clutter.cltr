@@ -153,16 +153,16 @@
                  clauses))
         env))
 
-(def-op! seqlet dyn-env (bindings &rest body)
+(def-op! letseq dyn-env (bindings &rest body)
   (let (env (make-env dyn-env))
     (if (null? bindings)
         (eval (cons do body) env)
         (do
          (dyn-def-in! env (car bindings) (eval (car (cdr bindings)) dyn-env))
-         (eval (list* seqlet (cdr (cdr bindings)) body) env)))))
+         (eval (list* letseq (cdr (cdr bindings)) body) env)))))
 
 (def-op! letrec dyn-env (bindings &rest body)
-  (seqlet (vars (filter (let (x 0) (lambda (#ignore) (odd? (inc! x)))) bindings)
+  (letseq (vars (filter (let (x 0) (lambda (#ignore) (odd? (inc! x)))) bindings)
            values (filter (let (x 0) (lambda (#ignore) (even? (inc! x)))) bindings)
            def-forms (cons do (map (lambda (var val) (list def! var val)) vars values)))
     (eval (list* let ()
@@ -170,12 +170,12 @@
                  body)
           dyn-env)))
 
-(def-op! seqletrec dyn-env (bindings &rest body)
+(def-op! letrecseq dyn-env (bindings &rest body)
   (eval (if (null? bindings)
             (list* letrec bindings body)
             (list letrec
                   (list (car bindings) (car (cdr bindings)))
-                  (list* seqletrec (cdr (cdr bindings)) body)))
+                  (list* letrecseq (cdr (cdr bindings)) body)))
         dyn-env))
 
 (def-op! when env (test &rest body)
