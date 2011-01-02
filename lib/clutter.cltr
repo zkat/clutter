@@ -6,15 +6,17 @@
 
 (def-in! global-env def!
   (vau env (var value)
-       (eval (list def-in! env var value) env)))
+    (eval (list def-in! env var value) env)))
 
 (def-in! global-env set!
   (vau env (var value)
-       (eval (list set-in! env var value) env)))
+    (eval (list set-in! env var value) env)))
 
 (def! def-op!
-    (vau env (name env-var vau-list &rest body)
-         (eval (list def! name (list name-vau! (list* vau env-var vau-list body) name)) env)))
+ (vau env (name env-var vau-list &rest body)
+   (eval (list def! name
+               (list name-vau! (list* vau env-var vau-list body) name))
+         env)))
 
 (def-op! dyn-def-in! dyn-env (env var value)
   (eval (list def-in!
@@ -40,11 +42,13 @@
    (eval l env)))
 
 (def! fun-name
-    (lambda (f)
-      (vau-name (unwrap f))))
+  (lambda (f)
+    (vau-name (unwrap f))))
 
 (def-op! def-fun! env (name lambda-list &rest body)
-  (eval (list def! name (list name-lambda! (list* lambda lambda-list body) name)) env))
+  (eval (list def! name
+              (list name-lambda!(list* lambda lambda-list body) name))
+        env))
 
 (def-op! lookup env (var lookup-env)
   (eval var (eval lookup-env env)))
@@ -118,9 +122,8 @@
           function
           more-functions))
 
-(def-fun! complement (function)
-  (lambda (&rest args)
-    (not (apply function args))))
+(def! complement (function)
+  (compose not function))
 
 (def-fun! empty? (sequence)
   (null? sequence))
@@ -160,8 +163,8 @@
 
 (def-op! letrec dyn-env (bindings &rest body)
   (seqlet (vars (filter (let (x 0) (lambda (#ignore) (odd? (inc! x)))) bindings)
-         values (filter (let (x 0) (lambda (#ignore) (even? (inc! x)))) bindings)
-         def-forms (cons do (map (lambda (var val) (list def! var val)) vars values)))
+           values (filter (let (x 0) (lambda (#ignore) (even? (inc! x)))) bindings)
+           def-forms (cons do (map (lambda (var val) (list def! var val)) vars values)))
     (eval (list* let ()
                  def-forms
                  body)
