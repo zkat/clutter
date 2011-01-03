@@ -65,7 +65,7 @@
 (def-fun! reduce (function initial values)
   (if (eql? (list) values)
       initial
-      (function initial (reduce function (car values) (cdr values)))))
+      (reduce function (function initial (car values)) (cdr values))))
 
 (def-fun! flatten (sequence)
   (reduce append (list) sequence))
@@ -218,6 +218,11 @@
 
 (def-fun! rest (sequence)
   (cdr sequence))
+
+(def-fun! last (sequence)
+  (if (eql? (list) (cdr sequence))
+      (car sequence)
+      (last (cdr sequence))))
 
 (def-op! or? env (&rest expressions)
   (if (=? (length expressions) 0)
