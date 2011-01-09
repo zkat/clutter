@@ -321,3 +321,13 @@
               (eval (list* anaphoric returning var first body) env))
 
             ))
+
+(def-fun! fibonacci (n)
+  (if (<? n 2)
+      n
+      (+ (fibonacci (- n 1)) (fibonacci (- n 2)))))
+
+(def-fun! factorial (n)
+  (if (<? n 2)
+      1
+      (* n (factorial (- n 1)))))
