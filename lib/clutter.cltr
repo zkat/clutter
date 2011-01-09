@@ -122,7 +122,7 @@
           function
           more-functions))
 
-(def! complement (function)
+(def-fun! complement (function)
   (compose not function))
 
 (def-fun! empty? (sequence)
