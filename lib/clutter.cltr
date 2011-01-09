@@ -112,8 +112,7 @@
   (if value #f #t))
 (def! false? not)
 
-(def-fun! null? (value)
-  (if (eql? value (list)) #t #f))
+(def! null? (curry eql? (list)))
 
 (def-fun! compose (function &rest more-functions)
   (reduce (lambda (f g)
@@ -122,11 +121,9 @@
           function
           more-functions))
 
-(def-fun! complement (function)
-  (compose not function))
+(def! complement (curry compose not))
 
-(def-fun! empty? (sequence)
-  (null? sequence))
+(def! empty? null?)
 
 (def-fun! filter (predicate sequence)
   (if (empty? sequence)
@@ -205,14 +202,12 @@
   (lambda (&rest first-args)
     (apply function (append first-args last-args))))
 
-(def-fun! first (sequence)
-  (car sequence))
-
-(def-fun! second (sequence)
-  (car (cdr sequence)))
-
-(def-fun! rest (sequence)
-  (cdr sequence))
+(def! first car)
+(def! rest cdr)
+(def! second (compose car cdr))
+(def! third (compose car cdr cdr))
+(def! fourth (compose car cdr cdr cdr))
+(def! fifth (compose car cdr cdr cdr cdr))
 
 (def-op! or? env (&rest expressions)
   (if (=? (length expressions) 0)
@@ -236,12 +231,13 @@
 (def-fun! any? (predicate sequence)
   (apply (wrap or?) (map predicate sequence)))
 
-(def-fun! sequence? (object)
-  (list? object))
+(def! sequence? list?)
+
+(def-fun! call (function &rest args)
+  (apply function args))
 
 (def-fun! combiner? (object)
-  (or? (function? object)
-       (operative? object)))
+  (any? (rcurry call object) (list function? operative?)))
 
 (def-fun! member? (item sequence)
   (if (>? (length sequence) 0)
