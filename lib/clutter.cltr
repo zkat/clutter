@@ -140,6 +140,9 @@
 (def-op! inc! env (var)
   (eval (list set! var (list + 1 var)) env))
 
+(def-op! dec! env (var)
+  (eval (list set! var (list - var 1)) env))
+
 (def-op! let env (clauses &rest body)
   (eval (list*
          (list* lambda
