@@ -245,7 +245,7 @@
 (def-fun! member? (item sequence)
   (if (>? (length sequence) 0)
       (if (eql? item (first sequence))
-          #t
+          sequence
           (member? item (rest sequence)))
       #f))
 
