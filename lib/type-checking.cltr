@@ -22,7 +22,7 @@
 
 (def-fun! tc? (tc)
   (and? (sequence? tc)
-        (any? (lambda (x) (eql? x (car (cdr tc))))
+        (any? (lambda (x) (eql? x (car tc)))
               (list :op :fun :prod))))
 
 (def-fun! tc-constructor (tc)
@@ -62,6 +62,8 @@
    (type-equal? (tc-left left) (tc-left right))
    (type-equal? (tc-right left) (tc-right right))))
 
+(def-fun! tc-equalable? (left right))
+
 (def-fun! make-base-decl ()
   (let (decl (make-env))
     (def-in! decl declare! :declare-type)
@@ -86,9 +88,11 @@
 
 ;; Inference
 
-(def-op! infer-code (code decl)
+(def-op! infer-code env (code decl)
   (let (ast (mark-ast code))
-    (subsitute-vars ast (unify (make-constraints ast decl)))))
+    (substitute-vars ast (unify (make-constraints ast (eval decl env))))))
+
+(def! type-var? symbol?)
 
 (def-fun! mark-ast (ast)
   (let (counter 0)
@@ -99,16 +103,19 @@
                  (cons (if (cons? ast)
                            (map mark-ast-helper ast)
                            ast)
-                       current))))
+                       (intern current)))))
       (mark-ast-helper ast))))
 
 (def-fun! substitute-vars (ast constraints)
   (let* (form (car ast)
          var (cdr ast))
-      (cons (if (cons? form)
-                (map (rcurry substitute-vars constraints) form)
-                form)
-            (cdr (assoc var constraints)))))
+    (cons (if (cons? form)
+              (map (rcurry substitute-vars constraints) form)
+              form)
+          (let (subst (assoc var constraints))
+            (if (cons? subst)
+                (cdr subst)
+                :unknown)))))
 
 (def-fun! make-constraints (form decl)
   (let (actual-form (car form)
@@ -175,12 +182,54 @@
       (append
        (list
         (cons tv (tc-right comb-type))
+        (cons (cdr comb) comb-type)
         (cons comb-type (fun (apply prod-list (map cdr args)) tv)))
+       comb-constraints
        (reduce (lambda (prev next) (append (make-constraints next decl) prev)) (list) args)))))
 
 ;; Unification
 
-(def-fun! unify (constraints))
+(def-fun! unify (constraints)
+  (def-fun! unify-h (stack substs)
+    (if (empty? stack)
+        substs
+        (let* (next (car stack)
+               left (car next)
+               right (cdr next))
+          (cond
+            ((type-equal? left right) (unify-h (cdr stack) substs))
+            ((type-var? left) (unify-h
+                               (substitute-constraints next (cdr stack))
+                               (cons next (substitute-constraints next substs))))
+            ((type-var? right) (unify-h
+                                (cons (cons right left) (cdr stack))
+                                substs))
+            ((and? (tc? left)
+                   (tc? right))
+             (unify-h
+              (append (unify-tc left right) (cdr stack))
+              substs))))))
+  (unify-h constraints (list)))
+
+(def-fun! unify-tc (left right)
+  (list
+   (cons (tc-left left) (tc-left right))
+   (cons (tc-right left) (tc-right right))))
+
+(def-fun! substitute-constraints (rule constraints)
+  (map (lambda (constraint)
+         (cons
+          (substitute-side rule (car constraint))
+          (substitute-side rule (cdr constraint))))
+       constraints))
+
+(def-fun! substitute-side (rule side)
+  (let (from (car rule)
+        to (cdr rule))
+    (cond
+      ((eql? side from) to)
+      ((tc? side) ((tc-constructor-fun side) (substitute-side rule (tc-left side)) (substitute-side rule (tc-right side))))
+      (#t side))))
 
 ;; (def-op! check-op env (form type decl)
 ;;   (check form type (eval decl env)))
