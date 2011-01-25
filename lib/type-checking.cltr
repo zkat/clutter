@@ -1,7 +1,7 @@
 ;; Types
 
-(def-op! declare! (&rest #ignore)
-  #t)
+(def-op! the env (#ignore value)
+  (eval value env))
 
 (def-op! enum (&rest keywords)
   (list :enum keywords))
@@ -66,20 +66,22 @@
 
 (def-fun! make-base-decl ()
   (let (decl (make-env))
-    (def-in! decl declare! :declare-type)
+    (def-in! decl the :the-type)
     (def-in! decl lambda :lambda-type)
     (def-in! decl cons :cons-type)
     (def-in! decl prod :prod-type)
     (def-in! decl op :op-type)
     (def-in! decl fun :fun-type)
+    (def-in! decl def-in! :def-in!-type)
+    (def-in! decl set-in! :sef-in!-type)
     (def-in! decl type :type)
     (def-in! decl number :type)
     (def-in! decl char :type)
     (def-in! decl bool :type)
     decl))
 
-(def-op! normalize env (type #ignore) ;; TODO: decent normalization
-   type)
+(def-fun! normalize (type #ignore) ;; TODO: decent normalization
+  (eval (substitute-vars type (list)) (get-current-env)))
 
 (def-fun! type-equal? (left right)
   (if (and? (tc? left) (tc? right))
@@ -108,15 +110,14 @@
 
 (def-fun! substitute-vars (ast constraints)
   (let* (form (car ast)
-         var (cdr ast))
-    (cons (if (cons? form)
-              (map (rcurry substitute-vars constraints) form)
-              form)
-          (do
-           (let (subst (find-constraint var constraints))
-             (if (false? subst)
-                 :unknown
-                 (constraint-right subst)))))))
+         var (cdr ast)
+         subed-form (if (cons? form)
+                        (map (rcurry substitute-vars constraints) form)
+                        form))
+    (let (subst (find-constraint var constraints))
+      (if (false? subst)
+          subed-form
+          (cons subed-form (constraint-right subst))))))
 
 ;; Constraints
 
@@ -140,7 +141,9 @@
           (car list)
           (find-constraint key (cdr list)))))
 
-(def-fun! make-constraints (form decl)
+; Constraint generation
+
+(def-fun! make-constraints (form decl &rest declared-type)
   (let (actual-form (car form)
         tv (cdr form))
     (if (not (cons? actual-form))
@@ -148,10 +151,16 @@
         (if (not (cons? (car (car actual-form))))
             (let (comb (eval (car (car actual-form)) decl))
               (cond
-                ((eql? comb :declare-type) (make-annotation-constraints actual-form decl tv))
-                ((eql? comb :cons-type) (make-pair-constraints actual-form decl tv))
-                ((eql? comb :lambda-type) (make-lambda-constraints actual-form decl tv))
+                ((eql? comb :the-type) (make-the-constraints actual-form decl tv))
+                ((eql? comb :def-in!-type) (make-definer-constraints actual-form decl tv))
+                ((eql? comb :set-in!-type) (make-setter-constraints actual-form decl tv))
                 ((any? (curry eql? comb) (list :prod-type :op-type :fun-type)) (make-type-combiner-constraints actual-form decl tv))
+                ((eql? comb :cons-type) (if declared-type
+                                            (make-declared-pair-constraints actual-form decl tv (car declared-type))
+                                            (make-pair-constraints actual-form decl tv)))
+                ((eql? comb :lambda-type) (if declared-type
+                                              (make-declared-lambda-constraints actual-form decl tv (car declared-type))
+                                              (make-lambda-constraints actual-form decl tv)))
                 (#t (make-combiner-constraints actual-form decl tv))))
             (make-combiner-constraints actual-form decl tv)))))
 
@@ -163,13 +172,54 @@
                  ((boolean? atom) bool)
                  (#t (eval atom decl))))))
 
-(def-fun! make-annotation-constraints (form decl tv)
-  (destructuring-bind (_ name decl-type) form
-    (dyn-def-in! decl (car name) (cdr decl-type))
+(def-fun! make-the-constraints (form decl tv)
+  (destructuring-bind (_ type value) form
+    (let* (type-constraints (make-constraints type decl)
+           value-constraints (make-constraints value decl (normalize type decl)))
+      (append
+       (list
+        (make-constraint tv (cdr value)))
+       type-constraints
+       value-constraints))))
+
+(def-fun! make-definer-constraints (form decl tv)
+  (destructuring-bind (_ env var value) form
+    (let (value-constraints (make-constraints value decl)
+          definer-env (eval (car env) decl))
+      (def-in! definer-env symbol (cdr value))
+      (append
+       (list
+        (make-constraint (cdr env) definer-env)
+        (make-constraint (cdr var) symbol)
+        (make-constraint tv (cdr var)))
+       value-constraints))))
+
+(def-fun! make-setter-constraints (form decl tv)
+  (destructuring-bind (_ env var value) form
+    (let (value-constraints (make-constraints value decl)
+          setter-env (eval (car env) decl)
+          var-type (eval (car var) decl))
+      (append
+       (list
+        (make-constraint (cdr env) setter-env)
+        (make-constraint (cdr var) symbol)
+        (make-constraint tv (cer value))
+        (make-constraint (cdr var) var-type))
+       value-constraints))))
+
+(def-fun! make-declared-pair-constraints (form decl tv declared-type)
+  (destructuring-bind (_ left right) form
     (append
      (list
-      (make-constraint tv bool))
-     (make-constraints decl-type decl))))
+      (make-constraint (cdr left) (tc-left declared-type))
+      (make-constraint (cdr right) (if (eql? fun (tc-right declared-type))
+                                        ((tc-right declared-type) (normalize left decl))
+                                        (tc-right declared-type)))
+      (make-constraint tv declared-type))
+     (make-constraints left decl)
+     (make-constraints right decl))))
+
+(def-fun! make-declared-lambda-constraints (form decl tv declared-type))
 
 (def-fun! make-pair-constraints (form decl tv)
   (destructuring-bind (_ left right) form
