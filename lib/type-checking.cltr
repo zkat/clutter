@@ -135,20 +135,26 @@
           subed-form
           (cons subed-form (constraint-right subst))))))
 
-;; Constraints
+;;; Constraints
 
-(def-fun! make-constraint (left right)
-  (list :constraint left right))
+(def-fun! make-constraint (type left right)
+  (list :constraint type left right))
 
 (def-fun! constraint? (c)
   (and? (sequence? c)
         (eql? (car c) :constraint)))
 
-(def-fun! constraint-left (c)
+(def-fun! constraint-type (c)
   (second c))
 
-(def-fun! constraint-right (c)
+(def-fun! constraint-of-type? (type c)
+  (eql? type (constraint-type c)))
+
+(def-fun! constraint-left (c)
   (third c))
+
+(def-fun! constraint-right (c)
+  (fourth c))
 
 (def-fun! find-constraint (key list)
   (if (empty? list)
