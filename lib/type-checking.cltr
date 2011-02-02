@@ -1,98 +1,114 @@
-;; Types
+;;;; Types
 
-(def-op! the env (#ignore value)
-  (eval value env))
+;;; Concrete types
 
-(def-op! enum (&rest keywords)
-  (list :enum keywords))
+(def-fun! make-type (type-type type-data)
+  (cons :type type-type type-data))
 
-(def-op! enum-case env (var &rest forms)
-  (if (eql? (eval var env) (eval (car (car forms)) env))
-      (eval (list* do (cdr (car forms)))
-            env)
-      (eval (list* enum-case var (cdr forms)) env)))
+(def-fun! type-type-of (type)
+  (second type))
 
-(def! type :type)
-(def! number :number)
-(def! char :char)
-(def! bool :bool)
+(def-fun! type-data-of (type)
+  (third type))
 
-(def-fun! type-combiner (type left right)
-  (list type left right))
+(def-fun! type? (type)
+  (eql? :type (car type)))
 
-(def-fun! tc? (tc)
-  (and? (sequence? tc)
-        (any? (lambda (x) (eql? x (car tc)))
-              (list :op :fun :prod))))
+(def-fun! type-type? (type-type type)
+  (and (type? type) (eql? (type-type-of type) type-type)))
 
-(def-fun! tc-constructor (tc)
-  (first tc))
+;; Direct enumeration types
 
-(def-fun! tc-constructor-fun (tc)
-  (enum-case (tc-constructor tc)
-    (:prod prod)
-    (:op op)
-    (:fun fun)))
+(def-fun! make-enumeration-type (&rest values)
+  (make-type :enum values))
 
-(def-fun! tc-left (tc)
-  (second tc))
+(def! enum-type-variants-of type-data-of)
 
-(def-fun! tc-right (tc)
-  (third tc))
+(def! enum-type? (curry type-type? :enum))
 
-(def-fun! op (from to)
-  (type-combiner :op from to))
+;; Predicate types
 
-(def-fun! fun (from to)
-  (type-combiner :fun from to))
+(def-fun! make-predicate-type (pred)
+  (make-type :pred pred))
 
-(def-fun! prod (left right)
-  (type-combiner :prod left right))
+(def! pred-type-predicate-of type-data-of)
 
-(def-fun! prod-list (&rest values)
-  (if (empty? (car values))
-      unit
-      (if (empty? (cdr values))
-          (car values)
-          (prod (car values) (apply prod-list (cdr values))))))
+(def! pred-type? (curry type-type? :pred))
 
-(def-fun! tc-equal? (left right)
-  (and?
-   (eql? (tc-constructor left) (tc-constructor right))
-   (type-equal? (tc-left left) (tc-left right))
-   (type-equal? (tc-right left) (tc-right right))))
+;; Compound types
 
-(def-fun! tc-equalable? (left right))
+(def-fun! make-compound-type (type-type &rest types)
+  (make-type type-type types))
 
-(def-fun! make-base-decl ()
-  (let (decl (make-env))
-    (def-in! decl the :the-type)
-    (def-in! decl lambda :lambda-type)
-    (def-in! decl cons :cons-type)
-    (def-in! decl prod :prod-type)
-    (def-in! decl op :op-type)
-    (def-in! decl fun :fun-type)
-    (def-in! decl def-in! :def-in!-type)
-    (def-in! decl set-in! :sef-in!-type)
-    (def-in! decl type :type)
-    (def-in! decl number :type)
-    (def-in! decl char :type)
-    (def-in! decl bool :type)
-    decl))
+(def! compound-type-data-of type-data-of)
 
-(def-fun! normalize (type #ignore) ;; TODO: decent normalization
-  (eval (substitute-vars type (list)) (get-current-env)))
+(def! compound-type-type? (type-type type)
+  (and (type-type? type-type type) (every? type? (compound-type-data-of type))))
 
-(def-fun! type-equal? (left right)
-  (if (and? (tc? left) (tc? right))
-      (tc-equal? left right)
-      (eql? left right)))
+;; And types
 
-;; Inference
+(def-fun! make-and-types (&rest types)
+  (make-compound-type :and types))
+
+(def! and-type-types-of type-data-of)
+
+(def! and-type? (curry compound-type-type? :and))
+
+;; Sum types
+
+(def-fun! make-sum-type (&rest types)
+  (make-compound-type :sum types))
+
+(def! sum-type-types-of type-data-of)
+
+(def! sum-type? (curry compound-type-type? :sum))
+
+;;; Subtyping rules
+
+(def-fun! of-type? (type value)
+  (cond
+    ((enum-type? type)
+     (member value (enum-type-variants-of type)))
+    ((pred-type? type)
+     (pred-type-predicate-of value))
+    ((and-type? type)
+     (all? (rcurry of-type? value) (and-type-types-of type)))
+    ((sum-type? type)
+     (any? (rcurry of-type? value) (sum-type-types-of type)))))
+
+(def-fun! is-subset? (child parent)
+  (cond
+    ((enum-type? child)
+     (enum-subset? child parent))
+    ((pred-type? child)
+     (pred-subset? child parent))
+    (#t #f)
+    ))
+
+;; Subsetting enums
+(def-fun! enum-subset? (child parent)
+  (all? (curry of-type? parent) (enum-type-variants child)))
+
+;; Subsetting for preds
+(def-fun! pred-subset? (child parent)) ; No idea yet
+
+;; Subsetting for ands
+(def-fun! and-subset? (child parent)
+  (all? (rcurry is-subset? parent) (and-type-types-of child))) ; That is wrong
+
+;; Subsetting for sums
+(def-fun! sum-subset? (child parent)
+  (all? (rcurry is-subset? parent) (sum-type-types-of child)))
+
+;;;; Inference
+
+;;; Entry level
 
 (def-op! infer-code env (code decl)
   (let (ast (mark-ast code))
     (substitute-vars ast (unify (make-constraints ast (eval decl env))))))
+
+;;; AST marking
 
 (def! type-var? symbol?)
 
@@ -141,172 +157,276 @@
           (car list)
           (find-constraint key (cdr list)))))
 
-; Constraint generation
+(def-fun! make-equal-constraint (left right)
+  (make-constraint :equal left right))
 
-(def-fun! make-constraints (form decl &rest declared-type)
-  (let (actual-form (car form)
-        tv (cdr form))
-    (if (not (cons? actual-form))
-        (make-atom-constraints actual-form decl tv)
-        (if (not (cons? (car (car actual-form))))
-            (let (comb (eval (car (car actual-form)) decl))
-              (cond
-                ((eql? comb :the-type) (make-the-constraints actual-form decl tv))
-                ((eql? comb :def-in!-type) (make-definer-constraints actual-form decl tv))
-                ((eql? comb :set-in!-type) (make-setter-constraints actual-form decl tv))
-                ((any? (curry eql? comb) (list :prod-type :op-type :fun-type)) (make-type-combiner-constraints actual-form decl tv))
-                ((eql? comb :cons-type) (if declared-type
-                                            (make-declared-pair-constraints actual-form decl tv (car declared-type))
-                                            (make-pair-constraints actual-form decl tv)))
-                ((eql? comb :lambda-type) (if declared-type
-                                              (make-declared-lambda-constraints actual-form decl tv (car declared-type))
-                                              (make-lambda-constraints actual-form decl tv)))
-                (#t (make-combiner-constraints actual-form decl tv))))
-            (make-combiner-constraints actual-form decl tv)))))
+(def! equal-constraint? (curry constraint-of-type? :equal))
 
-(def-fun! make-atom-constraints (atom decl tv)
-  (list
-   (make-constraint tv
-               (cond
-                 ((number? atom) number)
-                 ((boolean? atom) bool)
-                 (#t (eval atom decl))))))
+(def-fun! make-subtype-constraint (left right)
+  (make-constraint :subtype left right))
 
-(def-fun! make-the-constraints (form decl tv)
-  (destructuring-bind (_ type value) form
-    (let* (type-constraints (make-constraints type decl)
-           value-constraints (make-constraints value decl (normalize type decl)))
-      (append
-       (list
-        (make-constraint tv (cdr value)))
-       type-constraints
-       value-constraints))))
+(def! subtype-constraint (curry constraint-of-type? :subtype))
 
-(def-fun! make-definer-constraints (form decl tv)
-  (destructuring-bind (_ env var value) form
-    (let (value-constraints (make-constraints value decl)
-          definer-env (eval (car env) decl))
-      (def-in! definer-env symbol (cdr value))
-      (append
-       (list
-        (make-constraint (cdr env) definer-env)
-        (make-constraint (cdr var) symbol)
-        (make-constraint tv (cdr var)))
-       value-constraints))))
+;;; Constraint generation
 
-(def-fun! make-setter-constraints (form decl tv)
-  (destructuring-bind (_ env var value) form
-    (let (value-constraints (make-constraints value decl)
-          setter-env (eval (car env) decl)
-          var-type (eval (car var) decl))
-      (append
-       (list
-        (make-constraint (cdr env) setter-env)
-        (make-constraint (cdr var) symbol)
-        (make-constraint tv (cer value))
-        (make-constraint (cdr var) var-type))
-       value-constraints))))
 
-(def-fun! make-declared-pair-constraints (form decl tv declared-type)
-  (destructuring-bind (_ left right) form
-    (append
-     (list
-      (make-constraint (cdr left) (tc-left declared-type))
-      (make-constraint (cdr right) (if (eql? fun (tc-right declared-type))
-                                        ((tc-right declared-type) (normalize left decl))
-                                        (tc-right declared-type)))
-      (make-constraint tv declared-type))
-     (make-constraints left decl)
-     (make-constraints right decl))))
+;; (def-op! the env (#ignore value)
+;;   (eval value env))
 
-(def-fun! make-declared-lambda-constraints (form decl tv declared-type))
+;; (def-op! enum (&rest keywords)
+;;   (list :enum keywords))
 
-(def-fun! make-pair-constraints (form decl tv)
-  (destructuring-bind (_ left right) form
-    (append
-     (list
-      (make-constraint tv (prod (cdr left) (cdr right))))
-     (make-constraints left decl)
-     (make-constraints right decl))))
+;; (def-op! enum-case env (var &rest forms)
+;;   (if (eql? (eval var env) (eval (car (car forms)) env))
+;;       (eval (list* do (cdr (car forms)))
+;;             env)
+;;       (eval (list* enum-case var (cdr forms)) env)))
 
-(def-fun! make-lambda-constraints (form decl tv)
-  (destructuring-bind (_ lambda-list &rest body) form
-    (let* (lambda-decl (make-env decl))
-      (map (lambda (p) (dyn-def-in! lambda-decl (car p) (cdr p))) (car lambda-list))
-      (append
-       (list
-        (make-constraint tv (fun (apply prod-list (map cdr (car lambda-list))) (cdr (last body)))))
-       (reduce (lambda (prev next) (append (make-constraints next lambda-decl) prev)) (list) body)))))
+;; (def! type :type)
+;; (def! number :number)
+;; (def! char :char)
+;; (def! bool :bool)
 
-(def-fun! make-type-combiner-constraints (form decl tv)
-  (destructuring-bind (_ left right) form
-    (append
-     (list
-      (make-constraint tv type)
-      (make-constraint (cdr left) type)
-      (make-constraint (cdr right) type))
-     (make-constraints left decl)
-     (make-constraints right decl))))
+;; (def-fun! type-combiner (type left right)
+;;   (list type left right))
 
-(def-fun! make-combiner-constraints (form decl tv)
-  (destructuring-bind (comb &rest args) form
-    (let* (comb-constraints (make-constraints comb decl)
-           comb-type (constraint-right (find-constraint (cdr comb) comb-constraints)))
-      (append
-       (list
-        (make-constraint tv (tc-right comb-type))
-        (make-constraint (cdr comb) comb-type)
-        (make-constraint comb-type (fun (apply prod-list (map cdr args)) tv)))
-       comb-constraints
-       (reduce (lambda (prev next) (append (make-constraints next decl) prev)) (list) args)))))
+;; (def-fun! tc? (tc)
+;;   (and? (sequence? tc)
+;;         (any? (lambda (x) (eql? x (car tc)))
+;;               (list :op :fun :prod))))
 
-;; Unification
+;; (def-fun! tc-constructor (tc)
+;;   (first tc))
 
-(def-fun! unify (constraints)
-  (def-fun! unify-h (stack substs)
-    (if (empty? stack)
-        substs
-        (let* (next (car stack)
-               left (constraint-left next)
-               right (constraint-right next))
-          (cond
-            ((type-equal? left right) (unify-h (cdr stack) substs))
-            ((type-var? left) (unify-h
-                               (substitute-constraints next (cdr stack))
-                               (cons next (substitute-constraints next substs))))
-            ((type-var? right) (unify-h
-                                (cons (make-constraint right left) (cdr stack))
-                                substs))
-            ((and? (tc? left)
-                   (tc? right))
-             (unify-h
-              (append (unify-tc left right) (cdr stack))
-              substs))
-            (#t (print "Can't unify!")
-                (print left)
-                (print right)
-                (list))))))
-  (unify-h constraints (list)))
+;; (def-fun! tc-constructor-fun (tc)
+;;   (enum-case (tc-constructor tc)
+;;     (:prod prod)
+;;     (:op op)
+;;     (:fun fun)))
 
-(def-fun! unify-tc (left right)
-  (list
-   (make-constraint (tc-left left) (tc-left right))
-   (make-constraint (tc-right left) (tc-right right))))
+;; (def-fun! tc-left (tc)
+;;   (second tc))
 
-(def-fun! substitute-constraints (subst constraints)
-  (map (lambda (constraint)
-         (make-constraint
-          (substitute-side subst (constraint-left constraint))
-          (substitute-side subst (constraint-right constraint))))
-       constraints))
+;; (def-fun! tc-right (tc)
+;;   (third tc))
 
-(def-fun! substitute-side (subst side)
-  (cond
-    ((eql? side (constraint-left subst)) (constraint-right subst))
-    ((tc? side) ((tc-constructor-fun side)
-                 (substitute-side subst (tc-left side))
-                 (substitute-side subst (tc-right side))))
-    (#t side)))
+;; (def-fun! op (from to)
+;;   (type-combiner :op from to))
+
+;; (def-fun! fun (from to)
+;;   (type-combiner :fun from to))
+
+;; (def-fun! prod (left right)
+;;   (type-combiner :prod left right))
+
+;; (def-fun! prod-list (&rest values)
+;;   (if (empty? (car values))
+;;       unit
+;;       (if (empty? (cdr values))
+;;           (car values)
+;;           (prod (car values) (apply prod-list (cdr values))))))
+
+;; (def-fun! tc-equal? (left right)
+;;   (and?
+;;    (eql? (tc-constructor left) (tc-constructor right))
+;;    (type-equal? (tc-left left) (tc-left right))
+;;    (type-equal? (tc-right left) (tc-right right))))
+
+;; (def-fun! tc-equalable? (left right))
+
+;; (def-fun! make-base-decl ()
+;;   (let (decl (make-env))
+;;     (def-in! decl the :the-type)
+;;     (def-in! decl lambda :lambda-type)
+;;     (def-in! decl cons :cons-type)
+;;     (def-in! decl prod :prod-type)
+;;     (def-in! decl op :op-type)
+;;     (def-in! decl fun :fun-type)
+;;     (def-in! decl def-in! :def-in!-type)
+;;     (def-in! decl set-in! :sef-in!-type)
+;;     (def-in! decl type :type)
+;;     (def-in! decl number :type)
+;;     (def-in! decl char :type)
+;;     (def-in! decl bool :type)
+;;     decl))
+
+;; (def-fun! normalize (type #ignore) ;; TODO: decent normalization
+;;   (eval (substitute-vars type (list)) (get-current-env)))
+
+;; (def-fun! type-equal? (left right)
+;;   (if (and? (tc? left) (tc? right))
+;;       (tc-equal? left right)
+;;       (eql? left right)))
+
+
+
+
+;; ; Constraint generation
+
+;; (def-fun! make-constraints (form decl &rest declared-type)
+;;   (let (actual-form (car form)
+;;         tv (cdr form))
+;;     (if (not (cons? actual-form))
+;;         (make-atom-constraints actual-form decl tv)
+;;         (if (not (cons? (car (car actual-form))))
+;;             (let (comb (eval (car (car actual-form)) decl))
+;;               (cond
+;;                 ((eql? comb :the-type) (make-the-constraints actual-form decl tv))
+;;                 ((eql? comb :def-in!-type) (make-definer-constraints actual-form decl tv))
+;;                 ((eql? comb :set-in!-type) (make-setter-constraints actual-form decl tv))
+;;                 ((any? (curry eql? comb) (list :prod-type :op-type :fun-type)) (make-type-combiner-constraints actual-form decl tv))
+;;                 ((eql? comb :cons-type) (if declared-type
+;;                                             (make-declared-pair-constraints actual-form decl tv (car declared-type))
+;;                                             (make-pair-constraints actual-form decl tv)))
+;;                 ((eql? comb :lambda-type) (if declared-type
+;;                                               (make-declared-lambda-constraints actual-form decl tv (car declared-type))
+;;                                               (make-lambda-constraints actual-form decl tv)))
+;;                 (#t (make-combiner-constraints actual-form decl tv))))
+;;             (make-combiner-constraints actual-form decl tv)))))
+
+;; (def-fun! make-atom-constraints (atom decl tv)
+;;   (list
+;;    (make-constraint tv
+;;                (cond
+;;                  ((number? atom) number)
+;;                  ((boolean? atom) bool)
+;;                  (#t (eval atom decl))))))
+
+;; (def-fun! make-the-constraints (form decl tv)
+;;   (destructuring-bind (_ type value) form
+;;     (let* (type-constraints (make-constraints type decl)
+;;            value-constraints (make-constraints value decl (normalize type decl)))
+;;       (append
+;;        (list
+;;         (make-constraint tv (cdr value)))
+;;        type-constraints
+;;        value-constraints))))
+
+;; (def-fun! make-definer-constraints (form decl tv)
+;;   (destructuring-bind (_ env var value) form
+;;     (let (value-constraints (make-constraints value decl)
+;;           definer-env (eval (car env) decl))
+;;       (def-in! definer-env symbol (cdr value))
+;;       (append
+;;        (list
+;;         (make-constraint (cdr env) definer-env)
+;;         (make-constraint (cdr var) symbol)
+;;         (make-constraint tv (cdr var)))
+;;        value-constraints))))
+
+;; (def-fun! make-setter-constraints (form decl tv)
+;;   (destructuring-bind (_ env var value) form
+;;     (let (value-constraints (make-constraints value decl)
+;;           setter-env (eval (car env) decl)
+;;           var-type (eval (car var) decl))
+;;       (append
+;;        (list
+;;         (make-constraint (cdr env) setter-env)
+;;         (make-constraint (cdr var) symbol)
+;;         (make-constraint tv (cer value))
+;;         (make-constraint (cdr var) var-type))
+;;        value-constraints))))
+
+;; (def-fun! make-declared-pair-constraints (form decl tv declared-type)
+;;   (destructuring-bind (_ left right) form
+;;     (append
+;;      (list
+;;       (make-constraint (cdr left) (tc-left declared-type))
+;;       (make-constraint (cdr right) (if (eql? fun (tc-right declared-type))
+;;                                         ((tc-right declared-type) (normalize left decl))
+;;                                         (tc-right declared-type)))
+;;       (make-constraint tv declared-type))
+;;      (make-constraints left decl)
+;;      (make-constraints right decl))))
+
+;; (def-fun! make-declared-lambda-constraints (form decl tv declared-type))
+
+;; (def-fun! make-pair-constraints (form decl tv)
+;;   (destructuring-bind (_ left right) form
+;;     (append
+;;      (list
+;;       (make-constraint tv (prod (cdr left) (cdr right))))
+;;      (make-constraints left decl)
+;;      (make-constraints right decl))))
+
+;; (def-fun! make-lambda-constraints (form decl tv)
+;;   (destructuring-bind (_ lambda-list &rest body) form
+;;     (let* (lambda-decl (make-env decl))
+;;       (map (lambda (p) (dyn-def-in! lambda-decl (car p) (cdr p))) (car lambda-list))
+;;       (append
+;;        (list
+;;         (make-constraint tv (fun (apply prod-list (map cdr (car lambda-list))) (cdr (last body)))))
+;;        (reduce (lambda (prev next) (append (make-constraints next lambda-decl) prev)) (list) body)))))
+
+;; (def-fun! make-type-combiner-constraints (form decl tv)
+;;   (destructuring-bind (_ left right) form
+;;     (append
+;;      (list
+;;       (make-constraint tv type)
+;;       (make-constraint (cdr left) type)
+;;       (make-constraint (cdr right) type))
+;;      (make-constraints left decl)
+;;      (make-constraints right decl))))
+
+;; (def-fun! make-combiner-constraints (form decl tv)
+;;   (destructuring-bind (comb &rest args) form
+;;     (let* (comb-constraints (make-constraints comb decl)
+;;            comb-type (constraint-right (find-constraint (cdr comb) comb-constraints)))
+;;       (append
+;;        (list
+;;         (make-constraint tv (tc-right comb-type))
+;;         (make-constraint (cdr comb) comb-type)
+;;         (make-constraint comb-type (fun (apply prod-list (map cdr args)) tv)))
+;;        comb-constraints
+;;        (reduce (lambda (prev next) (append (make-constraints next decl) prev)) (list) args)))))
+
+;; ;; Unification
+
+;; (def-fun! unify (constraints)
+;;   (def-fun! unify-h (stack substs)
+;;     (if (empty? stack)
+;;         substs
+;;         (let* (next (car stack)
+;;                left (constraint-left next)
+;;                right (constraint-right next))
+;;           (cond
+;;             ((type-equal? left right) (unify-h (cdr stack) substs))
+;;             ((type-var? left) (unify-h
+;;                                (substitute-constraints next (cdr stack))
+;;                                (cons next (substitute-constraints next substs))))
+;;             ((type-var? right) (unify-h
+;;                                 (cons (make-constraint right left) (cdr stack))
+;;                                 substs))
+;;             ((and? (tc? left)
+;;                    (tc? right))
+;;              (unify-h
+;;               (append (unify-tc left right) (cdr stack))
+;;               substs))
+;;             (#t (print "Can't unify!")
+;;                 (print left)
+;;                 (print right)
+;;                 (list))))))
+;;   (unify-h constraints (list)))
+
+;; (def-fun! unify-tc (left right)
+;;   (list
+;;    (make-constraint (tc-left left) (tc-left right))
+;;    (make-constraint (tc-right left) (tc-right right))))
+
+;; (def-fun! substitute-constraints (subst constraints)
+;;   (map (lambda (constraint)
+;;          (make-constraint
+;;           (substitute-side subst (constraint-left constraint))
+;;           (substitute-side subst (constraint-right constraint))))
+;;        constraints))
+
+;; (def-fun! substitute-side (subst side)
+;;   (cond
+;;     ((eql? side (constraint-left subst)) (constraint-right subst))
+;;     ((tc? side) ((tc-constructor-fun side)
+;;                  (substitute-side subst (tc-left side))
+;;                  (substitute-side subst (tc-right side))))
+;;     (#t side)))
 
 ;; (def-op! check-op env (form type decl)
 ;;   (check form type (eval decl env)))
