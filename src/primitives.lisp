@@ -162,6 +162,8 @@
 
 (defprimfun t "intern" (string)
   (clutter-symbol string))
+(defprimfun t "make-keyword" (string)
+  (clutter-keyword string))
 
 (defprimfun t "boolean?" (x)
   (if (or (eql x *true*) (eql x *false*)) *true* *false*))
@@ -220,6 +222,14 @@
   (apply #'/ number more-numbers))
 (defprimfun t "rem" (number divisor)
   (rem number divisor))
+
+(defprimfun t "make-string" (&rest values)
+  (apply (curry #'concatenate 'string)
+         (mapcar #'(lambda (el)
+                     (if (stringp el)
+                         el
+                         (format nil "~S" el)))
+                 values)))
 
 (defprimfun nil "print" (obj)
   (print obj))
