@@ -254,11 +254,29 @@
 (def-fun! any? (predicate sequence)
   (apply (wrap or?) (map predicate sequence)))
 
-(def-fun! any-of (&rest predicates)
-  (lambda (value)
-    (any? (lambda (pred) (pred value)) predicates)))
+(def-fun! conjoin (predicate &rest more-predicates)
+  (if (empty? more-predicates)
+      predicate
+      (letrec (helper
+               (lambda (predicates value)
+                 (if (empty? predicates)
+                     #t
+                     (and? ((car predicates) value)
+                           (helper (cdr predicates) value)))))
+        (curry helper (cons predicate more-predicates)))))
 
-(def! atom? (any-of boolean? symbol? keyword? number? string?))
+(def-fun! disjoin (&rest predicates)
+  (if (empty? more-predicates)
+      predicate
+      (letrec (helper
+               (lambda (predicates value)
+                 (if (empty? predicates)
+                     #t
+                     (or? ((car predicates) value)
+                          (helper (cdr predicates) value)))))
+        (curry helper (cons predicate more-predicates)))))
+
+(def! atom? (disjoin boolean? symbol? keyword? number? string?))
 
 (def-fun! compose (function &rest more-functions)
   (reduce (lambda (f g)
@@ -342,3 +360,34 @@
               (eval (list* anaphoric returning var first body) env))
 
             ))
+
+(def-fun! init-gensym ()
+  (let (counter 0)
+    (letrec (generator
+             (lambda (prefix)
+               (inc! counter)
+               (let (symbol (intern (make-string prefix counter)))
+                 (if (bound? symbol)
+                     (generator)
+                     symbol))))
+       generator)))
+
+(def! gensym (init-gensym))
+
+(def-op! def-struct! env (name &rest slot-names)
+  (let* (str-name (symbol-name name)
+         keyword (make-keyword str-name))
+    (dyn-def-in! env
+                 (intern (make-string "make-" str-name))
+                 (curry list keyword))
+    (dyn-def-in! env
+                 (intern (make-string str-name "?"))
+                 (conjoin list? (compose (curry eql? keyword) first)))
+    (reduce (lambda (counter name)
+              (dyn-def-in! env
+                           (intern (make-string str-name "-" name))
+                           (curry nth counter))
+              (+ counter 1))
+            1
+            (map symbol-name slot-names))
+    name))
