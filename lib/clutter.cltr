@@ -118,12 +118,16 @@
           (eval (list* do (cdr (car forms))) env)
           (eval (list* cond (cdr forms)) env))))
 
-(def-fun! assoc (key alist)
+(def-fun! assoc-by (test key alist)
   (if (eql? alist (list))
       #f
-      (if (eql? key (car (car alist)))
+      (if (test key (car alist))
           (car alist)
-          (assoc key (cdr alist)))))
+          (assoc-by test key (cdr alist)))))
+
+(def! assoc (curry assoc-by
+                   (lambda (key pair)
+                     (eql? key (car pair)))))
 
 (def-fun! not (value)
   (if value #f #t))
@@ -157,6 +161,10 @@
 (def! complement (curry compose not))
 
 (def! empty? null?)
+
+(def! not-false? (complement false?))
+
+(def! not-empty? (complement empty?))
 
 (def-fun! filter (predicate sequence)
   (if (empty? sequence)
@@ -322,6 +330,22 @@
 
 (def-fun! call (function &rest args)
   (apply function args))
+
+(def-fun! any-of (&rest predicates)
+  (lambda (value)
+    (any? (lambda (pred) (pred value)) predicates)))
+
+(def! atom? (any-of boolean? symbol? keyword? number? string?))
+
+(def-fun! compose (function &rest more-functions)
+  (reduce (lambda (f g)
+            (lambda (&rest args)
+              (f (apply g args))))
+          function
+          more-functions))
+
+(def-fun! sequence? (object)
+  (list? object))
 
 (def-fun! combiner? (object)
   (any? (rcurry call object) (list function? operative?)))
