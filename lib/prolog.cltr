@@ -3,25 +3,11 @@
 ;;;; Unifier
 ;;; Variables
 
-(def-fun! make-variable (code)
-  (list :variable code))
-
-(def-fun! variable? (o)
-  (and? (list? o) (eql? :variable (first o))))
+(def-struct! variable name)
 
 ;;; Bindings
 
-(def-fun! make-binding (var value)
-  (list :binding var value))
-
-(def-fun! binding? (o)
-  (eql? (first o) :binding))
-
-(def-fun! binding-var (binding)
-  (second binding))
-
-(def-fun! binding-value (binding)
-  (third binding))
+(def-struct! binding var value)
 
 (def-fun! make-empty-bindings ()
   (list))
