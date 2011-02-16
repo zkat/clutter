@@ -1,105 +1,3 @@
-;;;; Types
-
-;;; Concrete types
-
-(def-fun! make-type (type-type type-data)
-  (cons :type type-type type-data))
-
-(def-fun! type-type-of (type)
-  (second type))
-
-(def-fun! type-data-of (type)
-  (third type))
-
-(def-fun! type? (type)
-  (eql? :type (car type)))
-
-(def-fun! type-type? (type-type type)
-  (and (type? type) (eql? (type-type-of type) type-type)))
-
-;; Direct enumeration types
-
-(def-fun! make-enumeration-type (&rest values)
-  (make-type :enum values))
-
-(def! enum-type-variants-of type-data-of)
-
-(def! enum-type? (curry type-type? :enum))
-
-;; Predicate types
-
-(def-fun! make-predicate-type (pred)
-  (make-type :pred pred))
-
-(def! pred-type-predicate-of type-data-of)
-
-(def! pred-type? (curry type-type? :pred))
-
-;; Compound types
-
-(def-fun! make-compound-type (type-type &rest types)
-  (make-type type-type types))
-
-(def! compound-type-data-of type-data-of)
-
-(def! compound-type-type? (type-type type)
-  (and (type-type? type-type type) (every? type? (compound-type-data-of type))))
-
-;; And types
-
-(def-fun! make-and-types (&rest types)
-  (make-compound-type :and types))
-
-(def! and-type-types-of type-data-of)
-
-(def! and-type? (curry compound-type-type? :and))
-
-;; Sum types
-
-(def-fun! make-sum-type (&rest types)
-  (make-compound-type :sum types))
-
-(def! sum-type-types-of type-data-of)
-
-(def! sum-type? (curry compound-type-type? :sum))
-
-;;; Subtyping rules
-
-(def-fun! of-type? (type value)
-  (cond
-    ((enum-type? type)
-     (member value (enum-type-variants-of type)))
-    ((pred-type? type)
-     (pred-type-predicate-of value))
-    ((and-type? type)
-     (all? (rcurry of-type? value) (and-type-types-of type)))
-    ((sum-type? type)
-     (any? (rcurry of-type? value) (sum-type-types-of type)))))
-
-(def-fun! is-subset? (child parent)
-  (cond
-    ((enum-type? child)
-     (enum-subset? child parent))
-    ((pred-type? child)
-     (pred-subset? child parent))
-    (#t #f)
-    ))
-
-;; Subsetting enums
-(def-fun! enum-subset? (child parent)
-  (all? (curry of-type? parent) (enum-type-variants child)))
-
-;; Subsetting for preds
-(def-fun! pred-subset? (child parent)) ; No idea yet
-
-;; Subsetting for ands
-(def-fun! and-subset? (child parent)
-  (all? (rcurry is-subset? parent) (and-type-types-of child))) ; That is wrong
-
-;; Subsetting for sums
-(def-fun! sum-subset? (child parent)
-  (all? (rcurry is-subset? parent) (sum-type-types-of child)))
-
 ;;;; Inference
 
 ;;; Entry level
@@ -136,25 +34,18 @@
           (cons subed-form (constraint-right subst))))))
 
 ;;; Constraints
-
-(def-fun! make-constraint (type left right)
-  (list :constraint type left right))
+(def-fun! make-constraint (left right)
+  (list :constraint left right))
 
 (def-fun! constraint? (c)
   (and? (sequence? c)
         (eql? (car c) :constraint)))
 
-(def-fun! constraint-type (c)
+(def-fun! constraint-left (c)
   (second c))
 
-(def-fun! constraint-of-type? (type c)
-  (eql? type (constraint-type c)))
-
-(def-fun! constraint-left (c)
-  (third c))
-
 (def-fun! constraint-right (c)
-  (fourth c))
+  (third c))
 
 (def-fun! find-constraint (key list)
   (if (empty? list)
@@ -163,111 +54,136 @@
           (car list)
           (find-constraint key (cdr list)))))
 
-(def-fun! make-equal-constraint (left right)
-  (make-constraint :equal left right))
-
-(def! equal-constraint? (curry constraint-of-type? :equal))
-
-(def-fun! make-subtype-constraint (left right)
-  (make-constraint :subtype left right))
-
-(def! subtype-constraint (curry constraint-of-type? :subtype))
-
 ;;; Constraint generation
 
+(def-fun! make-constraints (form decl &rest declared-type)
+  (let (actual-form (car form)
+        tv (cdr form))
+    (if (not (cons? actual-form))
+        (make-atom-constraints actual-form decl tv)
+        (if (not (cons? (car (car actual-form))))
+            (let (comb (eval (car (car actual-form)) decl))
+              (cond
+                (#t (make-combiner-constraints actual-form decl tv))))
+            (make-combiner-constraints actual-form decl tv)))))
 
-;; (def-op! the env (#ignore value)
-;;   (eval value env))
+(def-fun! make-atom-constraints (atom decl tv)
+  (list
+   (make-constraint tv
+                    (if ((any-of number? boolean? keyword?) atom)
+                        (make-enumeration-type atom)
+                        (eval atom decl)))))
 
-;; (def-op! enum (&rest keywords)
-;;   (list :enum keywords))
+(def-fun! make-combiner-constraints (form decl tv)
+  (destructuring-bind (comb &rest args) form
+    (let* (comb-constraints (make-constraints comb decl)
+           comb-type (constraint-right (find-constraint (cdr comb) comb-constraints)))
+      (append
+       (list
+        (make-constraint tv (arrow-type-return-type comb-type))
+        (make-constraint (cdr comb) comb-type)
+        (make-constraint (make-function-type (apply make-prod-type (map cdr args)) tv) comb-type))
+       comb-constraints
+       (reduce (lambda (prev next) (append (make-constraints next decl) prev)) (list) args)))))
 
-;; (def-op! enum-case env (var &rest forms)
-;;   (if (eql? (eval var env) (eval (car (car forms)) env))
-;;       (eval (list* do (cdr (car forms)))
-;;             env)
-;;       (eval (list* enum-case var (cdr forms)) env)))
+;;; Unification
 
-;; (def! type :type)
-;; (def! number :number)
-;; (def! char :char)
-;; (def! bool :bool)
+(def-fun! unify (constraints)
+  (def-fun! unify-h (stack substs)
+    (if (empty? stack)
+        substs
+        (let* (next (car stack)
+               left (constraint-left next)
+               right (constraint-right next))
+          (cond
+            ((type-equal? left right) (unify-h (cdr stack) substs))
+            ((type-var? left) (unify-h
+                               (substitute-constraints left rigth (cdr stack) :subtype)
+                               (cons next (substitute-constraints left right substs :subtype))))
+            ((type-var? right) (unify-h
+                                (substitute-constraints rigth left (cdr stack) :supertype)
+                                (cons next (substitute-constraints right left substs :supertype))))
+            ((and? (type? left)
+                   (type? right))
+             (unify-h
+              (append (unify-types left right) (cdr stack))
+              substs))
+            (#t (print "Can't unify!")
+                (print left)
+                (print right)
+                (list))))))
+  (unify-h constraints (list)))
 
-;; (def-fun! type-combiner (type left right)
-;;   (list type left right))
+(def-fun! substitute-constraints (from to constraints relation)
+  (map (lambda (constraint)
+         (make-constraint
+          (if (and? (eql? relation :subtype)
+                    (eql? from (constraint-left constraint)))
+              to
+              (if (eql? relation :supertype)
+                  (substitute-side from to (constraint-left constraint))
+                  (constraint-left constraint)))
+          (if (and? (eql? relation :supertype)
+                    (eql? from (constraint-right constraint)))
+              to
+              (if (eql? relation :supertype)
+                  (substitute-side from to (constraint-right constraint))
+                  (constraint-right constraint)))))
+       constraints))
 
-;; (def-fun! tc? (tc)
-;;   (and? (sequence? tc)
-;;         (any? (lambda (x) (eql? x (car tc)))
-;;               (list :op :fun :prod))))
+(def-fun! substitute-side (from to side)
+  (if (type? side)
+      (substitute-type from to side)
+      type))
 
-;; (def-fun! tc-constructor (tc)
-;;   (first tc))
+(def-fun! substitute-type (from to type)
+  (cond
+    ((any? (lambda (pred) (pred type)) and-type? sum-type? prod-type?)
+     ((type-constructor type)
+      (map (curry substitute-type from to) (type-data-of type))))
+    ((record-type? type)
+     (substitute-record-type type))
+    (#t type)))
 
-;; (def-fun! tc-constructor-fun (tc)
-;;   (enum-case (tc-constructor tc)
-;;     (:prod prod)
-;;     (:op op)
-;;     (:fun fun)))
+(def-fun! unify-types (left right))
 
-;; (def-fun! tc-left (tc)
-;;   (second tc))
+(def-fun! unify-types? (child parent)
+  (cond
+    ((enum-type? child)
+     (enum-subset? child parent))
+    ((pred-type? child)
+     (pred-subset? child parent))
+    ((and (and-type? child) (and-type? parent))
+     (and-subset-and? child parent))
+    ((and-type? child)
+     (and-subset? child))
+    (#t (print "Non-unifiable types!")
+        (print child)
+        (print parent)
+        (list))))
 
-;; (def-fun! tc-right (tc)
-;;   (third tc))
+;; Subsetting enums
+;; (def-fun! enum-subset? (child parent)
+;;   (map (lambda (variant)
+;;          (make-constraint ())
+;;          ))
+;;   (all? (curry of-type? parent) (enum-type-variants child)))
 
-;; (def-fun! op (from to)
-;;   (type-combiner :op from to))
+;; Subsetting for preds
+(def-fun! pred-subset? (child parent)) ; No idea yet
 
-;; (def-fun! fun (from to)
-;;   (type-combiner :fun from to))
+;; Subsetting for ands
+(def-fun! and-subset-and? (child parent)
+  (all?
+   (lambda (type) (any? (rcurry is-subset? type) (and-type-types-of child)))
+   (and-types-type-of parent))) ; So all parent predicates are subset of at least one child predicate
 
-;; (def-fun! prod (left right)
-;;   (type-combiner :prod left right))
+(def-fun! and-subset? (child parent)
+  (any? (rcurry is-subset? parent) (and-type-types-of child))) ; So at least one predicate is a subset of a parent
 
-;; (def-fun! prod-list (&rest values)
-;;   (if (empty? (car values))
-;;       unit
-;;       (if (empty? (cdr values))
-;;           (car values)
-;;           (prod (car values) (apply prod-list (cdr values))))))
-
-;; (def-fun! tc-equal? (left right)
-;;   (and?
-;;    (eql? (tc-constructor left) (tc-constructor right))
-;;    (type-equal? (tc-left left) (tc-left right))
-;;    (type-equal? (tc-right left) (tc-right right))))
-
-;; (def-fun! tc-equalable? (left right))
-
-;; (def-fun! make-base-decl ()
-;;   (let (decl (make-env))
-;;     (def-in! decl the :the-type)
-;;     (def-in! decl lambda :lambda-type)
-;;     (def-in! decl cons :cons-type)
-;;     (def-in! decl prod :prod-type)
-;;     (def-in! decl op :op-type)
-;;     (def-in! decl fun :fun-type)
-;;     (def-in! decl def-in! :def-in!-type)
-;;     (def-in! decl set-in! :sef-in!-type)
-;;     (def-in! decl type :type)
-;;     (def-in! decl number :type)
-;;     (def-in! decl char :type)
-;;     (def-in! decl bool :type)
-;;     decl))
-
-;; (def-fun! normalize (type #ignore) ;; TODO: decent normalization
-;;   (eval (substitute-vars type (list)) (get-current-env)))
-
-;; (def-fun! type-equal? (left right)
-;;   (if (and? (tc? left) (tc? right))
-;;       (tc-equal? left right)
-;;       (eql? left right)))
-
-
-
-
-;; ; Constraint generation
+;; Subsetting for sums
+(def-fun! sum-subset? (child parent)
+  (map (rcurry make-constraint parent) (sum-type-types-of child)))
 
 ;; (def-fun! make-constraints (form decl &rest declared-type)
 ;;   (let (actual-form (car form)

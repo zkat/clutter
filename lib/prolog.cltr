@@ -1,0 +1,89 @@
+;;;;; Prolog for typechecking in Clutter. Inspired by Peter Norvig's one.
+
+;;;; Unifier
+;;; Variables
+
+(def-fun! make-variable (code)
+  (list :variable code))
+
+(def-fun! variable? (o)
+  (and? (list? o) (eql? :variable (first o))))
+
+;;; Bindings
+
+(def-fun! make-binding (var value)
+  (list :binding var value))
+
+(def-fun! binding? (o)
+  (eql? (first o) :binding))
+
+(def-fun! binding-var (binding)
+  (second binding))
+
+(def-fun! binding-value (binding)
+  (third binding))
+
+(def-fun! make-empty-bindings ()
+  (list))
+
+(def-fun! get-binding (var bindings)
+  (assoc-by (lambda (key binding) (eql? key (binding-var binding))) var bindings))
+
+(def-fun! in-bindings? (var bindings)
+  (not-false? (get-binding var bindings)))
+
+(def-fun! lookup-binding (var bindings)
+  (binding-value (get-binding var bindings)))
+
+(def-fun! extend-bindings (var value bindings)
+  (cons (make-binding var value) bindings))
+
+;;; Unification
+
+(def-fun! unify (x y bindings)
+  (cond
+    ((false? bindings) #f)
+    ((eql? x y) bindings)
+    ((variable? x) (unify-variable x y bindings))
+    ((variable? y) (unify-variable y x bindings))
+    ((and? (list? x) (list? y))
+     (unify (rest x) (rest y)
+            (unify (first x) (first y) bindings)))
+    (#t #f)))
+
+(def-fun! unify-variable (var x bindings)
+  (cond
+    ((in-bindings? var bindings)
+     (unify (lookup-binding var bindings) x bindings))
+    ((and? (variable? x) (in-bindings? x bindings))
+     (unify var (lookup-binding x bindings) bindings))
+    ((occurs-again? var x bindings)
+     #f)
+    (#t (extend-bindings var x bindings))))
+
+(def-fun! occurs-again? (var x bindings)
+  (cond
+    ((eql? var x) #t)
+    ((and? (variable? x) (in-bindings? x bindings))
+     (occurs-again? var (lookup-binding x bindings) bindings))
+    ((and? (not (variable? x)) (list? x))
+     (or? (occurs-again? var (first x) bindings)
+          (occurs-again? var (rest x) bindings)))
+    (#t #f)))
+
+;;; Substitution
+
+(def-fun! subst-bindings (bindings x)
+  (cond
+    ((false? bindings) #f)
+    ((empty? bindings) x)
+    ((and? (variable? x) (in-bindings? x bindings))
+     (subst-bindings bindings (lookup-binding x bindings)))
+    ((or? (atom? x) (null? x)) x)
+    ((list? x) (cons (subst-bindings bindings (car x))
+                     (subst-bindings bindings (cdr x))))
+    (#t #f)))
+
+(def-fun! unifier (x y)
+  (subst-bindings (unify x y (make-empty-bindings)) x))
+
