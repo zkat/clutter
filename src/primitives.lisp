@@ -15,15 +15,15 @@
 ;;; Primitive functions
 ;;;
 
-(defvar *primitives* (list))
+(defvar *primitives* (make-env))
 
 (defun primitive? (x)
-  (find x *primitives*))
+  (clutter-bound? x *primitives*))
 
 (defmacro defprimitive (name value)
   (once-only (name value)
    `(progn
-      (push ,value *primitives*)
+      (extend *primitives* (clutter-symbol ,name) ,value)
       (extend *global-env* (clutter-symbol ,name) ,value))))
 
 (defmacro defprimop (name vau-list &body body)
@@ -111,6 +111,10 @@
 (defprimop "def-in!" (*denv* env var value)
   (extend (clutter-eval env *denv*) var (clutter-eval value *denv*))
   var)
+
+(defprimop "forget-in!" (*denv* env var)
+  (forget var (clutter-eval env *denv*))
+  *true*)
 
 (defun clutter-true-p (exp)
   (not (eq exp *false*)))
@@ -240,6 +244,12 @@
           str args))
 (defprimfun nil "load" (path)
   (clutter-load path))
+
+(defprimfun nil "forget-all!" ()
+  (setf *global-env* (make-env))
+  (mapenv (lambda (symbol value)
+            (extend *global-env* symbol value))
+          *primitives*))
 
 ;;; For escaping the REPL cleanly.
 (define-condition quit () ())
