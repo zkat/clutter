@@ -63,6 +63,20 @@
                (error "No binding for ~A in or above ~A" symbol env)))
       (error "No binding for ~A in or above ~A" symbol env)))
 
+(defun forget (symbol &optional (env *global-env*))
+  (when (eq symbol *ignore*)
+    (error "Attempted to forget #ignore in ~A" env))
+  (if env
+      (multiple-value-bind (_ exists)
+          (gethash symbol (env-bindings env))
+        (declare (ignore _))
+        (if exists
+            (remhash symbol (env-bindings env))
+            (aif (find-if (curry #'clutter-bound? symbol) (env-parents env))
+                 (remhash symbol it)
+                 (error "No binding for ~A in or above ~A" symbol env))))
+      (error "No binding for ~A in or above ~A" symbol env)))
+
 (defun clutter-bound? (symbol &optional (env *global-env*))
   (if env
       (if (nth-value 1 (gethash symbol (env-bindings env)))
