@@ -97,17 +97,6 @@
           (eval (list* do (cdr (car forms))) env)
           (eval (list* cond (cdr forms)) env))))
 
-(def-fun! assoc-by (test key alist)
-  (if (eql? alist (list))
-      #f
-      (if (test key (car alist))
-          (car alist)
-          (assoc-by test key (cdr alist)))))
-
-(def! assoc (curry assoc-by
-                   (lambda (key pair)
-                     (eql? key (car pair)))))
-
 (def-fun! not (value)
   (if value #f #t))
 (def! false? not)
@@ -196,6 +185,9 @@
   (eval (list set! place (list cons value place))
         env))
 
+(def-fun! apply (function args)
+  (eval (cons (unwrap function) args) (get-current-env)))
+
 (def-fun! curry (function &rest first-args)
   (lambda (&rest last-args)
     (apply function (append first-args last-args))))
@@ -203,6 +195,18 @@
 (def-fun! rcurry (function &rest last-args)
   (lambda (&rest first-args)
     (apply function (append first-args last-args))))
+
+(def-fun! assoc-by (test key alist)
+  (if (eql? alist (list))
+      #f
+      (if (test key (car alist))
+          (car alist)
+          (assoc-by test key (cdr alist)))))
+
+(def! assoc (curry assoc-by
+                   (lambda (key pair)
+                     (eql? key (car pair)))))
+
 
 (def-fun! nth (n sequence)
   (if (=? n 0)
@@ -265,7 +269,7 @@
                            (helper (cdr predicates) value)))))
         (curry helper (cons predicate more-predicates)))))
 
-(def-fun! disjoin (&rest predicates)
+(def-fun! disjoin (predicate &rest more-predicates)
   (if (empty? more-predicates)
       predicate
       (letrec (helper
@@ -305,9 +309,6 @@
           (list)
           (map (rcurry replace-tree old-value new-value) tree))
       (if (eql? tree old-value) new-value tree)))
-
-(def-fun! apply (function args)
-  (eval (cons (unwrap function) args) (get-current-env)))
 
 (def-op! with-env callsite-env (target-env &rest body)
   (eval (list* do body) (eval target-env callsite-env)))
