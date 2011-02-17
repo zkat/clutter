@@ -207,7 +207,6 @@
                    (lambda (key pair)
                      (eql? key (car pair)))))
 
-
 (def-fun! nth (n sequence)
   (if (=? n 0)
       (car sequence)
@@ -275,7 +274,7 @@
       (letrec (helper
                (lambda (predicates value)
                  (if (empty? predicates)
-                     #t
+                     #f
                      (or? ((car predicates) value)
                           (helper (cdr predicates) value)))))
         (curry helper (cons predicate more-predicates)))))
@@ -392,3 +391,11 @@
             1
             (map symbol-name slot-names))
     name))
+
+(def-fun! replace-in-tree (alist tree)
+  (let (assoc (assoc tree alist))
+    (cond
+      (assoc (cdr assoc))
+      ((atom? tree) tree)
+      (#t (cons (replace-in-tree alist (car tree))
+                (replace-in-tree alist (cdr tree)))))))
