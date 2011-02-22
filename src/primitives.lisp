@@ -208,10 +208,15 @@
 (defprimfun t "rem" (number divisor)
   (rem number divisor))
 
+(defprimfun t "strcat" (string &rest more-strings)
+  (apply #'concatenate 'string string more-strings))
+
 (defprimfun nil "print" (obj)
   (print obj))
 (defprimfun nil "load" (path)
   (clutter-load path))
+(defprimfun t "to-string" (obj)
+  (princ-to-string obj))
 
 ;;; For escaping the REPL cleanly.
 (define-condition quit () ())
