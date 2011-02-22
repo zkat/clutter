@@ -1,0 +1,124 @@
+(def-fun! compile (expression env val? more?)
+  (cond ((member? expression (list #t #f))
+         (compile/constant expression val? more?))
+        ((symbol? expression) (compile/symbol expression env val? more?))
+        ((cons? expression) (compile/combiner expression env val? more?))
+        (#t (compile/constant expression val? more?))))
+
+(def-fun! gen (opcode &rest args)
+  (list (cons opcode args)))
+
+(def-fun! seq (&rest code)
+  (apply append code))
+
+(let (label-count 0)
+  (def-in! global-env reset-label
+    (lambda () (set! label-count 0)))
+  (def-in! global-env gen-label
+    (lambda (prefix) (list (out-to-string prefix (inc! label-count))))))
+
+(def-fun! compile/constant (expression val? more?)
+  (when val?
+    (seq (gen "CONST" expression)
+         (unless more?
+           (gen "RETURN")))))
+
+(def-fun! compile/symbol (symbol env val? more?)
+  (when val?
+    (seq (gen-var symbol env)
+         (unless more?
+           (gen "RETURN")))))
+
+(def-fun! gen-var (symbol env)
+  ;; TODO - multiple possible cases.
+  ;; * SYMBOL is in ENV, ENV has been reified, SYMBOL is one of the 'additional bindings'.
+  ;;     - Dynamic lookup using the runtime ENV object.
+  ;; * SYMBOL is in ENV, ENV has been reified, SYMBOL is one of the 'core bindings' (meaning, it is statically known)
+  ;;     - Stack frame lookup on ENV's corresponding 'core bindings' frame.
+  ;; * SYMBOL is in ENV, ENV has not been reified.
+  ;;     - Direct stack frame lookup.
+  ;; * SYMBOL is not in ENV, but is in one of ENV's ancestors.
+  ;;     - Depth-first search through ENV's ancestors for a binding, following above rules.
+  ;; * SYMBOL is not in ENV or its ancestors.
+  ;;     - Unknown variable error.
+  )
+
+(def-fun! compile-list (exps env)
+  (when exps
+    (seq (compile (car exps) env #t #t)
+         (compise-list (cdr exps) env))))
+
+(def-fun! compile/do (body env val? more?)
+  (cond ((null? body) (gen "CONST" #f))
+        ((=? 1 (length body)) (compile (car body) env val? more?))
+        (#t (seq (compile (car body) env #f #t)
+                 (compile/do (cdr body) env val? more?)))))
+
+(def-fun! compile/if (pred then else env val? more?)
+  (let (L1 (gen-label "L")
+        L2 (when more? (gen-label "L")))
+    (seq (compile pred env) (gen "FJUMP" L1)
+         (compile then env) (when more? (gen "JUMP" L2))
+         (list L1) (compile else env)
+         (when more? (list L2)))))
+
+(def-struct! vau env-var args code env)
+
+(def-fun! compile/vau (env-var args code env)
+  (make-vau env-var args
+            (seq (gen "ARGS" (length args))
+                 (compile/do code (cons (cons env-var args) env))
+                 (gen "RETURN"))
+            env))
+
+(def-struct! environment parents variables reified?)
+
+(def-fun! extend (env &rest new-variables)
+  (assert (null? (intersection new-variables (environment-variables env))))
+  (set! (environment-variables env)
+        (append new-variables (environment-variables env))))
+
+(def-fun! mark-reified (env)
+  (set! (environment-reified? env) #t))
+
+(def-fun! compile/reify (env)
+  ;; TODO - If the env has already been reified, we return that same object, else we create one and
+  ;; mark the current env as reified.
+  
+  )
+
+(def-fun! compile/combiner (expression env val? more?)
+  (let (combinator (car expression)
+        args (cdr expression))
+    (def-fun! gen-call ()
+      (seq
+       (compile combinator env #t #t)
+       ;; (if (operative? x) args (map (rcurry eval env) args))
+       (let (L1 (gen-label "L")
+             L2 (gen-label "L"))
+         (seq
+          (gen "DUP")
+          (gen (primitive-opcode "function?"))
+          (gen "FJUMP" L1)
+          (compile-list args env)
+          (gen "JUMP" L2)
+          (list L1)
+          (map (rcurry compile/constant env #t #t) args)
+          (compile/reify-env env)
+          (list L2)))
+       ;; Note - CALLJ expects the actual callable to be the -last- item it fetches from the
+       ;; stack.
+       (gen "CALLJ" (length args))))
+    (let (prim? (primitive? combinator env (length args)))
+      (cond (prim?
+             ;; TODO - special cases when they're primitives.
+             )
+            ((eql? ))
+            (more?
+             (let (k (gen-label "K"))
+               (seq (gen "SAVE" k)
+                    (gen-call)
+                    (list k)
+                    (unless val? (gen "POP")))))
+            (#t
+             (gen-call))))))
