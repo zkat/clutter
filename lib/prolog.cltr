@@ -10,7 +10,7 @@
 (def-struct! binding var value)
 
 (def-fun! make-empty-bindings ()
-  (list (make-binding :t :t)))
+  (list))
 
 (def-fun! get-binding (var bindings)
   (assoc-by (lambda (key binding) (eql? key (binding-var binding))) var bindings))
@@ -138,29 +138,28 @@
 
 (def-fun! variables-in (clause)
   (remove-duplicates (filter variable?
-                             (flatten-tree (clause-as-tree clause)))))
+                             (apply append (clause-as-tree clause)))))
 
 ;;; Variable utilities
 
 (def-fun! rename-variables (clause)
   (replace-in-clause (map (lambda (var)
-                            (cons var (gensym (variable-name var))))
-                        (variables-in clause))
+                                    (cons var (make-variable (symbol-name (gensym (variable-name var))))))
+                          (variables-in clause))
                    clause))
 
 (def-fun! prove-all (goals bindings clauses)
   (cond
-    ((empty? bindings) (list))
+    ((false? bindings) (list))
     ((empty? goals) bindings)
-    (#t (prove (first goals) bindings (rest goals) clauses))))
+    (#t (map-append (lambda (goal1-solution)
+                      (prove-all (rest goals) goal1-solution clauses))
+                    (prove (first goals) bindings clauses)))))
 
-(def-fun! prove (goal bindings other-goals all-clauses)
-  (let (clauses (get-clauses (predicate goal) all-clauses))
-    (when (list? clauses)
-      (find-by (lambda (clause)
-                 (let (new-clause (rename-variables clause))
-                   (prove-all
-                    (append (clause-body new-clause) other-goals)
-                    (unify goal (clause-head new-clause) bindings)
-                    all-clauses)))
-               clauses))))
+(def-fun! prove (goal bindings all-clauses)
+  (map-append (lambda (clause)
+                (let (new-clause (rename-variables clause))
+                  (prove-all (clause-body new-clause)
+                             (unify goal (clause-head new-clause) bindings)
+                             all-clauses)))
+              (get-clauses (predicate goal) all-clauses)))
