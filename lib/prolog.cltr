@@ -10,7 +10,7 @@
 (def-struct! binding var value)
 
 (def-fun! make-empty-bindings ()
-  (list))
+  (list (make-binding :t :t)))
 
 (def-fun! get-binding (var bindings)
   (assoc-by (lambda (key binding) (eql? key (binding-var binding))) var bindings))
@@ -73,3 +73,94 @@
 (def-fun! unifier (x y)
   (subst-bindings (unify x y (make-empty-bindings)) x))
 
+;;;; Prologue as it is
+
+;;; Clauses
+
+(def-struct! clause head body)
+
+(def-fun! clause-as-tree (clause)
+  (list (clause-head clause) (clause-body clause)))
+
+(def-fun! clause-from-tree (tree)
+  (make-clause (first clause) (second clause)))
+
+(def-fun! predicate (relation)
+  (first relation))
+
+(def-fun! args (relation)
+  (rest relation))
+
+(def-fun! make-empty-clauses ()
+  (make-env))
+
+(def-fun! get-clauses (pred clauses)
+  (eval pred clauses))
+
+(def-fun! in-clauses? (pred clauses)
+  (bound? pred clauses))
+
+(def-fun! set-clauses! (pred value clauses)
+  ((if (in-clauses? pred clauses)
+       dyn-set-in!
+       dyn-def-in!)
+   clauses pred value))
+
+(def-fun! add-clause! (clause clauses)
+  (let (pred (predicate (clause-head clause))
+        prev (list))
+    (when (in-clauses? pred clauses)
+      (set! prev (get-clauses pred clauses)))
+    (set-clauses! pred (append prev (list clause)) clauses)))
+
+(def-fun! remove-predicate! (pred clauses)
+  (forget-in! clauses pred))
+
+(def-fun! create-variables (list)
+  (map-tree (lambda (el) (if (keyword? el)
+                             (make-variable (keyword-name el))
+                             el))
+            list))
+
+(def-op! <- env (clauses &rest clause)
+  (let (new-clause (create-variables clause))
+    (add-clause! (make-clause (first new-clause) (rest new-clause))
+                 (eval clauses env))))
+
+(def-op! ?- env (clauses &rest goals)
+  (prove-all (create-variables goals) (make-empty-bindings) (eval clauses env)))
+
+(def-fun! replace-in-clause (alist clause)
+  (let (new-tree (replace-in-tree alist
+                                  (list (clause-head clause)
+                                        (clause-body clause))))
+    (make-clause (first new-tree) (second new-tree))))
+
+(def-fun! variables-in (clause)
+  (remove-duplicates (filter variable?
+                             (flatten-tree (clause-as-tree clause)))))
+
+;;; Variable utilities
+
+(def-fun! rename-variables (clause)
+  (replace-in-clause (map (lambda (var)
+                            (cons var (gensym (variable-name var))))
+                        (variables-in clause))
+                   clause))
+
+(def-fun! prove-all (goals bindings clauses)
+  (cond
+    ((empty? bindings) (list))
+    ((empty? goals) bindings)
+    (#t (prove (first goals) bindings (rest goals) clauses))))
+
+(def-fun! prove (goal bindings other-goals all-clauses)
+  (let (clauses (get-clauses (predicate goal) all-clauses))
+    (when (list? clauses)
+      (find-by (lambda (clause)
+                 (let (new-clause (rename-variables clause))
+                   (prove-all
+                    (append (clause-body new-clause) other-goals)
+                    (unify goal (clause-head new-clause) bindings)
+                    all-clauses)))
+               clauses))))
