@@ -152,9 +152,9 @@
   (cond
     ((false? bindings) (list))
     ((empty? goals) bindings)
-    (#t (map-append (lambda (goal1-solution)
-                      (prove-all (rest goals) goal1-solution clauses))
-                    (prove (first goals) bindings clauses)))))
+    (#t (map (lambda (goal1-solution)
+               (prove-all (rest goals) goal1-solution clauses))
+             (prove (first goals) bindings clauses)))))
 
 (def-fun! prove (goal bindings all-clauses)
   (map-append (lambda (clause)
