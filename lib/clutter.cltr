@@ -436,3 +436,7 @@
            (map-tree function (car tree))
            (map-tree function (cdr tree)))
           (function tree))))
+
+(def-fun! map-append (function &rest lists)
+  (apply append
+         (apply (curry map function) lists)))
