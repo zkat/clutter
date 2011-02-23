@@ -393,9 +393,46 @@
     name))
 
 (def-fun! replace-in-tree (alist tree)
-  (let (assoc (assoc tree alist))
-    (cond
-      (assoc (cdr assoc))
-      ((atom? tree) tree)
-      (#t (cons (replace-in-tree alist (car tree))
-                (replace-in-tree alist (cdr tree)))))))
+  (if (or? (empty? alist) (empty? tree))
+      tree
+      (let (assoc (assoc tree alist))
+        (cond
+          (assoc (cdr assoc))
+          ((atom? tree) tree)
+          (#t (cons (replace-in-tree alist (car tree))
+                    (replace-in-tree alist (cdr tree))))))))
+
+(def-fun! remove-duplicates (sequence)
+  (reduce (lambda (acc x) (if (member? x acc)
+                              acc
+                              (cons x acc)))
+          (list)
+          sequence))
+
+(def-fun! flatten-tree (tree)
+  (let (list (list))
+    (def-fun! traverse (tree)
+      (when (not-empty? tree)
+          (if (cons? tree)
+              (do
+               (traverse (car tree))
+               (traverse (cdr tree)))
+              (push! tree list))))
+    (traverse tree)
+    list))
+
+(def-fun! find-by (pred sequence)
+  (if (empty? sequence)
+      (list)
+      (if (pred (first sequence))
+          (first sequence)
+          (find-by pred (rest sequence)))))
+
+(def-fun! map-tree (function tree)
+  (if (empty? tree)
+      (list)
+      (if (cons? tree)
+          (cons
+           (map-tree function (car tree))
+           (map-tree function (cdr tree)))
+          (function tree))))
