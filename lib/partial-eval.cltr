@@ -174,27 +174,27 @@
 ;;; Produce code that may be substituted for the supplied operator
 ;;; invocation.
 (def-fun! inline (call-form outer-env)
-  (let (op (if (operative? (first call-form))
+  (def! op (if (operative? (first call-form))
                (first call-form)
                (unwrap (first call-form))))
-    (let (env (make-env (vau-env op)))
-      (def-fun! perform-binding (vau-list values)
-        (cond
-          ((empty? vau-list) #t)
-          ((eql? (first vau-list) ((vau #ignore (x) x) &rest))
-           (dyn-def-in! env (second vau-list) values))
-          (#t
-           (dyn-def-in! env (first vau-list) (first values))
-           (perform-binding (rest vau-list) (rest values)))))
+  (def! env (make-env (vau-env op)))
+  (def-fun! perform-binding (vau-list values)
+    (cond
+      ((empty? vau-list) #t)
+      ((eql? (first vau-list) ((vau #ignore (x) x) &rest))
+       (dyn-def-in! env (second vau-list) values))
+      (#t
+       (dyn-def-in! env (first vau-list) (first values))
+       (perform-binding (rest vau-list) (rest values)))))
       
-      (perform-binding (cons (vau-denv-var op) (vau-args op)) (cons outer-env (rest call-form)))
+  (perform-binding (cons (vau-denv-var op) (vau-args op)) (cons outer-env (rest call-form)))
 
-      (def! results (replace-tree (map (rcurry smart-eval env)
-                                       (vau-body op))
-                                  outer-env (list get-current-env)))
-      (if (=? (length results) 1)
-          (first results)
-          (list* do results)))))
+  (def! results (replace-tree (map (rcurry smart-eval env)
+                                   (vau-body op))
+                              outer-env (list get-current-env)))
+  (if (=? (length results) 1)
+      (first results)
+      (list* do results)))
 
 (def-fun! peval (form)
   (let (peval-env (make-env global-env))
