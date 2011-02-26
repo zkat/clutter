@@ -58,10 +58,21 @@
       (list)
       (cons (function (car values)) (map function (cdr values)))))
 
+(def-fun! apply (function args)
+  (eval (cons (unwrap function) args) (get-current-env)))
+
 (def-fun! zip (&rest sequences)
   (if (eql? (list) (first sequences))
       (list)
       (list* (map1 first sequences) (apply zip (map1 rest sequences)))))
+
+(def-fun! curry (function &rest first-args)
+  (lambda (&rest last-args)
+    (apply function (append first-args last-args))))
+
+(def-fun! rcurry (function &rest last-args)
+  (lambda (&rest first-args)
+    (apply function (append first-args last-args))))
 
 (def-fun! map (function &rest lists)
   (map1 (curry apply function) (apply zip lists)))
@@ -194,14 +205,6 @@
   (eval (list set! place (list cons value place))
         env))
 
-(def-fun! curry (function &rest first-args)
-  (lambda (&rest last-args)
-    (apply function (append first-args last-args))))
-
-(def-fun! rcurry (function &rest last-args)
-  (lambda (&rest first-args)
-    (apply function (append first-args last-args))))
-
 (def! first car)
 (def! rest cdr)
 (def-fun! nth (n sequence)
@@ -263,9 +266,6 @@
           (list)
           (map (rcurry replace-tree old-value new-value) tree))
       (if (eql? tree old-value) new-value tree)))
-
-(def-fun! apply (function args)
-  (eval (cons (unwrap function) args) (get-current-env)))
 
 (def-op! with-env callsite-env (target-env &rest body)
   (eval (list* do body) (eval target-env callsite-env)))
