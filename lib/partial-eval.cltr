@@ -130,7 +130,7 @@
                     (inline (list* comb (rest form)) env)))
             (let (args (map (rcurry smart-eval env) (rest form)))
               (if (or? (peval-prim? comb) (shadowed-prim? comb)
-                       (and? (pure? comb) (every? static? args)))
+                       (and? (pure? comb) (all? static? args)))
                   (eval (list* (unwrap (if (shadowed-prim? comb)
                                            (shadowing-prim comb)
                                            comb))
