@@ -212,7 +212,8 @@
     (def-in! peval-env wrap emit-wrap)
     (def-in! peval-env name-vau! emit-name-vau!)
 
-    (finalize (smart-eval form peval-env))))
+    (replace-tree (finalize (smart-eval form peval-env))
+                  peval-env global-env)))
 
 (def-op! pe #ignore (form)
   (peval form))
