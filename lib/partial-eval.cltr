@@ -142,7 +142,11 @@
   (cond
     ((null? form) form)
     ((list? form) (smart-eval-call form env))
-    ;; FIXME: Global lookups can be dynamic
+    ;; FIXME: Global values may change at runtime; how do we tell when
+    ;; to emit a dynamic lookup here?
+    ;; Values may be 'constant' (cause recompile if changed) or
+    ;; 'dynamic' (so that we use emit instead of eval here).  This
+    ;; distinction must be made.
     (#t (eval form env))))
 
 (def-peval-op! vau emit-vau static-env (env-var vau-list &rest body)
@@ -151,6 +155,9 @@
          (dyn-def-in! vau-env binding (emit binding)))
        (cons env-var vau-list))
   ;; TODO: Evaluate vau expr when pure
+  ;; Pureness criteria:
+  ;; - Accesses dynamic bindings in and below its own env only.
+  ;; - Calls only pure functions (and fexprs?)
   (emit (list* vau env-var vau-list
                ;; FIXME: This performs badly due to redundant
                ;; traversal; verify necessity and improve.
@@ -165,7 +172,8 @@
       (smart-eval expr env)
       (emit (list eval (finalize expr) (finalize env)))))
 
-;;; Produce code that may be substituted for the supplied operator invocation.
+;;; Produce code that may be substituted for the supplied operator
+;;; invocation.
 (def-fun! inline (call-form outer-env)
   (let (op (if (operative? (first call-form))
                (first call-form)
