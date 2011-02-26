@@ -70,6 +70,7 @@
    :body body))
 
 (defprimfun t "wrap" (operative)
+  (declare (type clutter-operator operative))
   (make-function operative))
 
 (defprimfun t "unwrap" (function)
