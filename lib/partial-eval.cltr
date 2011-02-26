@@ -157,15 +157,14 @@
   ;; TODO: Evaluate vau expr when pure
   ;; Pureness criteria:
   ;; - Accesses dynamic bindings in and below its own env only.
-  ;; - Calls only pure functions (and fexprs?)
+  ;; - Calls only functions which at most side-effect the current env
+  ;; TODO: A conservative purity heuristic until the above is supplied.
   (emit (list* vau env-var vau-list
                ;; FIXME: This performs badly due to redundant
                ;; traversal; verify necessity and improve.
-               (replace-tree
-                (map finalize
-                     (map (rcurry smart-eval vau-env)
-                          body))
-                vau-env (list get-current-env)))))
+               (map finalize
+                    (map (rcurry smart-eval vau-env)
+                         body)))))
 
 (def-peval-fun! eval emit-eval (expr env)
   (if (and? (static? expr) (static? env))
@@ -190,11 +189,12 @@
       
       (perform-binding (cons (vau-denv-var op) (vau-args op)) (cons outer-env (rest call-form)))
 
-      (let (results (map (rcurry smart-eval env)
-                      (vau-body op)))
-        (if (=? (length results) 1)
-            (first results)
-            (list* do results))))))
+      (def! results (replace-tree (map (rcurry smart-eval env)
+                                       (vau-body op))
+                                  outer-env (list get-current-env)))
+      (if (=? (length results) 1)
+          (first results)
+          (list* do results)))))
 
 (def-fun! peval (form)
   (let (peval-env (make-env global-env))
