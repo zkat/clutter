@@ -38,6 +38,20 @@
                  (error "No binding for ~A in or above ~A" symbol env))))
       (error "No binding for ~A in or above ~A" symbol env)))
 
+(defun binding-env (symbol &optional (lookup-env *global-env*))
+  (when (eq symbol *ignore*)
+    (error "Attempted to find binding env of #ignore in ~A" lookup-env))
+  (if lookup-env
+      (multiple-value-bind (value exists)
+          (gethash symbol (env-bindings lookup-env))
+        (if exists
+            value
+            (loop for parent in (env-parents lookup-env)
+                  for result = (binding-env symbol parent)
+                  when result
+                    return result)))
+      nil))
+
 (defun (setf lookup) (new-value symbol &optional (env *global-env*))
   (when (eq symbol *ignore*)
     (error "Attempted to set #ignore in ~A" env))
