@@ -89,6 +89,9 @@
 (defprimfun t "env-parents" (env)
   (env-parents env))
 
+(defprimfun t "binding-env" (symbol env)
+  (or (binding-env symbol env) *false*))
+
 (defprimfun t "bound?" (symbol &optional (env (get-current-env)))
   (if (clutter-bound? symbol env)
       *true*
