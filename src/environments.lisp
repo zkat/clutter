@@ -80,3 +80,9 @@
 
 (defun mapenv (func env)
   (maphash func (env-bindings env)))
+
+(defun env-child? (a b &aux (parents (env-parents b)))
+  (cond
+    ((null parents) nil)
+    ((some (curry #'eq a) parents) t)
+    (t (some (curry #'env-child? a) parents))))
