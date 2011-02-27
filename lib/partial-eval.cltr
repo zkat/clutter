@@ -90,6 +90,8 @@
     (when (static? target-env-val)
       (if (static? value-val)
           (dyn-def-in! target-env-val name value-val)
+          ;; FIXME: This is only necessary if value-val is an impure
+          ;; invocation
           (dyn-def-in! target-env-val name (emit name))))
     (emit (list def-in! (finalize target-env-val) name (finalize value-val)))))
 
@@ -99,7 +101,9 @@
     ;; FIXME: May side effect global envs
     (when (static? target-env-val)
       (if (static? value-val)
-          (dyn-set-in! target-env-val name value)
+          (dyn-set-in! target-env-val name value-val)
+          ;; FIXME: This is only necessary if value-val is an impure
+          ;; invocation
           (dyn-set-in! target-env-val name (emit name))))
     (emit (list set-in! (finalize target-env-val) name (finalize value-val)))))
 
