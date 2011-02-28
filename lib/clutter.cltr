@@ -196,17 +196,6 @@
   (lambda (&rest first-args)
     (apply function (append first-args last-args))))
 
-(def-fun! assoc-by (test key alist)
-  (if (eql? alist (list))
-      #f
-      (if (test key (car alist))
-          (car alist)
-          (assoc-by test key (cdr alist)))))
-
-(def! assoc (curry assoc-by
-                   (lambda (key pair)
-                     (eql? key (car pair)))))
-
 (def-fun! nth (n sequence)
   (if (=? n 0)
       (car sequence)
@@ -440,3 +429,39 @@
 (def-fun! map-append (function &rest lists)
   (apply append
          (apply (curry map function) lists)))
+
+(def-fun! assoc-by (test key alist)
+  (if (empty? alist)
+      #f
+      (if (test key (car alist))
+          (car alist)
+          (assoc-by test key (cdr alist)))))
+
+(def! assoc (curry assoc-by
+                   (lambda (key pair)
+                     (eql? key (car pair)))))
+
+(def-fun! assoc-replace-by (test key new-value alist)
+  (if (empty? alist)
+      #f
+      (if (test key (car alist))
+          (cons (cons key new-value)
+                (rest alist))
+          (cons (car alist)
+                (assoc-replace-by test key new-value (rest alist))))))
+
+(def! assoc-replace (curry assoc-replace-by
+                           (lambda (key pair)
+                             (eql? key (car pair)))))
+
+(def-fun! assoc-delete-by (test key alist)
+  (if (empty? alist)
+      #f
+      (if (test key (car alist))
+          (rest alist)
+          (cons (car alist)
+                (assoc-delete-by test key (rest alist))))))
+
+(def! assoc-delete (curry assoc-delete-by
+                          (lambda (key pair)
+                            (eql? key (car pair)))))
