@@ -1,9 +1,11 @@
 ;;;;; Prolog for typechecking in Clutter. Inspired by Peter Norvig's one.
 
 ;;;; Unifier
-;;; Variables
+;;; Variables and prolog symbols
 
 (def-struct! variable name)
+
+(def-struct! prolog-symbol name)
 
 ;;; Bindings
 
@@ -52,7 +54,10 @@
     ((eql? var x) #t)
     ((and? (variable? x) (in-bindings? x bindings))
      (occurs-again? var (lookup-binding x bindings) bindings))
-    ((and? (not (variable? x)) (list? x))
+    (((conjoin (complement variable?)
+               (complement prolog-symbol?)
+               list?)
+      x)
      (or? (occurs-again? var (first x) bindings)
           (occurs-again? var (rest x) bindings)))
     (#t #f)))
@@ -92,43 +97,53 @@
   (rest relation))
 
 (def-fun! make-empty-clauses ()
-  (make-env))
+  (list))
+
+(def-fun! assoc-clauses (pred clauses)
+  (assoc pred clauses))
 
 (def-fun! get-clauses (pred clauses)
-  (eval pred clauses))
+  (cdr (assoc-clauses pred clauses)))
 
 (def-fun! in-clauses? (pred clauses)
-  (bound? pred clauses))
+  (not-false? (assoc-clauses pred clauses)))
 
-(def-fun! set-clauses! (pred value clauses)
-  ((if (in-clauses? pred clauses)
-       dyn-set-in!
-       dyn-def-in!)
-   clauses pred value))
+(def-fun! set-clauses (pred value clauses)
+  (assoc-replace pred value clauses))
 
-(def-fun! add-clause! (clause clauses)
-  (let (pred (predicate (clause-head clause))
-        prev (list))
-    (when (in-clauses? pred clauses)
-      (set! prev (get-clauses pred clauses)))
-    (set-clauses! pred (append prev (list clause)) clauses)))
+(def-fun! add-clause (clause clauses)
+  (let (pred (predicate (clause-head clause)))
+    (if (in-clauses? pred clauses)
+        (set-clauses pred
+                     (append (get-clauses pred clauses)
+                             (list clause))
+                     clauses)
+        (cons (cons pred (list clause)) clauses))))
 
-(def-fun! remove-predicate! (pred clauses)
-  (forget-in! clauses pred))
+(def-fun! remove-predicate (pred clauses)
+  (assoc-remove pred clauses))
 
 (def-fun! create-variables (list)
-  (map-tree (lambda (el) (if (keyword? el)
-                             (make-variable (keyword-name el))
-                             el))
+  (map-tree (lambda (el)
+              (cond
+                ((keyword? el) (make-variable (keyword-name el)))
+                ((symbol? el) (make-prolog-symbol (symbol-name el)))
+                (#t el)))
             list))
 
 (def-op! <- env (clauses &rest clause)
+  (new-clause (eval clauses env) clause))
+
+(def-fun! new-clause (clauses clause)
   (let (new-clause (create-variables clause))
-    (add-clause! (make-clause (first new-clause) (rest new-clause))
-                 (eval clauses env))))
+    (add-clause (make-clause (first new-clause) (rest new-clause))
+                clauses)))
 
 (def-op! ?- env (clauses &rest goals)
-  (prove-all (create-variables goals) (make-empty-bindings) (eval clauses env)))
+  (answer (create-variables goals) (eval clauses env)))
+
+(def-fun! answer (clauses &rest goals)
+  (prove-all goals (make-empty-bindings) clauses))
 
 (def-fun! replace-in-clause (alist clause)
   (let (new-tree (replace-in-tree alist
