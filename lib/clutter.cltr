@@ -4,6 +4,9 @@
 (def-in! (get-current-env) global-env
   (get-current-env))
 
+(def-in! (get-current-env) empty-env
+  (make-env))
+
 (def-in! global-env def!
   (vau env (var value)
     (eval (list def-in! env var value) env)))
@@ -58,8 +61,12 @@
       (list)
       (cons (function (car values)) (map function (cdr values)))))
 
-(def-fun! apply (function args)
+(def-fun! apply1 (function args)
   (eval (cons (unwrap function) args) (get-current-env)))
+
+(def-fun! apply (function &rest args)
+  (eval (list* (unwrap function) (append (butlast args 1) (last args)))
+        empty-env))
 
 (def-fun! zip (&rest sequences)
   (if (eql? (list) (first sequences))
@@ -68,14 +75,14 @@
 
 (def-fun! curry (function &rest first-args)
   (lambda (&rest last-args)
-    (apply function (append first-args last-args))))
+    (apply1 function (append first-args last-args))))
 
 (def-fun! rcurry (function &rest last-args)
   (lambda (&rest first-args)
-    (apply function (append first-args last-args))))
+    (apply1 function (append first-args last-args))))
 
 (def-fun! map (function &rest lists)
-  (map1 (curry apply function) (apply zip lists)))
+  (map1 (curry apply1 function) (apply zip lists)))
 
 (def-fun! reduce (function initial values)
   (if (eql? (list) values)
@@ -139,6 +146,36 @@
       (if (predicate (first sequence))
           (cons (first sequence) (filter predicate (rest sequence)))
           (filter predicate (rest sequence)))))
+
+
+(def! first car)
+(def! rest cdr)
+(def-fun! nth (n sequence)
+  (def-fun! rec (n seq)
+    (if (<=? n 0)
+        (car seq)
+        (rec (- n 1) (cdr seq))))
+  (rec n sequence))
+(def! second (curry nth 1))
+(def! third (curry nth 2))
+(def! fourth (curry nth 3))
+(def! fifth (curry nth 4))
+(def! sixth (curry nth 5))
+(def! seventh (curry nth 6))
+(def! eighth (curry nth 7))
+(def! ninth (curry nth 8))
+(def! tenth (curry nth 9))
+
+(def-fun! last (seq)
+  (def! remainder (rest seq))
+  (if (empty? remainder)
+      (first seq)
+      (last remainder)))
+
+(def-fun! butlast (seq n)
+  (if (>=? n (length seq))
+      (list)
+      (cons (first seq) (butlast (rest seq) n))))
 
 (def-fun! even? (number)
   (=? (rem number 2) 0))
@@ -204,24 +241,6 @@
 (def-op! push! env (value place)
   (eval (list set! place (list cons value place))
         env))
-
-(def! first car)
-(def! rest cdr)
-(def-fun! nth (n sequence)
-  (def-fun! rec (n seq)
-    (if (<=? n 0)
-        (car seq)
-        (rec (- n 1) (cdr seq))))
-  (rec n sequence))
-(def! second (curry nth 1))
-(def! third (curry nth 2))
-(def! fourth (curry nth 3))
-(def! fifth (curry nth 4))
-(def! sixth (curry nth 5))
-(def! seventh (curry nth 6))
-(def! eighth (curry nth 7))
-(def! ninth (curry nth 8))
-(def! tenth (curry nth 9))
 
 (def-op! or? env (&rest expressions)
   (if (=? (length expressions) 0)
