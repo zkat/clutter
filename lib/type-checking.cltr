@@ -19,7 +19,7 @@
                  (cons (if (cons? ast)
                            (map mark-ast-helper ast)
                            ast)
-                       (intern current)))))
+                       (make-variable current)))))
       (mark-ast-helper ast))))
 
 (def-fun! substitute-vars (ast constraints)
@@ -34,18 +34,8 @@
           (cons subed-form (constraint-right subst))))))
 
 ;;; Constraints
-(def-fun! make-constraint (left right)
-  (list :constraint left right))
 
-(def-fun! constraint? (c)
-  (and? (sequence? c)
-        (eql? (car c) :constraint)))
-
-(def-fun! constraint-left (c)
-  (second c))
-
-(def-fun! constraint-right (c)
-  (third c))
+(def-struct! constraint left right)
 
 (def-fun! find-constraint (key list)
   (if (empty? list)
@@ -70,7 +60,7 @@
 (def-fun! make-atom-constraints (atom decl tv)
   (list
    (make-constraint tv
-                    (if ((any-of number? boolean? keyword?) atom)
+                    (if ((disjoin number? boolean? keyword?) atom)
                         (make-enumeration-type atom)
                         (eval atom decl)))))
 
@@ -87,103 +77,146 @@
        (reduce (lambda (prev next) (append (make-constraints next decl) prev)) (list) args)))))
 
 ;;; Unification
+(def-fun! unify-constraints (constraints)
+  (let (clauses (make-empty-clauses))
+    (map (lambda (constraint)
+           (add-clause! (clause-from-constraint constraint)))
+         clauses)
+    ;; Unify now?
+    ))
 
-(def-fun! unify (constraints)
-  (def-fun! unify-h (stack substs)
-    (if (empty? stack)
-        substs
-        (let* (next (car stack)
-               left (constraint-left next)
-               right (constraint-right next))
-          (cond
-            ((type-equal? left right) (unify-h (cdr stack) substs))
-            ((type-var? left) (unify-h
-                               (substitute-constraints left rigth (cdr stack) :subtype)
-                               (cons next (substitute-constraints left right substs :subtype))))
-            ((type-var? right) (unify-h
-                                (substitute-constraints rigth left (cdr stack) :supertype)
-                                (cons next (substitute-constraints right left substs :supertype))))
-            ((and? (type? left)
-                   (type? right))
-             (unify-h
-              (append (unify-types left right) (cdr stack))
-              substs))
-            (#t (print "Can't unify!")
-                (print left)
-                (print right)
-                (list))))))
-  (unify-h constraints (list)))
+;; Prolog stuff
 
-(def-fun! substitute-constraints (from to constraints relation)
-  (map (lambda (constraint)
-         (make-constraint
-          (if (and? (eql? relation :subtype)
-                    (eql? from (constraint-left constraint)))
-              to
-              (if (eql? relation :supertype)
-                  (substitute-side from to (constraint-left constraint))
-                  (constraint-left constraint)))
-          (if (and? (eql? relation :supertype)
-                    (eql? from (constraint-right constraint)))
-              to
-              (if (eql? relation :supertype)
-                  (substitute-side from to (constraint-right constraint))
-                  (constraint-right constraint)))))
-       constraints))
+(def! p-subset (make-prolog-symbol "SUBSET"))
+(def! p-enum (make-prolog-symbol "enum"))
+(def! p-primitive (make-prolog-symbol "primitive"))
+(def! p-intersection (make-prolog-symbol "intersection"))
+(def! p-product (make-prolog-symbol "product"))
+(def! p-sum (make-prolog-symbol "sum"))
+(def! p-record (make-prolog-symbol "record"))
+(def! p-tagged (make-prolog-symbol "tagged"))
 
-(def-fun! substitute-side (from to side)
-  (if (type? side)
-      (substitute-type from to side)
-      type))
+(def-fun! clause-from-constraint (constraints)
+  (make-clause (list p-subset
+                     (type-to-prolog (constraint-left constraint))
+                     (type-to-prolog (constraint-right constraint)))
+               (list)))
 
-(def-fun! substitute-type (from to type)
+(def-fun! type-to-prolog (type)
   (cond
-    ((any? (lambda (pred) (pred type)) and-type? sum-type? prod-type?)
-     ((type-constructor type)
-      (map (curry substitute-type from to) (type-data-of type))))
-    ((record-type? type)
-     (substitute-record-type type))
-    (#t type)))
+    ((variable? type) type)
+    ((enum-type? type) (apply (curry list p-enum) (enum-type-atoms type)))
+    ((primitive-type? type) (list p-primitive (primitive-type-name type)))
+    ((intersection-type? type) (apply (curry list p-intersection)
+                                      (map type-to-prolog
+                                           (intersection-type-types type))))
+    ((product-type? type) (apply (curry list p-product)
+                                 (map type-to-prolog
+                                      (product-type-types type))))
+    ((sum-type? type) (apply (curry list p-sum)
+                             (map type-to-prolog
+                                  (sum-type-types type))))
+    ((record-type? type) (apply (curry list p-record)
+                                (plist-map-values type-to-prolog
+                                                  (record-type-alist type))))
+    ((tagged-type? type) (list p-tagged (type-to-prolog (tagged-type-type type))))))
 
-(def-fun! unify-types (left right))
+;; (def-fun! unify (constraints)
+;;   (def-fun! unify-h (stack substs)
+;;     (if (empty? stack)
+;;         substs
+;;         (let* (next (car stack)
+;;                left (constraint-left next)
+;;                right (constraint-right next))
+;;           (cond
+;;             ((type-equal? left right) (unify-h (cdr stack) substs))
+;;             ((type-var? left) (unify-h
+;;                                (substitute-constraints left rigth (cdr stack) :subtype)
+;;                                (cons next (substitute-constraints left right substs :subtype))))
+;;             ((type-var? right) (unify-h
+;;                                 (substitute-constraints rigth left (cdr stack) :supertype)
+;;                                 (cons next (substitute-constraints right left substs :supertype))))
+;;             ((and? (type? left)
+;;                    (type? right))
+;;              (unify-h
+;;               (append (unify-types left right) (cdr stack))
+;;               substs))
+;;             (#t (print "Can't unify!")
+;;                 (print left)
+;;                 (print right)
+;;                 (list))))))
+;;   (unify-h constraints (list)))
 
-(def-fun! unify-types? (child parent)
-  (cond
-    ((enum-type? child)
-     (enum-subset? child parent))
-    ((pred-type? child)
-     (pred-subset? child parent))
-    ((and (and-type? child) (and-type? parent))
-     (and-subset-and? child parent))
-    ((and-type? child)
-     (and-subset? child))
-    (#t (print "Non-unifiable types!")
-        (print child)
-        (print parent)
-        (list))))
+;; (def-fun! substitute-constraints (from to constraints relation)
+;;   (map (lambda (constraint)
+;;          (make-constraint
+;;           (if (and? (eql? relation :subtype)
+;;                     (eql? from (constraint-left constraint)))
+;;               to
+;;               (if (eql? relation :supertype)
+;;                   (substitute-side from to (constraint-left constraint))
+;;                   (constraint-left constraint)))
+;;           (if (and? (eql? relation :supertype)
+;;                     (eql? from (constraint-right constraint)))
+;;               to
+;;               (if (eql? relation :supertype)
+;;                   (substitute-side from to (constraint-right constraint))
+;;                   (constraint-right constraint)))))
+;;        constraints))
 
-;; Subsetting enums
-;; (def-fun! enum-subset? (child parent)
-;;   (map (lambda (variant)
-;;          (make-constraint ())
-;;          ))
-;;   (all? (curry of-type? parent) (enum-type-variants child)))
+;; (def-fun! substitute-side (from to side)
+;;   (if (type? side)
+;;       (substitute-type from to side)
+;;       type))
 
-;; Subsetting for preds
-(def-fun! pred-subset? (child parent)) ; No idea yet
+;; (def-fun! substitute-type (from to type)
+;;   (cond
+;;     ((any? (lambda (pred) (pred type)) and-type? sum-type? prod-type?)
+;;      ((type-constructor type)
+;;       (map (curry substitute-type from to) (type-data-of type))))
+;;     ((record-type? type)
+;;      (substitute-record-type type))
+;;     (#t type)))
 
-;; Subsetting for ands
-(def-fun! and-subset-and? (child parent)
-  (all?
-   (lambda (type) (any? (rcurry is-subset? type) (and-type-types-of child)))
-   (and-types-type-of parent))) ; So all parent predicates are subset of at least one child predicate
+;; (def-fun! unify-types (left right))
 
-(def-fun! and-subset? (child parent)
-  (any? (rcurry is-subset? parent) (and-type-types-of child))) ; So at least one predicate is a subset of a parent
+;; (def-fun! unify-types? (child parent)
+;;   (cond
+;;     ((enum-type? child)
+;;      (enum-subset? child parent))
+;;     ((pred-type? child)
+;;      (pred-subset? child parent))
+;;     ((and (and-type? child) (and-type? parent))
+;;      (and-subset-and? child parent))
+;;     ((and-type? child)
+;;      (and-subset? child))
+;;     (#t (print "Non-unifiable types!")
+;;         (print child)
+;;         (print parent)
+;;         (list))))
 
-;; Subsetting for sums
-(def-fun! sum-subset? (child parent)
-  (map (rcurry make-constraint parent) (sum-type-types-of child)))
+;; ;; Subsetting enums
+;; ;; (def-fun! enum-subset? (child parent)
+;; ;;   (map (lambda (variant)
+;; ;;          (make-constraint ())
+;; ;;          ))
+;; ;;   (all? (curry of-type? parent) (enum-type-variants child)))
+
+;; ;; Subsetting for preds
+;; (def-fun! pred-subset? (child parent)) ; No idea yet
+
+;; ;; Subsetting for ands
+;; (def-fun! and-subset-and? (child parent)
+;;   (all?
+;;    (lambda (type) (any? (rcurry is-subset? type) (and-type-types-of child)))
+;;    (and-types-type-of parent))) ; So all parent predicates are subset of at least one child predicate
+
+;; (def-fun! and-subset? (child parent)
+;;   (any? (rcurry is-subset? parent) (and-type-types-of child))) ; So at least one predicate is a subset of a parent
+
+;; ;; Subsetting for sums
+;; (def-fun! sum-subset? (child parent)
+;;   (map (rcurry make-constraint parent) (sum-type-types-of child)))
 
 ;; (def-fun! make-constraints (form decl &rest declared-type)
 ;;   (let (actual-form (car form)
