@@ -2,104 +2,16 @@
 
 ;;; Concrete types
 
-(def-fun! make-type (type-type type-data)
-  (cons :type type-type type-data))
+(def-struct! enum-type atoms)
 
-(def-fun! type-type-of (type)
-  (second type))
+(def-struct! primitive-type name)
 
-(def-fun! type-data-of (type)
-  (third type))
+(def-struct! intersection-type types)
 
-(def-fun! type? (type)
-  (eql? :type (car type)))
+(def-struct! product-type types)
 
-(def-fun! type-type? (type-type type)
-  (and (type? type) (eql? (type-type-of type) type-type)))
+(def-struct! sum-type types)
 
-;; Direct enumeration types
+(def-struct! record-type alist)
 
-(def-fun! make-enumeration-type (&rest values)
-  (make-type :enum values))
-
-(def! enum-type-variants-of type-data-of)
-
-(def! enum-type? (curry type-type? :enum))
-
-;; Primitive types
-
-(def-fun! make-primitive-type (name)
-  (make-type :primitive name))
-
-(def! primitive-type-name-of type-data-of)
-
-(def! primitive-type? (curry type-type? :primitive))
-
-;; Predicate types
-
-(def-fun! make-predicate-type (pred)
-  (make-type :pred pred))
-
-(def! pred-type-predicate-of type-data-of)
-
-(def! pred-type? (curry type-type? :pred))
-
-;; Compound types
-
-(def! compound-type-type? (type-type type)
-  (and (type-type? type-type type) (every? type? (compound-type-data-of type))))
-
-;; And types
-
-(def-fun! make-and-types (&rest types)
-  (make-type :and types))
-
-(def! and-type-types-of type-data-of)
-
-(def! and-type? (curry compound-type-type? :and))
-
-;; Sum types
-
-(def-fun! make-sum-type (&rest types)
-  (make-type :sum types))
-
-(def! sum-type-types-of type-data-of)
-
-(def! sum-type? (curry compound-type-type? :sum))
-
-;; Prod types
-;; aka tuples
-
-(def-fun! make-prod-type (&rest types)
-  (make-type :prod types))
-
-(def! prod-type-types-of type-data-of)
-
-(def! prod-type? (curry compound-type-type? :prod))
-
-;; Record types
-;; aka named tuples
-
-(def-op! make-record-type env (&rest pairs)
-  (def-fun! actually-make-record-type (&rest pairs)
-   (let (types (make-env))
-     (map (lambda (pair)
-            (dyn-def-in! types (car pair) (cdr pair)))
-          pairs)
-     (make-type :record types)))
-  (actually-make-record-type (map (lambda (pair)
-                                    (cons (car pair) (eval (cdr pair) env)))
-                                  pairs)))
-
-;;; Subtyping rules
-
-(def-fun! of-type? (type value)
-  (cond
-    ((enum-type? type)
-     (member value (enum-type-variants-of type)))
-    ((pred-type? type)
-     (pred-type-predicate-of value))
-    ((and-type? type)
-     (all? (rcurry of-type? value) (and-type-types-of type)))
-    ((sum-type? type)
-     (any? (rcurry of-type? value) (sum-type-types-of type)))))
+(def-struct! tagged-type tag type)
