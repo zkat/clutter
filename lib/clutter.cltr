@@ -574,6 +574,21 @@
                           (lambda (key pair)
                             (eql? key (car pair)))))
 
+(def-fun! plist-map (designator function plist)
+  (let (counter-function
+        (lambda ()
+          (let (counter 0)
+            (lambda (el)
+              (inc! counter)
+              (if (designator counter)
+                  (function el)
+                  el)))))
+    (map (counter-function) plist)))
+
+(def! plist-map-keys (curry plist-map odd?))
+
+(def! plist-map-values (curry plist-map even?))
+
 (def-fun! fibonacci (n)
   (if (<? n 2)
       n
