@@ -210,6 +210,23 @@
       (emit (list eval (finalize expr) (finalize env))
             (append (map dynamic-in (filter dynamic? (list expr env)))))))
 
+(def-fun! map-code-tree (pred tree)
+  (pred-case tree
+             (dynamic?
+              (emit (map-code-tree pred (dynamic-code tree))
+                    (dynamic-in tree)))
+             (sequence?
+              (map (curry map-code-tree pred) tree))
+             (otherwise
+              (pred tree))))
+
+(def-fun! replace-code-tree (tree old-atom new-atom)
+  (map-code-tree (lambda (x)
+                   (if (eql? old-atom x)
+                       new-atom
+                       x))
+                 tree))
+
 ;;; Produce code that may be substituted for the supplied operator
 ;;; invocation.
 (def-fun! inline (call-form outer-env)
@@ -228,9 +245,9 @@
       
   (perform-binding (cons (vau-denv-var op) (vau-args op)) (cons outer-env (rest call-form)))
 
-  (def! results (replace-tree (map (rcurry smart-eval env)
-                                   (vau-body op))
-                              outer-env (list get-current-env)))
+  (def! results (replace-code-tree (map (rcurry smart-eval env)
+                                        (vau-body op))
+                                   outer-env (list get-current-env)))
   (if (=? (length results) 1)
       (first results)
       (list* do results)))
@@ -251,8 +268,8 @@
     (def-in! peval-env wrap emit-wrap)
     (def-in! peval-env name-vau! emit-name-vau!)
 
-    (replace-tree (finalize (smart-eval form peval-env))
-                  peval-env global-env)))
+    (replace-code-tree (finalize (smart-eval form peval-env))
+                       peval-env global-env)))
 
 (def-op! pe #ignore (form)
   (peval form))
