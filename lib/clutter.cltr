@@ -279,12 +279,11 @@
           (member? item (rest sequence)))
       #f))
 
-(def-fun! replace-tree (tree old-value new-value)
-  (if (and? (sequence? tree) (sequence? (rest tree)))
-      (if (empty? tree)
-          (list)
-          (map (rcurry replace-tree old-value new-value) tree))
-      (if (eql? tree old-value) new-value tree)))
+;;; Depth-first
+(def-fun! map-tree (pred tree)
+  (if (sequence? tree)
+      (map (curry map-tree pred) tree)
+      (pred tree)))
 
 (def-op! pred-case env (value &rest clauses)
   (def! actual-value (eval value env))
