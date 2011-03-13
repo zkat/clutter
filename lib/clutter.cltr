@@ -92,6 +92,9 @@
 (def-fun! flatten (sequence)
   (reduce append (list) sequence))
 
+(def-fun! constantly (value)
+  (lambda (&rest #ignore) value))
+
 (def-op! destructuring-bind dyn-env (vau-list values &rest body)
   (let (env (make-env dyn-env))
     (def-fun! perform-binding (vau-list values)
@@ -287,11 +290,13 @@
 
 (def-op! pred-case env (value &rest clauses)
   (def! actual-value (eval value env))
+  (def! pred-env (make-env env))
+  (def-in! pred-env otherwise (constantly #t))
   (def-fun! process-clauses (clauses)
     (if (empty? clauses)
         #f
         (let (clause (first clauses))
-          (if ((eval (first clause) env) actual-value)
+          (if ((eval (first clause) pred-env) actual-value)
               (eval (cons do (rest clause)) env)
               (process-clauses (rest clauses))))))
   (process-clauses clauses))
