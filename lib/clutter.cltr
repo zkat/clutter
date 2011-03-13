@@ -286,6 +286,17 @@
           (map (rcurry replace-tree old-value new-value) tree))
       (if (eql? tree old-value) new-value tree)))
 
+(def-op! pred-case env (value &rest clauses)
+  (def! actual-value (eval value env))
+  (def-fun! process-clauses (clauses)
+    (if (empty? clauses)
+        nil
+        (let (clause (first clauses))
+          (if ((eval (first clause) env) actual-value)
+              (eval (cons do (rest clause)) env)
+              (process-clauses (rest clauses))))))
+  (process-clauses clauses))
+
 (def-op! with-env callsite-env (target-env &rest body)
   (eval (list* do body) (eval target-env callsite-env)))
 
