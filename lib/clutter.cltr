@@ -290,7 +290,7 @@
   (def! actual-value (eval value env))
   (def-fun! process-clauses (clauses)
     (if (empty? clauses)
-        nil
+        #f
         (let (clause (first clauses))
           (if ((eval (first clause) env) actual-value)
               (eval (cons do (rest clause)) env)
