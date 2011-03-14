@@ -57,7 +57,7 @@
   (eval var (eval lookup-env env)))
 
 (def-fun! map1 (function values)
-  (if (eql? (list) values)
+  (if (empty? values)
       (list)
       (cons (function (car values)) (map function (cdr values)))))
 
@@ -69,7 +69,7 @@
         empty-env))
 
 (def-fun! zip (&rest sequences)
-  (if (eql? (list) (first sequences))
+  (if (empty? (first sequences))
       (list)
       (list* (map1 first sequences) (apply zip (map1 rest sequences)))))
 
@@ -85,7 +85,7 @@
   (map1 (curry apply1 function) (apply zip lists)))
 
 (def-fun! reduce (function initial values)
-  (if (eql? (list) values)
+  (if (empty? values)
       initial
       (function initial (reduce function (car values) (cdr values)))))
 
