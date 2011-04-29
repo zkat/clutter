@@ -43,7 +43,7 @@
          :args ',vau-list
          :pure ,purity))))
 
-(defprimop "vau" (static-env env-var vau-list &rest body)
+(defun make-vau (static-env env-var vau-list body)
   ;; TODO: Determine purity
   (make-clutter-operative
    :function
@@ -69,16 +69,19 @@
    :denv-var env-var
    :body body))
 
+(defprimop "vau" (static-env env-var vau-list &rest body)
+  (make-vau static-env env-var vau-list body))
+
+(defprimop "nvau" (static-env name env-var vau-list &rest body)
+  (let ((value (make-vau static-env env-var vau-list body)))
+    (setf (clutter-operative-name value) name)
+    value))
+
 (defprimfun t "wrap" (operative)
   (make-function operative))
 
 (defprimfun t "unwrap" (function)
   (clutter-function-operative function))
-
-(defprimop "name-vau!" (*denv* v name)
-  (let ((value (clutter-eval v *denv*)))
-    (setf (clutter-operative-name value) name)
-    value))
 
 (defprimfun nil "eval" (expression environment)
   (clutter-eval expression environment))
