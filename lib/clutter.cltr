@@ -18,7 +18,7 @@
 (def! def-op!
  (vau env (name env-var vau-list &rest body)
    (eval (list def! name
-               (list name-vau! (list* vau env-var vau-list body) name))
+               (list* nvau name env-var vau-list body))
          env)))
 
 (def-op! dyn-def-in! dyn-env (env var value)
@@ -38,11 +38,8 @@
 (def-op! lambda env (vau-list &rest body)
   (wrap (eval (list* vau #ignore vau-list body) env)))
 
-(def-op! name-lambda! env (l name)
-  ((lambda (obj)
-     (eval (list name-vau! (list unwrap obj) name) env)
-     obj)
-   (eval l env)))
+(def-op! nlambda env (name vau-list &rest body)
+  (wrap (eval (list* nvau name #ignore vau-list body) env)))
 
 (def! fun-name
   (lambda (f)
@@ -50,7 +47,7 @@
 
 (def-op! def-fun! env (name lambda-list &rest body)
   (eval (list def! name
-              (list name-lambda!(list* lambda lambda-list body) name))
+              (list* nlambda name lambda-list body))
         env))
 
 (def-op! lookup env (var lookup-env)
