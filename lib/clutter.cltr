@@ -107,7 +107,9 @@
     (eval (cons do body) env)))
 
 (def-op! do env (&rest body)
-  (eval (list (list* vau #ignore () body)) env))
+  (if (eql? (length body) 1)
+      (eval (first body) env)
+      (eval (list (list* vau #ignore () body)) env)))
 
 (def-op! cond env (&rest forms)
   (if (empty? forms)
