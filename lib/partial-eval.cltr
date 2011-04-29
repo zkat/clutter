@@ -19,6 +19,11 @@
     ((or? (list? tree) (symbol? tree)) (list quote tree))
     (#t tree)))
 
+(def-fun! ensure-code (code)
+  (if (dynamic? code)
+      (dynamic-code code)
+      code))
+
 (def! peval-prims (list))
 (def-fun! peval-prim? (obj)
   (member? obj peval-prims))
@@ -45,14 +50,14 @@
   (lambda (&rest values)
     (cond
       ((all? static? values) (apply shadowing values))
-      (#t (emit (list* shadowing (map finalize values))
+      (#t (emit (list* shadowing (map ensure-code values))
                 (apply append (map dynamic-in (filter dynamic? values))))))))
 
 (def-fun! make-bin-prim (shadowing)
   (lambda (a b)
     (cond
       ((and? (static? a) (static? b)) (shadowing a b))
-      (#t (emit (list shadowing (finalize a) (finalize b))
+      (#t (emit (list shadowing (ensure-code a) (ensure-code b))
                 (apply append (map dynamic-in (filter dynamic? values))))))))
 
 (def-op! def-math-prim! env (shadowing name)
@@ -85,9 +90,9 @@
           (smart-eval else denv))
       (let (then-val (smart-eval then denv)
             else-val (smart-eval else denv))
-        (emit (list if (finalize condition-val)
-                    (finalize then-val)
-                    (finalize else-val))
+        (emit (list if (ensure-code condition-val)
+                    (ensure-code then-val)
+                    (ensure-code else-val))
               (apply append
                      (map dynamic-in
                           (filter dynamic?
@@ -106,14 +111,14 @@
                  (list target-env-val)))
           ;; FIXME: This is only necessary if value-val is an impure
           ;; invocation; otherwise the value should propogate
-          (do (dyn-def-in! target-env-val name (emit name target-env-val))
+          (do (dyn-def-in! target-env-val name (emit name (list target-env-val)))
               (emit (list def-in! target-env-val name
-                          (finalize value-val))
+                          (ensure-code value-val))
                  (cons target-env-val (dynamic-in value-val)))))
       (if (static? value-val)
-          (emit (list def-in! (finalize target-env-val) name value-val)
+          (emit (list def-in! (ensure-code target-env-val) name value-val)
                 (dynamic-in target-env-val)) ; TODO: verify correct
-          (emit (list def-in! (finalize target-env-val) name (finalize value-val))
+          (emit (list def-in! (ensure-code target-env-val) name (ensure-code value-val))
                 (append (dynamic-in target-env-val) ; TODO: verify correct
                                (dynamic-in value-val))))))
 
@@ -128,31 +133,32 @@
                  (list target-env-val)))
           ;; FIXME: This is only necessary if value-val is an impure
           ;; invocation; otherwise the value should propogate
-          (do (dyn-set-in! target-env-val name (emit name target-env-val))
+          (do (dyn-set-in! target-env-val name (emit name (list target-env-val)))
               (emit (list set-in! target-env-val name
-                          (finalize value-val))
+                          (ensure-code value-val))
                  (cons target-env-val (dynamic-in value-val)))))
       (if (static? value-val)
-          (emit (list set-in! (finalize target-env-val) name value-val)
+          (emit (list set-in! (ensure-code target-env-val) name value-val)
                 (dynamic-in target-env-val)) ; TODO: verify correct
-          (emit (list set-in! (finalize target-env-val) name (finalize value-val))
+          (emit (list set-in! (ensure-code target-env-val) name (ensure-code value-val))
                 (append (dynamic-in target-env-val) ; TODO: verify correct
-                               (dynamic-in value-val))))))
+                        (dynamic-in value-val))))))
 
 (def-peval-fun! wrap emit-wrap (obj)
-  (cond
-    ((dynamic? obj) (emit (list wrap (finalize obj)) (dynamic-in obj)))
-    (#t (wrap obj))))
-
-(def-peval-fun! name-vau! emit-name-vau! (obj name)
-  obj)
+  (if (dynamic? obj)
+      (emit (if (eql? (first (dynamic-code obj))
+                      unwrap)
+                (rest (dynamic-code obj))
+                (list wrap (dynamic-code obj)))
+            (dynamic-in obj))
+      (wrap obj)))
 
 ;;; Inlines and recurses
 (def-fun! smart-eval-call (form env)
   ;; TODO: Also inline functions being passed constant envs.
   (def! comb (smart-eval (first form) env))
   (if (dynamic? comb)
-      (emit (list* (finalize comb) (map finalize (rest form)))
+      (emit (list* (dynamic-code comb) (map ensure-code (rest form)))
             (apply append
                    (map dynamic-in
                         (cons comb (filter dynamic? (rest form))))))
@@ -175,7 +181,7 @@
                                          comb))
                              args)
                       env)
-                (let (final-args (map finalize args))
+                (let (final-args (map ensure-code args))
                   (emit (list* comb final-args)
                         (map (rcurry binding-env env) final-args))))))))
 
@@ -184,16 +190,16 @@
     ((null? form) form)
     ((list? form) (smart-eval-call form env))
     ;; FIXME: Global values may change at runtime; how do we tell when
-    ;; to emit a dynamic lookup here?
-    ;; Values may be 'constant' (cause recompile if changed) or
-    ;; 'dynamic' (so that we use emit instead of eval here).  This
-    ;; distinction must be made.
+    ;; to emit a dynamic lookup here?  Values may be 'constant' (cause
+    ;; recompile if changed) or 'dynamic' (so that we use emit instead
+    ;; of eval here).  This distinction must be made.  Perhaps infer
+    ;; via whole-program analysis?
     (#t (eval form env))))
 
 (def-peval-op! vau emit-vau static-env (env-var vau-list &rest body)
   (def! vau-env (make-env static-env))
   (map (lambda (binding)
-         (dyn-def-in! vau-env binding (emit binding vau-env)))
+         (dyn-def-in! vau-env binding (emit binding (list vau-env))))
        (cons env-var vau-list))
   ;; TODO: Evaluate vau expr when pure
   ;; Pureness criteria:
@@ -201,14 +207,20 @@
   ;; - Calls only functions which at most side-effect the current env
   ;; TODO: A conservative purity heuristic until the above is supplied.
   (def! body-results (map (rcurry smart-eval vau-env) body))
-  (emit (list* vau env-var vau-list (map finalize body-results))
-        (apply append (map dynamic-in (filter dynamic? body-results)))))
+  (def! res
+      (emit (list* vau env-var vau-list (map ensure-code body-results))
+            (apply append (map dynamic-in (filter dynamic? body-results)))))
+  (format #t "Emitting impure vau ~A~%" res)
+  res)
+
+(def-peval-op! nvau emit-nvau static-env (name env-var vau-list &rest body)
+  (eval (list* emit-vau env-var vau-list body) static-env))
 
 (def-peval-fun! eval emit-eval (expr env)
   (if (and? (static? expr) (static? env))
       (smart-eval expr env)
-      (emit (list eval (finalize expr) (finalize env))
-            (append (map dynamic-in (filter dynamic? (list expr env)))))))
+      (print (emit (list eval (ensure-code expr) (ensure-code env))
+                   (append (map dynamic-in (filter dynamic? (list expr env))))))))
 
 (def-fun! map-code-tree (pred tree)
   (pred-case tree
@@ -242,15 +254,20 @@
       (#t
        (dyn-def-in! env (first vau-list) (first values))
        (perform-binding (rest vau-list) (rest values)))))
-      
+  
   (perform-binding (cons (vau-denv-var op) (vau-args op)) (cons outer-env (rest call-form)))
 
-  (def! results (replace-code-tree (map (rcurry smart-eval env)
-                                        (vau-body op))
-                                   outer-env (list get-current-env)))
-  (if (=? (length results) 1)
-      (first results)
-      (list* do results)))
+  (def! results
+      (replace-code-tree (map (rcurry smart-eval env)
+                              (vau-body op))
+                         outer-env (list get-current-env)))
+  
+  (cond ((=? (length results) 1)
+         (first results))
+        ((any? dynamic? results)
+         (emit (list* do (map ensure-code results))
+               (apply append (map dynamic-in (filter dynamic? results)))))
+        (list* do results)))
 
 (def-fun! peval (form)
   (let (peval-env (make-env global-env))
