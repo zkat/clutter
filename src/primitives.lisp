@@ -184,7 +184,7 @@
 ;;; HACK FOR TESTING PURPOSES ONLY.
 ;;; TODO: Scrap this once we autodetect purity.
 (defprimfun nil "declare-pure!" (x purity)
-  (setf (clutter-operative-pure (clutter-function-operative x))
+  (setf (clutter-operative-pure x)
         (if (eq purity *false*) nil t)))
 
 (defprimfun t "vau-name" (v)
