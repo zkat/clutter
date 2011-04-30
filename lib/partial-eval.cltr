@@ -206,7 +206,9 @@
   (if (any? (conjoin dynamic? impure-here?) body-results)
       (emit (list* vau env-var vau-list (map finalize body-results))
             (apply append (map outer-envs (filter dynamic? body-results))))
-      (eval (list* vau env-var vau-list (map1 finalize body-results)) vau-env)))
+      (let (result (eval (list* vau env-var vau-list (map1 finalize body-results)) vau-env))
+        (declare-pure! result #t)
+        result)))
 
 (def-peval-op! nvau emit-nvau static-env (name env-var vau-list &rest body)
   (eval (list* emit-vau env-var vau-list body) static-env))
