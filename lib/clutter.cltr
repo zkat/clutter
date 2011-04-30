@@ -71,11 +71,11 @@
       (list* (map1 first sequences) (apply zip (map1 rest sequences)))))
 
 (def-fun! curry (function &rest first-args)
-  (lambda (&rest last-args)
+  (nlambda curried (&rest last-args)
     (apply1 function (append first-args last-args))))
 
 (def-fun! rcurry (function &rest last-args)
-  (lambda (&rest first-args)
+  (nlambda curried (&rest first-args)
     (apply1 function (append first-args last-args))))
 
 (def-fun! map (function &rest lists)
