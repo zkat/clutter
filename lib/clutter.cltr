@@ -138,6 +138,22 @@
           function
           more-functions))
 
+(def-fun! conjoin (&rest predicates)
+  (def-fun! conjunction (predicates value)
+    (if (empty? predicates)
+        #t
+        (and? ((first predicates) value)
+              (conjunction (rest predicates) value))))
+  (curry conjunction predicates))
+
+(def-fun! disjoin (&rest predicates)
+  (def-fun! disjunction (predicates value)
+    (if (empty? predicates)
+        #f
+        (or? ((first predicates) value)
+             (conjunction (rest predicates) value))))
+  (curry disjunction predicates))
+
 (def! complement (curry compose not))
 
 (def! empty? null?)
