@@ -43,7 +43,7 @@
          :args ',vau-list
          :pure ,purity))))
 
-(defun make-vau (static-env env-var vau-list body)
+(defun make-vau (static-env env-var vau-list body &optional (name "anonymous fexpr"))
   ;; TODO: Determine purity
   (make-clutter-operative
    :function
@@ -53,7 +53,7 @@
        (declare (ignore optional))
        (unless (or (= (length values) (length required))
                    (and rest (>= (length values) (length required))))
-         (error "Wrong number of arguments"))
+         (error "Wrong number of arguments to ~A (expected at least ~A)" name (length required)))
        (let ((env (make-env static-env)))
          (loop for var in (list* env-var rest required)
                for value in (list* *denv*
@@ -73,7 +73,7 @@
   (make-vau static-env env-var vau-list body))
 
 (defprimop "nvau" (static-env name env-var vau-list &rest body)
-  (let ((value (make-vau static-env env-var vau-list body)))
+  (let ((value (make-vau static-env env-var vau-list body (clutter-symbol-name name))))
     (setf (clutter-operative-name value) name)
     value))
 
