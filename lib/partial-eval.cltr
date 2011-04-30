@@ -220,8 +220,8 @@
 (def-peval-fun! eval emit-eval (expr env)
   (if (and? (static? expr) (static? env))
       (smart-eval expr env)
-      (print (emit (list eval (ensure-code expr) (ensure-code env))
-                   (append (map dynamic-in (filter dynamic? (list expr env))))))))
+      (emit (list eval (ensure-code expr) (ensure-code env))
+            (append (map dynamic-in (filter dynamic? (list expr env)))))))
 
 (def-fun! map-code-tree (pred tree)
   (pred-case tree
