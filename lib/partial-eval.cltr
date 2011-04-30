@@ -197,15 +197,14 @@
   (map (lambda (binding)
          (dyn-def-in! vau-env binding (emit binding (list vau-env))))
        (cons env-var vau-list))
-  ;; TODO: Evaluate vau expr when pure
-  ;; Pureness criteria:
-  ;; - Accesses dynamic bindings in and below its own env only.
-  ;; - Calls only functions which at most side-effect the current env
-  ;; TODO: A conservative purity heuristic until the above is supplied.
+  ;; TODO: Handle explicitly introduced but non-escaping environments
   (def! body-results (map (rcurry smart-eval vau-env) body))
-  (if (any? (conjoin dynamic? dynamic-impure?) body-results)
+  (def! outer-envs (compose (curry filter (complement (curry eql? vau-env)))
+                            dynamic-in))
+  (def! impure-here? (complement (compose empty? outer-envs)))
+  (if (any? (conjoin dynamic? impure-here?) body-results)
       (emit (list* vau env-var vau-list (map finalize body-results))
-            (apply append (map dynamic-in (filter dynamic? body-results))))
+            (apply append (map outer-envs (filter dynamic? body-results))))
       (eval (list* vau env-var vau-list (map1 finalize body-results)) vau-env)))
 
 (def-peval-op! nvau emit-nvau static-env (name env-var vau-list &rest body)
