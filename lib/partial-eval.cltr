@@ -5,6 +5,7 @@
   (and? (sequence? value)
         (eql? (car value) :dynamic)))
 (def! static? (complement dynamic?))
+;;; List of environments that this dynamic code side effects or is affected by
 (def-fun! dynamic-in (dynamic)
   (second dynamic))
 (def-fun! dynamic-code (dynamic)
