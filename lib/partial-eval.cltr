@@ -52,14 +52,14 @@
   (lambda (&rest values)
     (cond
       ((all? static? values) (apply shadowing values))
-      (#t (emit (list* shadowing (map ensure-code values))
+      (#t (emit (list* shadowing (map finalize values))
                 (apply append (map dynamic-in (filter dynamic? values))))))))
 
 (def-fun! make-bin-prim (shadowing)
   (lambda (a b)
     (cond
       ((and? (static? a) (static? b)) (shadowing a b))
-      (#t (emit (list shadowing (ensure-code a) (ensure-code b))
+      (#t (emit (list shadowing (finalize a) (finalize b))
                 (apply append (map dynamic-in (filter dynamic? values))))))))
 
 (def-op! def-math-prim! env (shadowing name)
@@ -92,9 +92,9 @@
           (smart-eval else denv))
       (let (then-val (smart-eval then denv)
             else-val (smart-eval else denv))
-        (emit (list if (ensure-code condition-val)
-                    (ensure-code then-val)
-                    (ensure-code else-val))
+        (emit (list if (finalize condition-val)
+                    (finalize then-val)
+                    (finalize else-val))
               (apply append
                      (map dynamic-in
                           (filter dynamic?
@@ -115,12 +115,12 @@
           ;; invocation; otherwise the value should propogate
           (do (dyn-def-in! target-env-val name (emit name (list target-env-val)))
               (emit (list def-in! target-env-val name
-                          (ensure-code value-val))
+                          (finalize value-val))
                  (cons target-env-val (dynamic-in value-val)))))
       (if (static? value-val)
-          (emit (list def-in! (ensure-code target-env-val) name value-val)
+          (emit (list def-in! (finalize target-env-val) name value-val)
                 (dynamic-in target-env-val)) ; TODO: verify correct
-          (emit (list def-in! (ensure-code target-env-val) name (ensure-code value-val))
+          (emit (list def-in! (finalize target-env-val) name (finalize value-val))
                 (append (dynamic-in target-env-val) ; TODO: verify correct
                                (dynamic-in value-val))))))
 
@@ -137,12 +137,12 @@
           ;; invocation; otherwise the value should propogate
           (do (dyn-set-in! target-env-val name (emit name (list target-env-val)))
               (emit (list set-in! target-env-val name
-                          (ensure-code value-val))
+                          (finalize value-val))
                  (cons target-env-val (dynamic-in value-val)))))
       (if (static? value-val)
-          (emit (list set-in! (ensure-code target-env-val) name value-val)
+          (emit (list set-in! (finalize target-env-val) name value-val)
                 (dynamic-in target-env-val)) ; TODO: verify correct
-          (emit (list set-in! (ensure-code target-env-val) name (ensure-code value-val))
+          (emit (list set-in! (finalize target-env-val) name (finalize value-val))
                 (append (dynamic-in target-env-val) ; TODO: verify correct
                         (dynamic-in value-val))))))
 
@@ -160,7 +160,7 @@
   ;; TODO: Also inline functions being passed constant envs.
   (def! comb (smart-eval (first form) env))
   (if (dynamic? comb)
-      (emit (list* (dynamic-code comb) (map ensure-code (rest form)))
+      (emit (list* (dynamic-code comb) (map finalize (rest form)))
             (apply append
                    (map dynamic-in
                         (cons comb (filter dynamic? (rest form))))))
@@ -210,7 +210,7 @@
   ;; TODO: A conservative purity heuristic until the above is supplied.
   (def! body-results (map (rcurry smart-eval vau-env) body))
   (if (any? (conjoin dynamic? dynamic-impure?) body-results)
-      (emit (list* vau env-var vau-list (map ensure-code body-results))
+      (emit (list* vau env-var vau-list (map finalize body-results))
             (apply append (map dynamic-in (filter dynamic? body-results))))
       (eval (list* vau env-var vau-list (map1 finalize body-results)) vau-env)))
 
@@ -220,7 +220,7 @@
 (def-peval-fun! eval emit-eval (expr env)
   (if (and? (static? expr) (static? env))
       (smart-eval expr env)
-      (emit (list eval (ensure-code expr) (ensure-code env))
+      (emit (list eval (finalize expr) (finalize env))
             (append (map dynamic-in (filter dynamic? (list expr env)))))))
 
 (def-fun! map-code-tree (pred tree)
@@ -266,7 +266,7 @@
   (cond ((=? (length results) 1)
          (first results))
         ((any? dynamic? results)
-         (emit (list* do (map ensure-code results))
+         (emit (list* do (map finalize results))
                (apply append (map dynamic-in (filter dynamic? results)))))
         (list* do results)))
 
