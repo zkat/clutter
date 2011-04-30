@@ -173,7 +173,7 @@
               (if (primitive? comb)
                   (do (print "WARNING: Unsupported partial eval primitive!")
                       (print comb)
-                    (emit form))
+                    (emit (map1 finalize form)))
                   (inline (list* comb (rest form)) env)))
           (let (args (map (rcurry smart-eval env) (rest form)))
             (if (or? (peval-prim? comb) (shadowed-prim? comb)
@@ -183,7 +183,7 @@
                                          comb))
                              args)
                       env)
-                (let (final-args (map ensure-code args))
+                (let (final-args (map finalize args))
                   (emit (list* comb final-args)
                         (map (rcurry binding-env env) final-args))))))))
 
