@@ -18,13 +18,7 @@
 (def-fun! finalize (tree)
   (cond
     ((dynamic? tree) (dynamic-code tree))
-    ((or? (list? tree) (symbol? tree)) (list quote tree))
-    (#t tree)))
-
-(def-fun! ensure-code (code)
-  (if (dynamic? code)
-      (dynamic-code code)
-      code))
+    (#t (list quote tree))))
 
 (def! peval-prims (list))
 (def-fun! peval-prim? (obj)
