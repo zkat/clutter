@@ -209,11 +209,10 @@
   ;; - Calls only functions which at most side-effect the current env
   ;; TODO: A conservative purity heuristic until the above is supplied.
   (def! body-results (map (rcurry smart-eval vau-env) body))
-  (def! res
+  (if (any? (conjoin dynamic? dynamic-impure?) body-results)
       (emit (list* vau env-var vau-list (map ensure-code body-results))
-            (apply append (map dynamic-in (filter dynamic? body-results)))))
-  (format #t "Emitting impure vau ~A~%" res)
-  res)
+            (apply append (map dynamic-in (filter dynamic? body-results))))
+      (eval (list* vau env-var vau-list (map1 finalize body-results)) vau-env)))
 
 (def-peval-op! nvau emit-nvau static-env (name env-var vau-list &rest body)
   (eval (list* emit-vau env-var vau-list body) static-env))
