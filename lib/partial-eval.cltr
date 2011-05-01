@@ -102,7 +102,6 @@
                           (filter dynamic?
                                   (list condition-val then-val else-val))))))))
 
-;; These may be dynamic in the value of target-env-val, not what it is dynamic in.
 (def-peval-op! def-in! emit-def-in! denv (target-env name value)
   (def! target-env-val (smart-eval target-env denv))
   (def! value-val (smart-eval value denv))
@@ -121,10 +120,10 @@
                  (cons target-env-val (dynamic-in value-val)))))
       (if (static? value-val)
           (emit (list def-in! (finalize target-env-val) name value-val)
-                (dynamic-in target-env-val)) ; TODO: verify correct
+                (dynamic-in target-env-val))
           (emit (list def-in! (finalize target-env-val) name (finalize value-val))
-                (append (dynamic-in target-env-val) ; TODO: verify correct
-                               (dynamic-in value-val))))))
+                (append (dynamic-in target-env-val)
+                        (dynamic-in value-val))))))
 
 (def-peval-op! set-in! emit-set-in! denv (target-env name value)
   (def! target-env-val (smart-eval target-env denv))
