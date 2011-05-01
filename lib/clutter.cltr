@@ -303,6 +303,19 @@
       (map (curry map-tree pred) tree)
       (pred tree)))
 
+(def-op! case env (value &rest clauses)
+  (def! actual-value (eval value env))
+  (def-fun! process-clauses (clauses)
+    (if (empty? clauses)
+        #f
+        (let (clause (first clauses))
+          (if (or? (eql? (first clause) #t)
+                   (eql? (eval (first clause) env)
+                         actual-value))
+              (eval (cons do (rest clause)) env)
+              (process-clauses (rest clauses))))))
+  (process-clauses clauses))
+
 (def-op! pred-case env (value &rest clauses)
   (def! actual-value (eval value env))
   (def! pred-env (make-env env))
