@@ -178,9 +178,8 @@
                                          comb))
                              args)
                       env)
-                (let (final-args (map finalize args))
-                  (emit (list* comb final-args)
-                        (map (rcurry binding-env env) final-args))))))))
+                (emit (list* comb (map finalize args))
+                      (apply append (map dynamic-in (filter dynamic? args)))))))))
 
 (def-fun! smart-eval (form env)
   (cond
