@@ -16,10 +16,17 @@
 ;;; Should be internal to peval to discourage external use.
 (def-op! quote #ignore (x) x)
 
+;;; For use on partial evaluation results
 (def-fun! finalize (tree)
   (cond
     ((dynamic? tree) (dynamic-code tree))
     (#t (list quote tree))))
+
+;;; For use on unevaluated dynamics
+(def-fun! ensure-code (tree)
+  (cond
+    ((dynamic? tree) (dynamic-code tree))
+    (#t tree)))
 
 (def! peval-prims (list))
 (def-fun! peval-prim? (obj)
@@ -155,7 +162,7 @@
   ;; TODO: Also inline functions being passed constant envs.
   (def! comb (smart-eval (first form) env))
   (if (dynamic? comb)
-      (emit (list* (dynamic-code comb) (map finalize (rest form)))
+      (emit (list* (dynamic-code comb) (map ensure-code (rest form)))
             (apply append
                    (map dynamic-in
                         (cons comb (filter dynamic? (rest form))))))
@@ -168,7 +175,7 @@
               (if (primitive? comb)
                   (do (print "WARNING: Unsupported partial eval primitive!")
                       (print comb)
-                    (emit (map1 finalize form)))
+                    (emit (map1 ensure-code form) (list)))
                   (inline (list* comb (rest form)) env)))
           (let (args (map (rcurry smart-eval env) (rest form)))
             (if (or? (peval-prim? comb) (shadowed-prim? comb)
@@ -178,7 +185,7 @@
                                          comb))
                              args)
                       env)
-                (emit (list* comb (map finalize args))
+                (emit (list* comb (map ensure-code args))
                       (apply append (map dynamic-in (filter dynamic? args)))))))))
 
 (def-fun! smart-eval (form env)
