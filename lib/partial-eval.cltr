@@ -281,11 +281,11 @@
     (def-in! peval-env rem emit-rem)
     (def-in! peval-env eval emit-eval)
     (def-in! peval-env vau emit-vau)
+    (def-in! peval-env nvau emit-nvau)
     (def-in! peval-env if emit-if)
     (def-in! peval-env def-in! emit-def-in!)
     (def-in! peval-env set-in! emit-set-in!)
     (def-in! peval-env wrap emit-wrap)
-    (def-in! peval-env name-vau! emit-name-vau!)
 
     (replace-code-tree (finalize (smart-eval form peval-env))
                        peval-env global-env)))
