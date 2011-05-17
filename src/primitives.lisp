@@ -236,12 +236,15 @@
                  values)))
 
 (defprimfun nil "print" (obj)
-  (print obj))
+  (format t "~S~%" obj)
+  obj))
+
 (defprimfun nil "format" (destination str &rest args)
   (apply #'format (if (eq destination (clutter-symbol "#t"))
               t
               destination)
           str args))
+
 (defprimfun nil "load" (path)
   (clutter-load path))
 
