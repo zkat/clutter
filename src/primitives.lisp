@@ -237,7 +237,7 @@
 
 (defprimfun nil "print" (obj)
   (format t "~S~%" obj)
-  obj))
+  obj)
 
 (defprimfun nil "format" (destination str &rest args)
   (apply #'format (if (eq destination (clutter-symbol "#t"))
