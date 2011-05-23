@@ -2,16 +2,35 @@
 
 ;;; Concrete types
 
-(def-struct! enum-type atoms)
+(def-struct! literal-type atom)
 
 (def-struct! primitive-type name)
 
-(def-struct! intersection-type types)
+(def-struct! arrow-type from to)
 
 (def-struct! product-type types)
 
-(def-struct! sum-type types)
+;(def-struct! intersection-type types)
 
-(def-struct! record-type alist)
+;(def-struct! sum-type types)
 
-(def-struct! tagged-type tag type)
+;(def-struct! record-type alist)
+
+;(def-struct! tagged-type tag type)
+
+(def! type? (disjoin literal-type?
+                     primitive-type?
+                     arrow-type?
+                     product-type?))
+
+(def-fun! get-type-constructor (type)
+  (pred-case
+   (literal-type? make-literal-type)
+   (primitive-type? make-primitive-type)
+   (arrow-type? make-arrow-type)
+   (product-type make-product-type)))
+
+(def-fun! atom-primitive-type (atom type)
+  (predcase
+   (number? (make-primitive-type "number"))
+   (boolean? (make-primitive-type "boolean"))))
