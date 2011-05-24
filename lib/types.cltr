@@ -74,10 +74,12 @@
       (#t (<? (position #t (map (curry type-is left) type-list))
               (position #t (map (curry type-is right) type-list)))))))
 
+(def! group-type? (disjoin intersection-type? sum-type?))
+
 (def-fun! normalize-group-type (type)
   (def-fun! normalize-helper (type constructor accessor indicator)
     (def-fun! normalize-helper-recur (n types)
-      (if (zero? n)
+      (if (<? n 0)
           types
           (if (any? (curry indicator (car types)) (cdr types))
               (normalize-helper-recur (- n 2) (cdr types))

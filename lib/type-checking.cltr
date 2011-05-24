@@ -4,10 +4,9 @@
 
 (def-op! infer-code env (code decl)
   (let (ast (print (mark-ast code)))
-    (print "Constraints:")
     (substitute-vars
      ast
-     (print (unify-constraints (print (make-constraints ast (eval decl env))))))))
+     (unify-constraints (print (make-constraints ast (eval decl env)))))))
 
 ;;; AST marking
 
@@ -144,19 +143,19 @@
 ;; Preprocessing merging
 
 (def-fun! merge-to-intersections (constraints)
-  (map (compose normalize-united-intersection merge-constraints)
-       (group (sort-by (fork type-order? constraint-left constraint-left) constraints))))
+  (map merge-constraints
+       (group-by (fork eql?
+                       constraint-left
+                       constraint-left)
+                 (sort-by (fork type-order?
+                                constraint-left
+                                constraint-left)
+                                  constraints))))
 
 (def-fun! merge-constraints (constraints)
   (make-constraint (constraint-left (first constraints))
-                           (make-intersection-type (map constraint-right constraints))))
-
-(def-fun! normalize-united-intersection (constraint)
-  (make-constraint (constraint-left constraint)
-                   (let (right (constraint-right constraint))
-                     (if (intersection-type? right)
-                         (normalize-group-type right)
-                         right))))
+                   (normalize-group-type
+                    (make-intersection-type (map constraint-right constraints)))))
 
 ;; Unification
 
@@ -175,12 +174,19 @@
             ((variable? child)
              (let (subs (curry substitute-constraints child parent))
                (unify-h
-                (subs (cdr stack))
+                (merge-to-intersections (subs (cdr stack)))
                 (merge-to-intersections (cons next (subs substs))))))
             ((or? (bottom? child)
                   (top? parent))
              (unify-h (cdr stack) substs))
-            ((or? (type? child)
+            ((or? (group-type? child)
+                  (group-type? parent))
+             (find-by (complement false?)
+                      (map (compose (rcurry unify-h substs)
+                                    merge-to-intersections
+                                    (curry append (cdr stack)))
+                           (unify-group-types child parent))))
+            ((and? (type? child)
                   (type? parent))
              (let (result (unify-types child parent))
                (when result
@@ -206,15 +212,18 @@
      (unify-arrows child parent))
     ((and? (record-type? child)
            (record-type? parent))
-     #f) ; TODO
+     #f))) ;; todo
+
+(def-fun! unify-group-types (child parent)
+  (cond
     ((sum-type? child)
-     (unify-sum-child child parent))
+     (unify-sum-child (normalize-group-type child) parent))
     ((sum-type? parent)
-     (unify-sum-parent child parent))
+     (unify-sum-parent child (normalize-group-type parent)))
     ((intersection-type? child)
-     (unify-intersection-child child parent))
+     (unify-intersection-child (normalize-group-type child) parent))
     ((intersection-type? parent)
-     (unify-intersection-parent child parent))))
+     (unify-intersection-parent child (normalize-group-type parent)))))
 
 (def-fun! unify-literals (child parent)
   ;; This is fail only unifier, equal literals just eliminate
@@ -248,13 +257,15 @@
    (make-constraint (arrow-type-to child) (arrow-type-to parent))))
 
 (def-fun! unify-sum-child (child parent)
-  (map (rcurry make-constraint parent) (sum-type-types child)))
+  (list (map (rcurry make-constraint parent) (sum-type-types child))))
 
 (def-fun! unify-sum-parent (child parent)
-  #f) ; todo
+  (map (compose list (curry make-constraint child))
+       (sum-type-types parent)))
 
 (def-fun! unify-intersection-child (child parent)
-  #f) ; todo
+  (map (compose list (rcurry make-constraint parent))
+       (intersection-type-types child)))
 
 (def-fun! unify-intersection-parent (child parent)
-  (map (curry make-constraint child) (intersection-type-types parent)))
+  (list (map (curry make-constraint child) (intersection-type-types parent))))
