@@ -124,28 +124,34 @@
 
 (def! null? (curry eql? (list)))
 
+(def-op! or? env (&rest expressions)
+  (if (=? (length expressions) 0)
+      #f
+      (let (result (eval (first expressions) env))
+        (if result
+            result
+            (eval (list* or? (rest expressions)) env)))))
+
+(def-op! and? env (&rest expressions)
+  (if (=? (length expressions) 0)
+      #t
+      (let (result (eval (first expressions) env))
+        (if result
+            (eval (list* and? (rest expressions)) env)
+            #f))))
+
+(def-fun! all? (predicate sequence)
+  (apply (wrap and?) (map predicate sequence)))
+
+(def-fun! any? (predicate sequence)
+  (apply (wrap or?) (map predicate sequence)))
+
 (def-fun! compose (function &rest more-functions)
   (reduce (lambda (f g)
             (lambda (&rest args)
               (f (apply g args))))
           function
           more-functions))
-
-(def-fun! conjoin (&rest predicates)
-  (def-fun! conjunction (predicates value)
-    (if (empty? predicates)
-        #t
-        (and? ((first predicates) value)
-              (conjunction (rest predicates) value))))
-  (curry conjunction predicates))
-
-(def-fun! disjoin (&rest predicates)
-  (def-fun! disjunction (predicates value)
-    (if (empty? predicates)
-        #f
-        (or? ((first predicates) value)
-             (conjunction (rest predicates) value))))
-  (curry disjunction predicates))
 
 (def! complement (curry compose not))
 
@@ -161,7 +167,6 @@
       (if (predicate (first sequence))
           (cons (first sequence) (filter predicate (rest sequence)))
           (filter predicate (rest sequence)))))
-
 
 (def! first car)
 (def! rest cdr)
@@ -257,45 +262,6 @@
   (eval (list set! place (list cons value place))
         env))
 
-(def-fun! apply (function args)
-  (eval (cons (unwrap function) args) (get-current-env)))
-
-(def-fun! curry (function &rest first-args)
-  (lambda (&rest last-args)
-    (apply function (append first-args last-args))))
-
-(def-fun! rcurry (function &rest last-args)
-  (lambda (&rest first-args)
-    (apply function (append first-args last-args))))
-
-(def-fun! nth (n sequence)
-  (if (=? n 0)
-      (car sequence)
-      (nth (- n 1) (cdr sequence))))
-
-(def-fun! first (sequence)
-  (car sequence))
-
-(def-fun! second (sequence)
-  (nth 1 sequence))
-
-(def-fun! third (sequence)
-  (nth 2 sequence))
-
-(def-fun! fourth (sequence)
-  (nth 3 sequence))
-
-(def-fun! fifth (sequence)
-  (nth 4 sequence))
-
-(def-fun! rest (sequence)
-  (cdr sequence))
-
-(def-fun! last (sequence)
-  (if (eql? (list) (cdr sequence))
-      (car sequence)
-      (last (cdr sequence))))
-
 (def-fun! position (item sequence)
   (def-fun! position-helper (n item sequence)
     (if (empty? sequence)
@@ -304,28 +270,6 @@
             n
             (position-helper (+ n 1) item (cdr sequence)))))
   (position-helper 0 item sequence))
-
-(def-op! or? env (&rest expressions)
-  (if (=? (length expressions) 0)
-      #f
-      (let (result (eval (first expressions) env))
-        (if result
-            result
-            (eval (list* or? (rest expressions)) env)))))
-
-(def-op! and? env (&rest expressions)
-  (if (=? (length expressions) 0)
-      #t
-      (let (result (eval (first expressions) env))
-        (if result
-            (eval (list* and? (rest expressions)) env)
-            #f))))
-
-(def-fun! all? (predicate sequence)
-  (apply (wrap and?) (map predicate sequence)))
-
-(def-fun! any? (predicate sequence)
-  (apply (wrap or?) (map predicate sequence)))
 
 (def! sequence? list?)
 
@@ -355,16 +299,6 @@
         (curry helper (cons predicate more-predicates)))))
 
 (def! atom? (disjoin boolean? symbol? keyword? number? string?))
-
-(def-fun! compose (function &rest more-functions)
-  (reduce (lambda (f g)
-            (lambda (&rest args)
-              (f (apply g args))))
-          function
-          more-functions))
-
-(def-fun! sequence? (object)
-  (list? object))
 
 (def-fun! combiner? (object)
   (any? (rcurry call object) (list function? operative?)))
