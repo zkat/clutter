@@ -224,8 +224,15 @@
   (apply #'* values))
 (defprimfun t "/" (number &rest more-numbers)
   (apply #'/ number more-numbers))
+(defprimfun t "div" (number divisor)
+  (round number divisor))
 (defprimfun t "rem" (number divisor)
   (rem number divisor))
+
+(defprimfun t "string<?" (x y)
+  (if (string< x y) *true* *false*))
+(defprimfun t "string>?" (x y)
+  (if (string> x y) *true* *false*))
 
 (defprimfun t "make-string" (&rest values)
   (apply (curry #'concatenate 'string)
