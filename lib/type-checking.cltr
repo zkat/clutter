@@ -5,7 +5,9 @@
 (def-op! infer-code env (code decl)
   (let (ast (print (mark-ast code)))
     (print "Constraints:")
-    (substitute-vars ast (print (unify-constraints (print (make-constraints ast (eval decl env))))))))
+    (substitute-vars
+     ast
+     (print (unify-constraints (print (make-constraints ast (eval decl env))))))))
 
 ;;; AST marking
 
@@ -24,7 +26,7 @@
       (mark-ast-helper ast))))
 
 (def-fun! substitute-vars (ast constraints)
-  (let* (form (car ast)
+  (letseq (form (car ast)
          var (cdr ast)
          subed-form (if (cons? form)
                         (map (rcurry substitute-vars constraints) form)
@@ -67,8 +69,8 @@
 
 (def-fun! make-combiner-constraints (form decl tv)
   (destructuring-bind (comb &rest args) form
-    (let* (comb-constraints (make-constraints comb decl)
-           comb-type (constraint-right (find-constraint (cdr comb) comb-constraints)))
+    (letseq (comb-constraints (make-constraints comb decl)
+             comb-type (constraint-right (find-constraint (cdr comb) comb-constraints)))
       (append
        (list
         (make-constraint (make-product-type (map cdr args)) (arrow-type-from comb-type))
@@ -78,18 +80,45 @@
 
 ;;; Unification
 
-; lowercase for vars, upper case for types
-; for each x\T
-; A <: B => (x\T)A <: B if (x\T)A <: A
-; A <: B => A <: (x\T)B if B <: (x\T)B
-; x <: T => A <: (x\T)A
-; T <: x => (x\T)A <: A
+;; Subsitution
 
-(def-fun! substitute-constraints (from to list)
+;; x <: T, A <: B, (x\T)A <: A
+;; ---------------------------
+;;        (x\T)A <: B
+
+;; x <: T, A <: B, B <: (x\T)B
+;; ---------------------------
+;;        A <: (x\T)B
+
+;;   x <: T, A = x
+;; ------------------
+;;     A <: (x\T)A
+
+;;   x <: T, A = x * B
+;; -------------------
+;;     A <: (x\T)A
+
+;;   x <: T, A = x -> B
+;; ---------------------
+;;     (x\T)A <: A
+
+;;   x <: T, A = B -> x
+;; ---------------------
+;;       A <: (x\T)A
+
+;;   x <: T, A = x + B
+;; ---------------------
+;;     (x\T)A <: A
+
+;;   x <: T, A = x & B
+;; ---------------------
+;;     A <: (x\T)A
+
+(def-fun! substitute-constraints (from to constraints)
   (map (lambda (constraint)
          (make-constraint (substitute-type from to :subtype (constraint-left constraint))
                           (substitute-type from to :supertype (constraint-right constraint))))
-       list))
+       constraints))
 
 (def-fun! complement-substitution-kind (kind)
   (if (eql? kind :supertype)
@@ -112,6 +141,25 @@
                                        (arrow-type-to type))))
     (#t type)))
 
+;; Preprocessing merging
+
+(def-fun! merge-to-intersections (constraints)
+  (map (compose normalize-united-intersection merge-constraints)
+       (group (sort-by (fork type-order? constraint-left constraint-left) constraints))))
+
+(def-fun! merge-constraints (constraints)
+  (make-constraint (constraint-left (first constraints))
+                           (make-intersection-type (map constraint-right constraints))))
+
+(def-fun! normalize-united-intersection (constraint)
+  (make-constraint (constraint-left constraint)
+                   (let (right (constraint-right constraint))
+                     (if (intersection-type? right)
+                         (normalize-group-type right)
+                         right))))
+
+;; Unification
+
 (def-fun! unify-constraints (constraints)
   (def-fun! unify-h (stack substs)
     (print "Next step")
@@ -119,23 +167,26 @@
     (print substs)
     (if (empty? stack)
         substs
-        (let* (next (car stack)
-               child (constraint-left next)
-               parent (constraint-right next))
+        (letseq (next (car stack)
+                 child (constraint-left next)
+                 parent (constraint-right next))
           (cond
             ((eql? child parent) (unify-h (cdr stack) substs))
             ((variable? child)
              (let (subs (curry substitute-constraints child parent))
                (unify-h
                 (subs (cdr stack))
-                (cons next (subs substs)))))
-            ((and? (type? child)
-                   (type? parent))
+                (merge-to-intersections (cons next (subs substs))))))
+            ((or? (bottom? child)
+                  (top? parent))
+             (unify-h (cdr stack) substs))
+            ((or? (type? child)
+                  (type? parent))
              (let (result (unify-types child parent))
                (when result
-                 (unify-h (append (cdr stack) result)
+                 (unify-h (merge-to-intersections (append (cdr stack) result))
                           substs))))))))
-  (unify-h constraints (list)))
+  (unify-h (merge-to-intersections constraints) (list)))
 
 (def-fun! unify-types (child parent)
   (cond
@@ -150,9 +201,20 @@
     ((and? (product-type? child)
            (product-type? parent))
      (unify-products child parent))
-    ((and (arrow-type? child)
-          (arrow-type? parent))
-     (unify-arrows child parent))))
+    ((and? (arrow-type? child)
+           (arrow-type? parent))
+     (unify-arrows child parent))
+    ((and? (record-type? child)
+           (record-type? parent))
+     #f) ; TODO
+    ((sum-type? child)
+     (unify-sum-child child parent))
+    ((sum-type? parent)
+     (unify-sum-parent child parent))
+    ((intersection-type? child)
+     (unify-intersection-child child parent))
+    ((intersection-type? parent)
+     (unify-intersection-parent child parent))))
 
 (def-fun! unify-literals (child parent)
   ;; This is fail only unifier, equal literals just eliminate
@@ -184,3 +246,15 @@
   (list
    (make-constraint (arrow-type-from parent) (arrow-type-from child))
    (make-constraint (arrow-type-to child) (arrow-type-to parent))))
+
+(def-fun! unify-sum-child (child parent)
+  (map (rcurry make-constraint parent) (sum-type-types child)))
+
+(def-fun! unify-sum-parent (child parent)
+  #f) ; todo
+
+(def-fun! unify-intersection-child (child parent)
+  #f) ; todo
+
+(def-fun! unify-intersection-parent (child parent)
+  (map (curry make-constraint child) (intersection-type-types parent)))

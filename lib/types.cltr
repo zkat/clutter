@@ -10,27 +10,122 @@
 
 (def-struct! product-type types)
 
-;(def-struct! intersection-type types)
+(def-struct! intersection-type types)
 
-;(def-struct! sum-type types)
+(def-struct! sum-type types)
 
-;(def-struct! record-type alist)
+(def-struct! record-type types)
 
-;(def-struct! tagged-type tag type)
+(def! top :top)
+(def! bottom :bottom)
+
+(def! top? (curry eql? top))
+(def! bottom? (curry eql? bottom))
 
 (def! type? (disjoin literal-type?
                      primitive-type?
                      arrow-type?
-                     product-type?))
+                     product-type?
+                     intersection-type?
+                     sum-type?
+                     record-type?))
 
 (def-fun! get-type-constructor (type)
   (pred-case
    (literal-type? make-literal-type)
    (primitive-type? make-primitive-type)
    (arrow-type? make-arrow-type)
-   (product-type make-product-type)))
+   (product-type make-product-type)
+   (intersection-type? make-intersection-type)
+   (sum-type? make-sum-type)
+   (record-type? make-record-type)))
 
-(def-fun! atom-primitive-type (atom type)
-  (predcase
+(def-fun! atom-primitive-type (atom)
+  (pred-case atom
    (number? (make-primitive-type "number"))
    (boolean? (make-primitive-type "boolean"))))
+
+(def-fun! type-order? (left right)
+  (letseq (type-list (list variable?
+                        literal-type?
+                        primitive-type?
+                        product-type?
+                        arrow-type?
+                        record-type?
+                        intersection-type?
+                        sum-type?)
+           type-is (lambda (type fn) (fn type))
+           types (list left right)
+           all? (rcurry all? types))
+    (cond
+      ((all? variable?)
+       (<? (variable-name left)
+           (variable-name right)))
+      ; Rest are hacky, don't care now
+      ((all? literal-type?) #t)
+      ((all? product-type?) (type-order? (first (product-type-types left))
+                                         (first (product-type-types right))))
+      ((all? arrow-type?) (type-order? (arrow-type-from left)
+                                       (arrow-type-from right)))
+      ((all? record-type?) #t)
+      ((all? intersection-type?) #t)
+      ((all? sum-type?) #t)
+      ; General case
+      (#t (<? (position #t (map (curry type-is left) type-list))
+              (position #t (map (curry type-is right) type-list)))))))
+
+(def-fun! normalize-group-type (type)
+  (def-fun! normalize-helper (type constructor accessor indicator)
+    (def-fun! normalize-helper-recur (n types)
+      (if (zero? n)
+          types
+          (if (any? (curry indicator (car types)) (cdr types))
+              (normalize-helper-recur (- n 2) (cdr types))
+              (normalize-helper-recur (- n 1) (append (cdr types) (list (car types)))))))
+    (letseq (types (accessor type)
+             normalized (normalize-helper-recur (length types) types))
+            (if (eql? (length normalized) 1)
+                (car normalized)
+                (constructor normalized))))
+  (if (sum-type? type)
+      (normalize-helper type make-sum-type sum-type-types subtype?)
+      (normalize-helper type make-intersection-type intersection-type-types supertype?)))
+
+(def-fun! subtype? (child parent)
+  (cond
+    ((or? (and? (literal-type? child)
+                (literal-type? parent))
+          (and? (primitive-type? child)
+                (primitive-type? parent)))
+     (eql? child parent))
+    ((and? (literal-type? child)
+           (primitive-type? parent))
+     (subtype? (atom-primitive-type (literal-type-atom child))
+               parent))
+    ((and? (arrow-type? child)
+           (arrow-type? parent))
+     (and? (subtype? (arrow-type-from parent)
+                     (arrow-type-from child))
+           (subtype? (arrow-type-to child)
+                     (arrow-type-to parent))))
+    ((and? (product-type? child)
+           (product-type? parent))
+     (let (child-types (product-type-types child)
+           parent-types (product-type-types parent))
+       (and? (eql? (length child-types)
+                   (length parent-types))
+             (all? subtype? child-types parent-types))))
+    ((and? (record-type? child)
+           (record-type? parent))
+     #f) ;TODO
+    ((sum-type? child)
+     (all? (curry supertype? parent) (sum-type-types child)))
+    ((sum-type? parent)
+     (any? (curry subtype? child) (sum-type-types? parent)))
+    ((intersection-type? child)
+     (any? (curry supertype? parent) (intersection-type-types child)))
+    ((intersection-type? parent)
+     (all? (curry subtype? child) (intersection-type-types parent)))))
+
+(def-fun! supertype? (parent child)
+  (subtype? child parent))
