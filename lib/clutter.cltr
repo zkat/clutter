@@ -296,6 +296,15 @@
       (car sequence)
       (last (cdr sequence))))
 
+(def-fun! position (item sequence)
+  (def-fun! position-helper (n item sequence)
+    (if (empty? sequence)
+        #f
+        (if (eql? item (car sequence))
+            n
+            (position-helper (+ n 1) item (cdr sequence)))))
+  (position-helper 0 item sequence))
+
 (def-op! or? env (&rest expressions)
   (if (=? (length expressions) 0)
       #f
@@ -472,22 +481,22 @@
 (def! gensym (init-gensym))
 
 (def-op! def-struct! env (name &rest slot-names)
-  (let* (str-name (symbol-name name)
-         keyword (make-keyword str-name))
-    (dyn-def-in! env
-                 (intern (make-string "make-" str-name))
-                 (curry list keyword))
-    (dyn-def-in! env
-                 (intern (make-string str-name "?"))
-                 (conjoin list? (compose (curry eql? keyword) first)))
-    (reduce (lambda (counter name)
-              (dyn-def-in! env
-                           (intern (make-string str-name "-" name))
-                           (curry nth counter))
-              (+ counter 1))
-            1
-            (map symbol-name slot-names))
-    name))
+  (letseq (str-name (symbol-name name)
+                    keyword (make-keyword str-name))
+          (dyn-def-in! env
+                       (intern (make-string "make-" str-name))
+                       (curry list keyword))
+          (dyn-def-in! env
+                       (intern (make-string str-name "?"))
+                       (conjoin list? (compose (curry eql? keyword) first)))
+          (reduce (lambda (counter name)
+                    (dyn-def-in! env
+                                 (intern (make-string str-name "-" name))
+                                 (curry nth counter))
+                    (+ counter 1))
+                  1
+                  (map symbol-name slot-names))
+          name))
 
 (def-fun! replace-in-tree (alist tree)
   (if (or? (empty? alist) (empty? tree))
@@ -598,3 +607,65 @@
   (if (<? n 2)
       1
       (* n (factorial (- n 1)))))
+
+(def! zero? (curry eql? 0))
+
+(def-fun! take (n sequence)
+  (if (zero? n)
+      (list)
+      (cons (car sequence) (take (- n 1) (cdr sequence)))))
+
+(def-fun! drop (n sequence)
+  (if (zero? n)
+      sequence
+      (drop (- n 1) (cdr sequence))))
+
+(def-fun! split-at (n sequence)
+  (cons (take n sequence)
+        (drop n sequence)))
+
+(def-fun! sort-by (function sequence)
+  (def-fun! merge (left right)
+    (cond
+      ((empty? left) right)
+      ((empty? right) left)
+      ((function (car left) (car right))
+       (cons (car left) (merge (cdr left) right)))
+      (#t
+       (cons (car right) (merge left (cdr right))))))
+  (let (length (length sequence))
+    (if (<? length 2)
+        sequence
+        (merge
+         (sort-by function (take (div length 2) sequence))
+         (sort-by function (drop (div length 2) sequence))))))
+
+(def! sort (curry sort-by <?))
+
+(def-fun! take-while (predicate sequence)
+  (if (empty? sequence)
+      (list)
+      (if (predicate (car sequence))
+          (cons (car sequence) (take-while predicate (cdr sequence)))
+          (list))))
+
+(def-fun! drop-while (predicate sequence)
+  (if (empty? sequence)
+      (list)
+      (if (predicate (car sequence))
+          (drop-while predicate (cdr sequence))
+          sequence)))
+
+(def-fun! span (predicate sequence)
+  (cons (take-while predicate sequence) (drop-while predicate sequence)))
+
+(def-fun! group-by (predicate sequence)
+  (if (empty? sequence)
+      (list)
+      (let (rest (span (curry predicate (car sequence)) (cdr sequence)))
+        (cons (cons (car sequence) (car rest)) (group-by predicate (cdr rest))))))
+
+(def! group (curry group-by eql?))
+
+(def-fun! fork (center &rest functions)
+  (lambda (&rest args) (apply center (map call functions args))))
