@@ -16,6 +16,15 @@
 
 (def-struct! record-type types)
 
+(def-fun! record-type-labels (type)
+  (plist-keys (record-type-types type)))
+
+(def-fun! record-type-values (type)
+  (plist-values (record-type-types type)))
+
+(def-fun! record-type-get (label type)
+  (plist-get label (record-type-types type)))
+
 (def! top :top)
 (def! bottom :bottom)
 
@@ -95,6 +104,9 @@
 
 (def-fun! subtype? (child parent)
   (cond
+    ((or? (bottom? child)
+          (top? parent))
+     #t)
     ((or? (and? (literal-type? child)
                 (literal-type? parent))
           (and? (primitive-type? child)
@@ -119,7 +131,10 @@
              (all? subtype? child-types parent-types))))
     ((and? (record-type? child)
            (record-type? parent))
-     #f) ;TODO
+     (all? (lambda (label)
+             (subtype? (record-type-get label child)
+                       (record-type-get label parent)))
+           (record-type-labels parent)))
     ((sum-type? child)
      (all? (curry supertype? parent) (sum-type-types child)))
     ((sum-type? parent)
