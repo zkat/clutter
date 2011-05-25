@@ -138,6 +138,8 @@
                                        (arrow-type-from type))
                       (substitute-type from to kind
                                        (arrow-type-to type))))
+    ((record-type? type)
+     (make-record-type (plist-map-values (curry substitute-type from to kind) (record-type-types type))))
     (#t type)))
 
 ;; Preprocessing merging
@@ -212,18 +214,7 @@
      (unify-arrows child parent))
     ((and? (record-type? child)
            (record-type? parent))
-     #f))) ;; todo
-
-(def-fun! unify-group-types (child parent)
-  (cond
-    ((sum-type? child)
-     (unify-sum-child (normalize-group-type child) parent))
-    ((sum-type? parent)
-     (unify-sum-parent child (normalize-group-type parent)))
-    ((intersection-type? child)
-     (unify-intersection-child (normalize-group-type child) parent))
-    ((intersection-type? parent)
-     (unify-intersection-parent child (normalize-group-type parent)))))
+     (unify-records child parent))))
 
 (def-fun! unify-literals (child parent)
   ;; This is fail only unifier, equal literals just eliminate
@@ -255,6 +246,23 @@
   (list
    (make-constraint (arrow-type-from parent) (arrow-type-from child))
    (make-constraint (arrow-type-to child) (arrow-type-to parent))))
+
+(def-fun! unify-records (child parent)
+  (map (lambda (label)
+         (make-constraint (record-type-get label child)
+                          (record-type-get label parent)))
+       (record-type-labels parent)))
+
+(def-fun! unify-group-types (child parent)
+  (cond
+    ((sum-type? child)
+     (unify-sum-child (normalize-group-type child) parent))
+    ((sum-type? parent)
+     (unify-sum-parent child (normalize-group-type parent)))
+    ((intersection-type? child)
+     (unify-intersection-child (normalize-group-type child) parent))
+    ((intersection-type? parent)
+     (unify-intersection-parent child (normalize-group-type parent)))))
 
 (def-fun! unify-sum-child (child parent)
   (list (map (rcurry make-constraint parent) (sum-type-types child))))
