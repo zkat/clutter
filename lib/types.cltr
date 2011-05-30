@@ -12,7 +12,7 @@
 
 (def-struct! intersection-type types)
 
-(def-struct! sum-type types)
+(def-struct! union-type types)
 
 (def-struct! record-type types)
 
@@ -36,7 +36,7 @@
                      arrow-type?
                      product-type?
                      intersection-type?
-                     sum-type?
+                     union-type?
                      record-type?))
 
 (def-fun! get-type-constructor (type)
@@ -46,7 +46,7 @@
    (arrow-type? make-arrow-type)
    (product-type make-product-type)
    (intersection-type? make-intersection-type)
-   (sum-type? make-sum-type)
+   (union-type? make-union-type)
    (record-type? make-record-type)))
 
 (def-fun! atom-primitive-type (atom)
@@ -62,7 +62,7 @@
                         arrow-type?
                         record-type?
                         intersection-type?
-                        sum-type?)
+                        union-type?)
            type-is (lambda (type fn) (fn type))
            types (list left right)
            all? (rcurry all? types))
@@ -78,12 +78,12 @@
                                        (arrow-type-from right)))
       ((all? record-type?) #t)
       ((all? intersection-type?) #t)
-      ((all? sum-type?) #t)
+      ((all? union-type?) #t)
       ; General case
       (#t (<? (position #t (map (curry type-is left) type-list))
               (position #t (map (curry type-is right) type-list)))))))
 
-(def! group-type? (disjoin intersection-type? sum-type?))
+(def! group-type? (disjoin intersection-type? union-type?))
 
 (def-fun! normalize-group-type (type)
   (def-fun! normalize-helper (type constructor accessor indicator)
@@ -98,8 +98,8 @@
             (if (eql? (length normalized) 1)
                 (car normalized)
                 (constructor normalized))))
-  (if (sum-type? type)
-      (normalize-helper type make-sum-type sum-type-types subtype?)
+  (if (union-type? type)
+      (normalize-helper type make-union-type union-type-types subtype?)
       (normalize-helper type make-intersection-type intersection-type-types supertype?)))
 
 (def-fun! subtype? (child parent)
@@ -135,10 +135,10 @@
              (subtype? (record-type-get label child)
                        (record-type-get label parent)))
            (record-type-labels parent)))
-    ((sum-type? child)
-     (all? (curry supertype? parent) (sum-type-types child)))
-    ((sum-type? parent)
-     (any? (curry subtype? child) (sum-type-types? parent)))
+    ((union-type? child)
+     (all? (curry supertype? parent) (union-type-types child)))
+    ((union-type? parent)
+     (any? (curry subtype? child) (union-type-types? parent)))
     ((intersection-type? child)
      (any? (curry supertype? parent) (intersection-type-types child)))
     ((intersection-type? parent)
