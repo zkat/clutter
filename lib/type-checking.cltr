@@ -255,21 +255,21 @@
 
 (def-fun! unify-group-types (child parent)
   (cond
-    ((sum-type? child)
-     (unify-sum-child (normalize-group-type child) parent))
-    ((sum-type? parent)
-     (unify-sum-parent child (normalize-group-type parent)))
+    ((union-type? child)
+     (unify-union-child (normalize-group-type child) parent))
+    ((union-type? parent)
+     (unify-union-parent child (normalize-group-type parent)))
     ((intersection-type? child)
      (unify-intersection-child (normalize-group-type child) parent))
     ((intersection-type? parent)
      (unify-intersection-parent child (normalize-group-type parent)))))
 
-(def-fun! unify-sum-child (child parent)
-  (list (map (rcurry make-constraint parent) (sum-type-types child))))
+(def-fun! unify-union-child (child parent)
+  (list (map (rcurry make-constraint parent) (union-type-types child))))
 
-(def-fun! unify-sum-parent (child parent)
+(def-fun! unify-union-parent (child parent)
   (map (compose list (curry make-constraint child))
-       (sum-type-types parent)))
+       (union-type-types parent)))
 
 (def-fun! unify-intersection-child (child parent)
   (map (compose list (rcurry make-constraint parent))
