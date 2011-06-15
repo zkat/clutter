@@ -66,6 +66,15 @@
 (def-compiler-primfun "/" (builder x y)
   (llvm:build-s-div builder x y "quotient"))
 
+(def-compiler-primfun ">" (builder x y)
+  (llvm:build-i-cmp builder :> x y "quotient"))
+(def-compiler-primfun "<" (builder x y)
+  (llvm:build-i-cmp builder :< x y "quotient"))
+(def-compiler-primfun "=" (builder x y)
+  (llvm:build-i-cmp builder := x y "quotient"))
+(def-compiler-primfun "/=" (builder x y)
+  (llvm:build-i-cmp builder :/= x y "quotient"))
+
 (def-compiler-primfexpr "nlambda" (builder env name args &rest body &aux (new-builder (llvm:make-builder)))
   (declare (ignore builder))
   (unwind-protect
