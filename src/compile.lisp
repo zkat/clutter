@@ -88,6 +88,31 @@
                (llvm:build-ret new-builder result)))
     (llvm:dispose-builder new-builder)))
 
+(def-compiler-primfexpr "if" (builder env condition then else)
+  (let* ((cond-result (compile-form builder condition env))
+         (func (llvm:basic-block-parent (llvm:insertion-block builder)))
+         (then-block (llvm:append-basic-block func "then"))
+         (else-block (llvm:append-basic-block func "else"))
+         (done-block (llvm:append-basic-block func "done"))
+         then-result else-result)
+    (llvm:build-cond-br builder cond-result then-block else-block)
+
+    (llvm:position-builder builder then-block)
+    (setf then-result (compile-form builder then env))
+    (setf then-block (llvm:insertion-block builder))
+    (llvm:build-br builder done-block)
+
+    (llvm:position-builder builder else-block)
+    (setf else-result (compile-form builder else env))
+    (setf else-block (llvm:insertion-block builder))
+    (llvm:build-br builder done-block)
+
+    (llvm:position-builder builder done-block)
+    (aprog1 (llvm:build-phi builder (llvm:int32-type) "result")
+      (llvm:add-incoming it
+                         (list then-result else-result)
+                         (list then-block else-block)))))
+
 (defun cltr-compile (expr &aux builder)
   (unwind-protect
        (progn
