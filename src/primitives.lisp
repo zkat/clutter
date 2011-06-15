@@ -5,13 +5,6 @@
 (declaim (optimize debug))
 
 ;;;
-;;; Primitive Constants
-;;;
-
-(defparameter *true* (cs "#t"))
-(defparameter *false* (cs "#f"))
-
-;;;
 ;;; Primitive functions
 ;;;
 
