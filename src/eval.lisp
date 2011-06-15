@@ -4,6 +4,14 @@
 
 (declaim (optimize debug))
 
+;;;
+;;; Primitive Constants
+;;;
+
+(defparameter *true* (cs "#t"))
+(defparameter *false* (cs "#f"))
+
+
 (defun clutter-load (filespec)
   (with-open-file (stream filespec)
     (loop for expr = (clutter-read stream nil)
