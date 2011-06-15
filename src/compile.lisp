@@ -121,8 +121,8 @@
          
          (compile-form builder expr nil)
 
-         (llvm:verify-module *module*)
-         (llvm:dump-module *module*))
+         (llvm:dump-module *module*)
+         (llvm:verify-module *module*))
     
     (llvm:dispose-builder builder)
     (when *module*
