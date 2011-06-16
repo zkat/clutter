@@ -96,6 +96,8 @@
 (defun compile-constant (builder value)
   (typecase value
     (integer (llvm:const-int (llvm:int32-type) value nil))
+    (single-float (llvm:const-real (llvm:float-type) value))
+    (double-float (llvm:const-real (llvm:double-type) value))
     (clutter-function (compiled-comb value))
     (env (compiled-env value))
     (clutter-operative (compiled-comb value))
