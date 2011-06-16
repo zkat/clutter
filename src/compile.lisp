@@ -133,8 +133,9 @@
               (lambda (argument name &aux (name-string (clutter-symbol-name name)))
                 (setf (llvm:value-name argument) name-string
                       (gethash name (compiler-env-bindings inner-env))
-                      (llvm:build-alloca new-builder (llvm:int32-type)
-                                         (concatenate 'string name-string "-ptr"))))
+                      (aprog1 (llvm:build-alloca new-builder (llvm:int32-type)
+                                                 (concatenate 'string name-string "-ptr"))
+                        (llvm:build-store new-builder argument it ))))
               (llvm:params func)
               args)
          ;; Compile body and return the value of the last form
