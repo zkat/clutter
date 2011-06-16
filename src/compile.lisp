@@ -26,31 +26,39 @@
 (defstruct (primitive-fexpr (:constructor make-primitive-fexpr (compiler)))
   compiler)
 
-(defvar *compiled-funcs* (make-hash-table :test 'eq :weakness :key)
+(defvar *compiled-combs* (make-hash-table :test 'eq :weakness :key)
   "Mapping from interpreter Clutter functions to compiled versions thereof.")
-(defvar *compiled-envs* (make-hash-table :test 'eq :weakness :key)
+(defvar *compiled-envs* (aprog1 (make-hash-table :test 'eq :weakness :key)
+                          (setf (gethash *global-env* it)
+                                *root-compiler-env*))
   "Mapping from interpreter environments to compiler environments.")
 
 (defmacro def-compiler-primfun (name args &body body)
-  `(setf (gethash (cs ,name) (compiler-env-bindings *root-compiler-env*))
-         (make-primitive-func (lambda ,args ,@body))))
+  (with-gensyms (primfunc symbol)
+    `(let ((,primfunc (make-primitive-func (lambda ,args ,@body)))
+           (,symbol (cs ,name)))
+      (setf (gethash ,symbol (compiler-env-bindings *root-compiler-env*)) ,primfunc
+            (gethash (lookup ,symbol *global-env*) *compiled-combs*) ,primfunc))))
 
 (defmacro def-compiler-primfexpr (name args &body body)
-  `(setf (gethash (cs ,name) (compiler-env-bindings *root-compiler-env*))
-         (make-primitive-fexpr (lambda ,args ,@body))))
+  (with-gensyms (primfunc symbol)
+    `(let ((,primfunc (make-primitive-fexpr (lambda ,args ,@body)))
+           (,symbol (cs ,name)))
+      (setf (gethash ,symbol (compiler-env-bindings *root-compiler-env*)) ,primfunc
+            (gethash (lookup ,symbol *global-env*) *compiled-combs*) ,primfunc))))
 
-(defun compiled-func (clutter-function)
-  (multiple-value-bind (value exists) (gethash clutter-function *compiled-funcs*)
+(defun compiled-comb (clutter-function)
+  (multiple-value-bind (value exists) (gethash clutter-function *compiled-combs*)
     (if exists
         value
-        (setf (gethash clutter-function *compiled-funcs*)
+        (setf (gethash clutter-function *compiled-combs*)
               (error "Constant function compilation unimplemented!")))))
 
 (defun compiled-env (clutter-env)
   (multiple-value-bind (value exists) (gethash clutter-env *compiled-envs*)
     (if exists
         value
-        (setf (gethash clutter-env *compiled-funcs*)
+        (setf (gethash clutter-env *compiled-envs*)
               (error "Constant environment compilation unimplemented!")))))
 
 (defun compile-symbol (builder symbol env &aux (value (compiler-lookup symbol env)))
@@ -84,9 +92,9 @@
 (defun compile-constant (builder value)
   (typecase value
     (integer (llvm:const-int (llvm:int32-type) value nil))
-    (clutter-function (compiled-func value))
+    (clutter-function (compiled-comb value))
     (env (compiled-env value))
-    (clutter-operative (error "Tried to compile an constant operative: ~A" value))
+    (clutter-operative (compiled-comb value))
     (sb-sys:system-area-pointer value)  ; Assume it's an LLVM value
     (t (error "Unsupported compiletime constant!"))))
 
