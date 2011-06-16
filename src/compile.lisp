@@ -137,9 +137,9 @@
          (type (llvm:type-of compiled-value)))
     (setf (gethash name (compiled-env target-env))
           (if (eq target-compiler-env *root-compiler-env*)
-              (progn
-                (warn "Initializing globals is unimplemented!")
-                (llvm:add-global *module* type (clutter-symbol-name name)))
+              (aprog1 (llvm:add-global *module* type (clutter-symbol-name name))
+                ;; TODO: Evaluate compiled-value first.
+                (llvm:set-initializer it compiled-value))
               (aprog1 (llvm:build-alloca builder type
                                          (clutter-symbol-name name))
                 (llvm:build-store builder compiled-value it))))))
