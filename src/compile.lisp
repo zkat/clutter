@@ -113,15 +113,14 @@
 (def-compiler-primfun "/" (builder x y)
   (llvm:build-s-div builder x y "quotient"))
 
-(def-compiler-primfun ">" (builder x y)
-  (llvm:build-i-cmp builder :> x y "quotient"))
-(def-compiler-primfun "<" (builder x y)
-  (llvm:build-i-cmp builder :< x y "quotient"))
-(def-compiler-primfun "=" (builder x y)
-  (llvm:build-i-cmp builder := x y "quotient"))
-(def-compiler-primfun "/=" (builder x y)
-  (llvm:build-i-cmp builder :/= x y "quotient"))
+(def-compiler-primfun ">?" (builder x y)
+  (llvm:build-i-cmp builder :> x y "greater"))
+(def-compiler-primfun "<?" (builder x y)
+  (llvm:build-i-cmp builder :< x y "lesser"))
+(def-compiler-primfun "=?" (builder x y)
+  (llvm:build-i-cmp builder := x y "equal"))
 
+;;; FIXME: This will error if the stdlib hasn't been loaded yet due to nlambda being defined in-language.
 (def-compiler-primfexpr "nlambda" (builder env name args &rest body &aux (new-builder (llvm:make-builder)))
   (declare (ignore builder))
   (unwind-protect
