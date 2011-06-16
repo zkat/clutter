@@ -47,12 +47,22 @@
       (setf (gethash ,symbol (compiler-env-bindings *root-compiler-env*)) ,primfunc
             (gethash (lookup ,symbol *global-env*) *compiled-combs*) ,primfunc))))
 
-(defun compiled-comb (clutter-function)
-  (multiple-value-bind (value exists) (gethash clutter-function *compiled-combs*)
-    (if exists
-        value
-        (setf (gethash clutter-function *compiled-combs*)
-              (error "Constant function compilation unimplemented!")))))
+(defun compiled-comb (builder clutter-comb)
+  (multiple-value-bind (value exists) (gethash clutter-comb *compiled-combs*)
+    (cond
+      ;; Allow for functions and primitive fexprs only
+      (exists value)
+      ((clutter-operative-p clutter-comb)
+       (error "Can't compile fexprs!"))
+      (t
+       (setf (gethash clutter-comb *compiled-combs*)
+             (let ((op (clutter-function-operative clutter-comb)))
+               (compile-form builder
+                             (list* (cs "nlambda")
+                                    (clutter-operative-name op)
+                                    (clutter-operative-args op)
+                                    (clutter-operative-body op))
+                             (compiled-env (clutter-operative-env op)))))))))
 
 (defun compiled-env (clutter-env)
   (multiple-value-bind (value exists) (gethash clutter-env *compiled-envs*)
@@ -101,9 +111,9 @@
     (double-float (llvm:const-real (llvm:double-type) value))
     (string (llvm:const-string value nil))
     ;; peval results
-    (clutter-function (compiled-comb value))
+    (clutter-function (compiled-comb builder value))
     (env (compiled-env value))
-    (clutter-operative (compiled-comb value))
+    (clutter-operative (compiled-comb builder value))
     (t (error "Unsupported compiletime constant!"))))
 
 (defun compile-form (builder form env)
@@ -141,7 +151,7 @@
     (setf (gethash name (compiler-env-bindings target-compiler-env))
           (if (eq target-compiler-env *root-compiler-env*)
               (aprog1 (llvm:add-global *module* type (clutter-symbol-name name))
-                ;; TODO: Evaluate compiled-value first.
+                ;; TODO: Evaluate compiled-value first. (JIT? Interpret?)
                 (llvm:set-initializer it compiled-value))
               (aprog1 (llvm:build-alloca builder type
                                          (clutter-symbol-name name))
