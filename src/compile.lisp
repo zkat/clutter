@@ -135,12 +135,14 @@
     (t (error "Binding values in non-constant environments is unimplemented!"))))
 
 ;;; FIXME: This will error if the stdlib hasn't been loaded yet due to nlambda being defined in-language.
-(def-compiler-primfexpr "nlambda" (builder env name args &rest body &aux (new-builder (llvm:make-builder)))
+(def-compiler-primfexpr "nlambda" (builder env name args &rest body &aux
+                                           ret (new-builder (llvm:make-builder)))
   (declare (ignore builder))
   (unwind-protect
        (let* ((func (llvm:add-function *module* name (llvm:function-type (llvm:int32-type) (make-array (length args) :initial-element (llvm:int32-type)))))
               (entry (llvm:append-basic-block func "entry"))
               (inner-env (make-compiler-env env)))
+         (setf ret func)
          (llvm:position-builder-at-end new-builder entry)
          ;; Name and allocate mutable space for arguments
          (map nil
@@ -157,7 +159,8 @@
                for result = (compile-form new-builder form inner-env)
                unless remaining do
                (llvm:build-ret new-builder result)))
-    (llvm:dispose-builder new-builder)))
+    (llvm:dispose-builder new-builder))
+  ret)
 
 (def-compiler-primfexpr "if" (builder env condition then else)
   (let* ((cond-result (compile-form builder condition env))
