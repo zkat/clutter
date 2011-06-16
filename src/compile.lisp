@@ -20,6 +20,7 @@
   "Globals, including most primitives.")
 
 (defvar *module*)
+(defvar *compiler-at-toplevel* t)
 
 (defstruct (primitive-func (:constructor make-primitive-func (compiler)))
   compiler)
@@ -125,14 +126,24 @@
   (llvm:build-i-cmp builder := x y "equal"))
 
 (def-compiler-primfexpr "def-in!" (builder denv target-env name value)
-  (cond
-    ((env-p target-env)
-     (setf (gethash name (compiled-env target-env))
-           (compile-form builder value denv)))
-    ((equal target-env (list (lookup (cs "get-current-env") *global-env*)))
-     (setf (gethash name denv)
-           (compile-form builder value denv)))
-    (t (error "Binding values in non-constant environments is unimplemented!"))))
+  (let* ((target-compiler-env
+          (cond
+            ((env-p target-env)
+             (compiled-env target-env))
+            ((equal target-env (list (lookup (cs "get-current-env") *global-env*)))
+             (setf (gethash name denv)
+                   (compile-form builder value denv)))
+            (t (error "Binding values in non-constant environments is unimplemented!"))))
+         (compiled-value (compile-form builder value denv))
+         (type (llvm:type-of compiled-value)))
+    (setf (gethash name (compiled-env target-env))
+          (if *compiler-at-toplevel*
+              (progn
+                (warn "Initializing globals is unsupported!")
+                (llvm:add-global *module* type (clutter-symbol-name name)))
+              (aprog1 (llvm:build-alloca builder type
+                                         (clutter-symbol-name name))
+                (llvm:build-store builder compiled-value it))))))
 
 ;;; FIXME: This will error if the stdlib hasn't been loaded yet due to nlambda being defined in-language.
 (def-compiler-primfexpr "nlambda" (builder env name args &rest body &aux
@@ -155,10 +166,11 @@
               (llvm:params func)
               args)
          ;; Compile body and return the value of the last form
-         (loop for (form . remaining) on body
-               for result = (compile-form new-builder form inner-env)
-               unless remaining do
-               (llvm:build-ret new-builder result)))
+         (let ((*compiler-at-toplevel* nil))
+          (loop for (form . remaining) on body
+                for result = (compile-form new-builder form inner-env)
+                unless remaining do
+                  (llvm:build-ret new-builder result))))
     (llvm:dispose-builder new-builder))
   ret)
 
