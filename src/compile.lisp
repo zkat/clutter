@@ -26,8 +26,10 @@
 (defstruct (primitive-fexpr (:constructor make-primitive-fexpr (compiler)))
   compiler)
 
-(defvar *compiled-funcs* (make-hash-table :test 'eq)
+(defvar *compiled-funcs* (make-hash-table :test 'eq :weakness :key)
   "Mapping from interpreter Clutter functions to compiled versions thereof.")
+(defvar *compiled-envs* (make-hash-table :test 'eq :weakness :key)
+  "Mapping from interpreter environments to compiler environments.")
 
 (defmacro def-compiler-primfun (name args &body body)
   `(setf (gethash (cs ,name) (compiler-env-bindings *root-compiler-env*))
@@ -38,16 +40,28 @@
          (make-primitive-fexpr (lambda ,args ,@body))))
 
 (defun compiled-func (clutter-function)
-  (let ((result (gethash clutter-function *compiled-funcs*)))
-    (if result
-        result
+  (multiple-value-bind (value exists) (gethash clutter-function *compiled-funcs*)
+    (if exists
+        value
         (setf (gethash clutter-function *compiled-funcs*)
               (error "Constant function compilation unimplemented!")))))
 
-(defun compile-symbol (builder symbol env)
-  ;; TODO: llvm:build-load and let llvm sort out when it's unnecessary
-  ;; via mem2reg
-  (or (compiler-lookup symbol env)
+(defun compiled-env (clutter-env)
+  (multiple-value-bind (value exists) (gethash clutter-env *compiled-envs*)
+    (if exists
+        value
+        (setf (gethash clutter-env *compiled-funcs*)
+              (error "Constant environment compilation unimplemented!")))))
+
+(defun compile-symbol (builder symbol env &aux (value (compiler-lookup symbol env)))
+  (if value
+      (typecase value
+        (primitive-func
+           value)
+        (primitive-fexpr
+           value)
+        (sb-sys:system-area-pointer
+           (llvm:build-load builder value (clutter-symbol-name symbol))))
       (error "Undefined binding: ~A" symbol)))
 
 (defun compile-invocation (builder invocation env)
@@ -71,6 +85,7 @@
   (typecase value
     (integer (llvm:const-int (llvm:int32-type) value nil))
     (clutter-function (compiled-func value))
+    (env (compiled-env value))
     (clutter-operative (error "Tried to compile an constant operative: ~A" value))
     (sb-sys:system-area-pointer value)  ; Assume it's an LLVM value
     (t (error "Unsupported compiletime constant!"))))
@@ -105,15 +120,17 @@
        (let* ((func (llvm:add-function *module* name (llvm:function-type (llvm:int32-type) (make-array (length args) :initial-element (llvm:int32-type)))))
               (entry (llvm:append-basic-block func "entry"))
               (inner-env (make-compiler-env env)))
-         ;; Name arguments
+         (llvm:position-builder-at-end new-builder entry)
+         ;; Name and allocate mutable space for arguments
          (map nil
-              (lambda (argument name)
-                (setf (llvm:value-name argument) (clutter-symbol-name name)
-                      (gethash name (compiler-env-bindings inner-env)) argument))
+              (lambda (argument name &aux (name-string (clutter-symbol-name name)))
+                (setf (llvm:value-name argument) name-string
+                      (gethash name (compiler-env-bindings inner-env))
+                      (llvm:build-alloca new-builder (llvm:int32-type)
+                                         (concatenate 'string name-string "-ptr"))))
               (llvm:params func)
               args)
-         ;; Compile body and return value of last form
-         (llvm:position-builder-at-end new-builder entry)
+         ;; Compile body and return the value of the last form
          (loop for (form . remaining) on body
                for result = (compile-form new-builder form inner-env)
                unless remaining do
