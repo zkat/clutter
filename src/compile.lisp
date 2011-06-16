@@ -59,6 +59,10 @@
     (if exists
         value
         (setf (gethash clutter-env *compiled-envs*)
+              ;; TODO: This.  Should reference, creating if necessary,
+              ;; the parallels to all of clutter-env's parents as
+              ;; well.  Thought: Do we need to do anything more than
+              ;; create an empty env here?
               (error "Constant environment compilation unimplemented!")))))
 
 (defun compile-symbol (builder symbol env &aux (value (compiler-lookup symbol env)))
