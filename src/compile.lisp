@@ -170,18 +170,23 @@
                          (list then-result else-result)
                          (list then-block else-block)))))
 
-(defun cltr-compile (expr &aux builder)
+(defun cltr-compile (expr &aux builder pm)
   (unwind-protect
        (progn
-         (setf *module* (llvm:make-module "clutter"))
-         (setf builder (llvm:make-builder))
+         (setf *module* (llvm:make-module "clutter")
+               builder (llvm:make-builder)
+               pm (llvm:create-pass-manager))
          
          (compile-form builder expr *root-compiler-env*)
+
+         (llvm:add-promote-memory-to-register-pass pm)
+         (llvm:run-pass-manager pm *module*)
 
          (llvm:dump-module *module*)
          (llvm:verify-module *module*))
     
     (llvm:dispose-builder builder)
+    (llvm:dispose-pass-manager pm)
     (when *module*
       (llvm:dispose-module *module*)
       (setf *module* nil))))
