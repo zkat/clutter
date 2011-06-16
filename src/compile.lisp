@@ -20,7 +20,6 @@
   "Globals, including most primitives.")
 
 (defvar *module*)
-(defvar *compiler-at-toplevel* t)
 
 (defstruct (primitive-func (:constructor make-primitive-func (compiler)))
   compiler)
@@ -137,9 +136,9 @@
          (compiled-value (compile-form builder value denv))
          (type (llvm:type-of compiled-value)))
     (setf (gethash name (compiled-env target-env))
-          (if *compiler-at-toplevel*
+          (if (eq target-compiler-env *root-compiler-env*)
               (progn
-                (warn "Initializing globals is unsupported!")
+                (warn "Initializing globals is unimplemented!")
                 (llvm:add-global *module* type (clutter-symbol-name name)))
               (aprog1 (llvm:build-alloca builder type
                                          (clutter-symbol-name name))
@@ -166,11 +165,10 @@
               (llvm:params func)
               args)
          ;; Compile body and return the value of the last form
-         (let ((*compiler-at-toplevel* nil))
-          (loop for (form . remaining) on body
-                for result = (compile-form new-builder form inner-env)
-                unless remaining do
-                  (llvm:build-ret new-builder result))))
+         (loop for (form . remaining) on body
+               for result = (compile-form new-builder form inner-env)
+               unless remaining do
+                 (llvm:build-ret new-builder result)))
     (llvm:dispose-builder new-builder))
   ret)
 
