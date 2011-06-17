@@ -138,8 +138,9 @@
                                        (arrow-type-from type))
                       (substitute-type from to kind
                                        (arrow-type-to type))))
-    ((record-type? type)
-     (make-record-type (plist-map-values (curry substitute-type from to kind) (record-type-types type))))
+    ((or? (record-type? type)
+          (variant-type? type))
+     ((get-type-constructor type) (plist-map-values (curry substitute-type from to kind) (labeled-type-types type))))
     (#t type)))
 
 ;; Preprocessing merging
@@ -212,9 +213,9 @@
     ((and? (arrow-type? child)
            (arrow-type? parent))
      (unify-arrows child parent))
-    ((and? (record-type? child)
-           (record-type? parent))
-     (unify-records child parent))))
+    ((and? (labeled-type? child)
+           (labeled-type? parent))
+     (unify-labeled child parent))))
 
 (def-fun! unify-literals (child parent)
   ;; This is fail only unifier, equal literals just eliminate
@@ -247,11 +248,11 @@
    (make-constraint (arrow-type-from parent) (arrow-type-from child))
    (make-constraint (arrow-type-to child) (arrow-type-to parent))))
 
-(def-fun! unify-records (child parent)
+(def-fun! unify-labeled (child parent)
   (map (lambda (label)
-         (make-constraint (record-type-get label child)
-                          (record-type-get label parent)))
-       (record-type-labels parent)))
+         (make-constraint (labeled-type-get label child)
+                          (labeled-type-get label parent)))
+       (labeled-type-labels (if (variant-type? type) child parent))))
 
 (def-fun! unify-group-types (child parent)
   (cond

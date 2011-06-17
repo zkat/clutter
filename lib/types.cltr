@@ -14,16 +14,23 @@
 
 (def-struct! union-type types)
 
+(def-struct! variant-type types)
+
 (def-struct! record-type types)
 
-(def-fun! record-type-labels (type)
-  (plist-keys (record-type-types type)))
+(def-fun! labeled-type-types (type)
+  (if (variant-type? type)
+      (variant-type-types type)
+      (record-type-types type)))
 
-(def-fun! record-type-values (type)
-  (plist-values (record-type-types type)))
+(def-fun! labeled-type-labels (type)
+  (plist-keys (labeled-type-types type)))
 
-(def-fun! record-type-get (label type)
-  (plist-get label (record-type-types type)))
+(def-fun! labeled-type-values (type)
+  (plist-values (labeled-type-types type)))
+
+(def-fun! labeled-type-get (label type)
+  (plist-get label (labeled-type-types type)))
 
 (def! top :top)
 (def! bottom :bottom)
@@ -37,6 +44,7 @@
                      product-type?
                      intersection-type?
                      union-type?
+                     variant-type?
                      record-type?))
 
 (def-fun! get-type-constructor (type)
@@ -47,6 +55,7 @@
    (product-type make-product-type)
    (intersection-type? make-intersection-type)
    (union-type? make-union-type)
+   (variant-type? make-variant-type)
    (record-type? make-record-type)))
 
 (def-fun! atom-primitive-type (atom)
@@ -60,6 +69,7 @@
                         primitive-type?
                         product-type?
                         arrow-type?
+                        variant-type?
                         record-type?
                         intersection-type?
                         union-type?)
@@ -76,12 +86,15 @@
                                          (first (product-type-types right))))
       ((all? arrow-type?) (type-order? (arrow-type-from left)
                                        (arrow-type-from right)))
+      ((all? variant-type?) #t)
       ((all? record-type?) #t)
       ((all? intersection-type?) #t)
       ((all? union-type?) #t)
       ; General case
       (#t (<? (position #t (map (curry type-is left) type-list))
               (position #t (map (curry type-is right) type-list)))))))
+
+(def! labeled-type? (disjoin record-type? union-type?))
 
 (def! group-type? (disjoin intersection-type? union-type?))
 
@@ -129,12 +142,18 @@
        (and? (eql? (length child-types)
                    (length parent-types))
              (all? subtype? child-types parent-types))))
+    ((and? (variant-type? child)
+           (variant-type? parent))
+     (all? (lambda (label)
+             (subtype? (labeled-type-get label child)
+                       (labeled-type-get label parent)))
+           (labeled-type-labels child)))
     ((and? (record-type? child)
            (record-type? parent))
      (all? (lambda (label)
-             (subtype? (record-type-get label child)
-                       (record-type-get label parent)))
-           (record-type-labels parent)))
+             (subtype? (labeled-type-get label child)
+                       (labeled-type-get label parent)))
+           (labeled-type-labels parent)))
     ((union-type? child)
      (all? (curry supertype? parent) (union-type-types child)))
     ((union-type? parent)
