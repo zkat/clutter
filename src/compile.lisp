@@ -162,7 +162,7 @@
                                            ret (new-builder (llvm:make-builder)))
   (declare (ignore builder))
   (unwind-protect
-       (let* ((func (llvm:add-function *module* name (llvm:function-type (llvm:int32-type) (make-array (length args) :initial-element (llvm:int32-type)))))
+       (let* ((func (llvm:add-function *module* (clutter-symbol-name name) (llvm:function-type (llvm:int32-type) (make-array (length args) :initial-element (llvm:int32-type)))))
               (entry (llvm:append-basic-block func "entry"))
               (inner-env (make-compiler-env env)))
          (setf ret func)
