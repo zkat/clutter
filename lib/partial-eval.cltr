@@ -62,7 +62,7 @@
     (cond
       ((and? (static? a) (static? b)) (shadowing a b))
       (#t (emit (list shadowing (finalize a) (finalize b))
-                (apply append (map dynamic-in (filter dynamic? values))))))))
+                (apply append (map dynamic-in (filter dynamic? (list a b)))))))))
 
 (def-op! def-math-prim! env (shadowing name)
   (dyn-def-in! env name (make-math-prim (eval shadowing env)))
