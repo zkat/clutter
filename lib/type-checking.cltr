@@ -6,7 +6,8 @@
   (let (ast (print (mark-ast code)))
     (substitute-vars
      ast
-     (unify-constraints (print (make-constraints ast (eval decl env)))))))
+     (unify-constraints
+      (unify-constraints (print (make-constraints ast (eval decl env))))))))
 
 ;;; AST marking
 
@@ -72,7 +73,10 @@
              comb-type (constraint-right (find-constraint (cdr comb) comb-constraints)))
       (append
        (list
-        (make-constraint (make-product-type (map cdr args)) (arrow-type-from comb-type))
+        (make-constraint (if (operative-type? comb-type)
+                             (make-product-type (cons decl (map cdr args)))
+                             (make-product-type (map cdr args)))
+                         (arrow-type-from comb-type))
         (make-constraint tv (arrow-type-to comb-type)))
        comb-constraints
        (reduce (lambda (prev next) (append (make-constraints next decl) prev)) (list) args)))))
@@ -134,7 +138,8 @@
       (map (curry substitute-type from to kind)
            (product-type-types type))))
     ((arrow-type? type)
-     (make-arrow-type (substitute-type from to (complement-substitution-kind kind)
+     (make-arrow-type type
+                      (substitute-type from to (complement-substitution-kind kind)
                                        (arrow-type-from type))
                       (substitute-type from to kind
                                        (arrow-type-to type))))
@@ -146,19 +151,26 @@
 ;; Preprocessing merging
 
 (def-fun! merge-to-intersections (constraints)
-  (map merge-constraints
-       (group-by (fork eql?
-                       constraint-left
-                       constraint-left)
-                 (sort-by (fork type-order?
+  (map-append merge-constraints
+              (group-by (fork eql?
+                              constraint-left
+                              constraint-left)
+                        (sort-by (fork type-order?
                                 constraint-left
                                 constraint-left)
-                                  constraints))))
+                                 constraints))))
 
 (def-fun! merge-constraints (constraints)
-  (make-constraint (constraint-left (first constraints))
-                   (normalize-group-type
-                    (make-intersection-type (map constraint-right constraints)))))
+  (if (=? 1 (length constraints))
+      constraints
+      (letseq (right-side (map constraint-right constraints)
+                          variables (filter variable? right-side)
+                          not-variables (filter (complement variable?) right-side)
+                          intersection (normalize-group-type (make-intersection-type not-variables)))
+              (cons (make-constraint (constraint-left (first constraints))
+                                     intersection)
+                    (map (rcurry make-constraint intersection)
+                         variables)))))
 
 ;; Unification
 
@@ -190,7 +202,7 @@
                                     (curry append (cdr stack)))
                            (unify-group-types child parent))))
             ((and? (type? child)
-                  (type? parent))
+                   (type? parent))
              (let (result (unify-types child parent))
                (when result
                  (unify-h (merge-to-intersections (append (cdr stack) result))

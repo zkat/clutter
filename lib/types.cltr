@@ -6,7 +6,27 @@
 
 (def-struct! primitive-type name)
 
-(def-struct! arrow-type from to)
+(def-struct! operative-type from to)
+
+(def-struct! function-type from to)
+
+(def-fun! make-arrow-type (original-type from to)
+  (if (operative-type? original-type)
+      (make-operative-type from to)
+      (make-function-type from to)))
+
+(def-fun! arrow-type-from (type)
+  (if (operative-type? type)
+      (operative-type-from type)
+      (operative-type-from type)))
+
+(def-fun! arrow-type-to (type)
+  (if (operative-type? type)
+      (operative-type-to type)
+      (operative-type-to type)))
+
+(def! arrow-type? (disjoin operative-type?
+                           function-type?))
 
 (def-struct! product-type types)
 
@@ -51,7 +71,7 @@
   (pred-case
    (literal-type? make-literal-type)
    (primitive-type? make-primitive-type)
-   (arrow-type? make-arrow-type)
+   (arrow-type? (curry make-arrow-type type))
    (product-type make-product-type)
    (intersection-type? make-intersection-type)
    (union-type? make-union-type)
