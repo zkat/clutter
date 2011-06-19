@@ -38,19 +38,16 @@
     ((clutter-symbol-operative-p combiner) (combiner-name (clutter-symbol-operative-operative combiner)))))
 
 (defmethod print-object ((o clutter-operative) s)
-  (let ((name (combiner-name o)))
-    (print-unreadable-object (o s :type t :identity (null name))
-      (princ (combiner-name o) s))))
+  (print-unreadable-object (o s :type t :identity t)
+    (princ (combiner-name o) s)))
 
 (defmethod print-object ((o clutter-function) s)
-  (let ((name (combiner-name o)))
-    (print-unreadable-object (o s :type t :identity (null name))
-      (princ (combiner-name o) s))))
+  (print-unreadable-object (o s :type t :identity t)
+    (princ (combiner-name o) s)))
 
 (defmethod print-object ((o clutter-symbol-operative) s)
-  (let ((name (combiner-name o)))
-    (print-unreadable-object (o s :type t :identity (null name))
-      (princ (combiner-name o) s))))
+  (print-unreadable-object (o s :type t :identity t)
+    (princ (combiner-name o) s)))
 
 (defun invoke (operative env args)
   (if (clutter-operative-p operative)
