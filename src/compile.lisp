@@ -138,6 +138,10 @@
 (def-compiler-primfun "=?" (builder x y)
   (llvm:build-i-cmp builder := x y "equal"))
 
+(def-compiler-primfexpr "quote" (builder denv value)
+  (declare (ignore denv))
+  (compile-constant builder value))
+
 (def-compiler-primfexpr "def-in!" (builder denv target-env name value)
   (let* ((target-compiler-env
           (cond
