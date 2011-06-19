@@ -28,10 +28,6 @@
     ((dynamic? tree) (dynamic-code tree))
     (#t tree)))
 
-(def! peval-prims (list))
-(def-fun! peval-prim? (obj)
-  (member? obj peval-prims))
-
 (def! shadowed-prims (list))
 (def-fun! shadowed-prim? (comb)
   (if (assoc comb shadowed-prims)
@@ -45,7 +41,6 @@
         obj)))
 
 (def-fun! register-peval-prim (prim &rest shadowing)
-  (push! prim peval-prims)
   (unless (empty? shadowing)
     (push! (cons (first shadowing) prim) shadowed-prims)))
 
@@ -173,7 +168,7 @@
                    (map dynamic-in
                         (cons comb (filter dynamic? (rest form))))))
       (if (operative? comb)
-          (if (peval-prim? comb)
+          (if (shadowed-prim? comb)
               (eval (list* (pe-subst comb) (rest form)) env)
               (if (primitive? comb)
                   (do (print "WARNING: Unsupported partial eval primitive!")
@@ -181,7 +176,7 @@
                     (emit (map1 ensure-code form) (list)))
                   (inline (list* comb (rest form)) env)))
           (let (args (map (rcurry smart-eval env) (rest form)))
-            (if (or? (peval-prim? comb)
+            (if (or? (shadowed-prim? comb)
                      (and? (pure? comb) (all? static? args)))
                 (eval (list* (unwrap (pe-subst comb))
                              args)
@@ -198,7 +193,6 @@
     ;; recompile if changed) or 'dynamic' (so that we use emit instead
     ;; of eval here).  This distinction must be made.  Perhaps infer
     ;; via whole-program analysis?
-    ((symbol? form) (pe-subst (eval form env)))
     (#t (eval form env))))
 
 (def-peval-op! nvau static-env (name env-var vau-list &rest body)
