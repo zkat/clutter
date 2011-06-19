@@ -201,7 +201,7 @@
     ((symbol? form) (pe-subst (eval form env)))
     (#t (eval form env))))
 
-(def-peval-op! vau static-env (env-var vau-list &rest body)
+(def-peval-op! nvau static-env (name env-var vau-list &rest body)
   (def! vau-env (make-env static-env))
   (map (lambda (binding)
          (dyn-def-in! vau-env binding (emit binding (list vau-env))))
@@ -212,14 +212,14 @@
                             dynamic-in))
   (def! impure-here? (complement (compose empty? outer-envs)))
   (if (any? (conjoin dynamic? impure-here?) body-results)
-      (emit (list* vau env-var vau-list (map finalize body-results))
+      (emit (list* nvau name env-var vau-list (map finalize body-results))
             (apply append (map outer-envs (filter dynamic? body-results))))
-      (let (result (eval (list* vau env-var vau-list (map1 finalize body-results)) static-env))
+      (let (result (eval (list* nvau name env-var vau-list (map1 finalize body-results)) static-env))
         (declare-pure! result #t)
         result)))
 
-(def-peval-op! nvau static-env (name env-var vau-list &rest body)
-  (eval (list* (pe-subst vau) env-var vau-list body) static-env))
+(def-peval-op! vau static-env (env-var vau-list &rest body)
+  (eval (list* (pe-subst nvau) (quote anonymous) env-var vau-list body) static-env))
 
 (def-peval-fun! eval (expr env)
   (if (and? (static? expr) (static? env))
