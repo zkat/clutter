@@ -146,6 +146,8 @@
     ((or? (record-type? type)
           (variant-type? type))
      ((get-type-constructor type) (plist-map-values (curry substitute-type from to kind) (labeled-type-types type))))
+    ((rec-type? type)
+     (make-rec-type (rec-type-variable type) (substitute-type from to kind (rec-type-type type))))
     (#t type)))
 
 ;; Preprocessing merging
