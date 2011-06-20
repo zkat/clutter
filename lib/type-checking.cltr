@@ -22,7 +22,7 @@
                  (cons (if (cons? ast)
                            (map mark-ast-helper ast)
                            ast)
-                       (make-variable current)))))
+                       (make-variable (make-keyword (make-string current)))))))
       (mark-ast-helper ast))))
 
 (def-fun! substitute-vars (ast constraints)

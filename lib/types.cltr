@@ -54,10 +54,10 @@
 
 (def-struct! rec-type variable type)
 
-(def-fun! unfold-type (with rec-type)
+(def-fun! unroll-type (with rec-type)
   (substitute-type (rec-type-variable rec-type) with :supertype (rec-type-type rec-type)))
 
-(def-fun! fold-type (with type variable)
+(def-fun! roll-type (with type variable)
   (make-rec-type variable
                  (substitute-type with variable :supertype type)))
 
@@ -97,6 +97,7 @@
   (letseq (type-list (list variable?
                         literal-type?
                         primitive-type?
+                        rec-type?
                         product-type?
                         arrow-type?
                         variant-type?
@@ -108,21 +109,38 @@
            all? (rcurry all? types))
     (cond
       ((all? variable?)
-       (<? (variable-name left)
-           (variable-name right)))
-      ; Rest are hacky, don't care now
+       (string<? (keyword-name (variable-name left))
+                 (keyword-name (variable-name right))))
       ((all? literal-type?) #t)
-      ((all? product-type?) (type-order? (first (product-type-types left))
-                                         (first (product-type-types right))))
-      ((all? arrow-type?) (type-order? (arrow-type-from left)
-                                       (arrow-type-from right)))
-      ((all? variant-type?) #t)
-      ((all? record-type?) #t)
-      ((all? intersection-type?) #t)
-      ((all? union-type?) #t)
+      ((all? rec-type?) (type-order? (rec-type-type left)
+                                     (rec-type-type right)))
+      ((all? product-type?) (sequence-order? type-order?
+                                             (product-type-types left)
+                                             (product-type-types right)))
+      ((all? arrow-type?) (sequence-order? type-order?
+                                           (list (arrow-type-from left)
+                                                 (arrow-type-to left))
+                                           (list (arrow-type-from right)
+                                                 (arrow-type-to right))))
+      ((all? variant-type?) (sort-labeled-types left right))
+      ((all? record-type?) (sort-labeled-types left right))
+      ((all? intersection-type?) (sequence-order? type-order?
+                                                  (intersection-type-types left)
+                                                  (intersection-type-types right)))
+      ((all? union-type?) (sequence-order? type-order?
+                                           (union-type-types left)
+                                           (union-type-types right)))
       ; General case
       (#t (<? (position #t (map (curry type-is left) type-list))
               (position #t (map (curry type-is right) type-list)))))))
+
+(def-fun! sort-labeled-types (left right)
+  (or (sequence-order? (compose string<? keyword-name)
+                       (labeled-type-labels left)
+                       (labeled-type-labels right))
+      (sequence-order? type-order?
+                       (labeled-type-values left)
+                       (labeled-type-values right))))
 
 (def! labeled-type? (disjoin record-type? union-type?))
 
@@ -159,6 +177,10 @@
            (primitive-type? parent))
      (subtype? (atom-primitive-type (literal-type-atom child))
                parent))
+    ((and? (rec-type? child)
+           (rec-type? parent))
+     (subtype? (rec-type-type child)
+               (rec-type-type parent)))
     ((and? (arrow-type? child)
            (arrow-type? parent))
      (and? (subtype? (arrow-type-from parent)

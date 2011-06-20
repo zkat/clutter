@@ -625,3 +625,13 @@
 
 (def-fun! fork (center &rest functions)
   (lambda (&rest args) (apply center (map call functions args))))
+
+(def-fun! sequence-order? (tester left right)
+  (cond
+    ((and (empty? left)
+          (empty? right)) #t)
+    ((empty? left) #t)
+    ((empty? right) #f)
+    ((tester left right) #t)
+    ((tester right left) #f)
+    (#t (sequence-order? tester (rest left) (rest right)))))
