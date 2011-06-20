@@ -168,6 +168,20 @@
                                          (clutter-symbol-name name))
                 (llvm:build-store builder compiled-value it))))))
 
+(def-compiler-primfexpr "set-in!" (builder denv target-env name value)
+  (aprog1 (compile-form builder value denv)
+    (llvm:build-store
+     builder
+     it
+     (compiler-lookup name
+                      (cond
+                        ((env-p target-env)
+                         (compiled-env target-env))
+                        ((equal target-env (list (lookup (cs "get-current-env")
+                                                         *global-env*)))
+                         denv)
+                        (t (error "Binding values in non-constant environments is unimplemented!")))))))
+
 ;;; FIXME: This will error if the stdlib hasn't been loaded yet due to nlambda being defined in-language.
 (def-compiler-primfexpr "nlambda" (builder env name args &rest body &aux
                                            ret (new-builder (llvm:make-builder)))
