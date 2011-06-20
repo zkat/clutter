@@ -158,11 +158,15 @@
             (dynamic-in obj))
       (wrap obj)))
 
-;;; Inlines and recurses
+;;; Inlines, recurses, and invokes peval primitives.
 (def-fun! smart-eval-call (form env)
   ;; TODO: Also inline functions being passed constant envs.
   (def! comb (smart-eval (first form) env))
   (if (dynamic? comb)
+      ;; TODO: Invoke dynamic functions, substituting in dynamic result
+      ;; Maybe via an alternative version of the nvau peval op which emits a function object despite having dynamic members?
+      ;; It's probably necessary to invoke the entire smart-eval stack, but have it switch to unsafe-nvau mode.
+      ;; INLINE THE RESULTANT FUNCTION.
       (emit (list* (dynamic-code comb) (map ensure-code (rest form)))
             (apply append
                    (map dynamic-in
@@ -195,19 +199,28 @@
     ;; via whole-program analysis?
     (#t (eval form env))))
 
+(def-peval-op! do denv (&rest body)
+  (def! body-results (map (rcurry smart-eval denv) body))
+  (if (any? dynamic? body-results)
+      (emit (list* do (map finalize body-results))
+            (apply append (map1 dynamic-in (filter dynamic? body-results))))
+      (last body-results)))
+
 (def-peval-op! nvau static-env (name env-var vau-list &rest body)
   (def! vau-env (make-env static-env))
   (map (lambda (binding)
          (dyn-def-in! vau-env binding (emit binding (list vau-env))))
        (cons env-var vau-list))
-  ;; TODO: Handle explicitly introduced but non-escaping environments
+  ;; TODO: Handle explicitly introduced but non-escaping environments via escape analysis thereof
   (def! body-results (map (rcurry smart-eval vau-env) body))
   (def! outer-envs (compose (curry filter (complement (curry eql? vau-env)))
                             dynamic-in))
   (def! impure-here? (complement (compose empty? outer-envs)))
+
   (if (any? (conjoin dynamic? impure-here?) body-results)
       (emit (list* nvau name env-var vau-list (map finalize body-results))
             (apply append (map outer-envs (filter dynamic? body-results))))
+      ;; Possible double eval here
       (let (result (eval (list* nvau name env-var vau-list (map1 finalize body-results)) static-env))
         (declare-pure! result #t)
         result)))

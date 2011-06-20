@@ -142,6 +142,13 @@
   (declare (ignore denv))
   (compile-constant builder value))
 
+(def-compiler-primfexpr "do" (builder denv &rest body)
+  ;; Compile body and return the value of the last form
+  (loop for (form . remaining) on body
+        for result = (compile-form builder form denv)
+        unless remaining
+          return result))
+
 (def-compiler-primfexpr "def-in!" (builder denv target-env name value)
   (let* ((target-compiler-env
           (cond
