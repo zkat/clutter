@@ -54,10 +54,10 @@
 
 (def-struct! rec-type variable type)
 
-(def-fun! fold-type (with rec-type)
+(def-fun! unfold-type (with rec-type)
   (substitute-type (rec-type-variable rec-type) with :supertype (rec-type-type rec-type)))
 
-(def-fun! unfold-type (with type variable)
+(def-fun! fold-type (with type variable)
   (make-rec-type variable
                  (substitute-type with variable :supertype type)))
 
