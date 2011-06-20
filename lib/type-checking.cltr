@@ -221,6 +221,9 @@
     ((and? (primitive-type? child)
            (primitive-type? parent))
      (unify-primitives child parent))
+    ((and? (rec-type? child)
+           (rec-type? parent))
+     (unify-rec-types child parent))
     ((and? (product-type? child)
            (product-type? parent))
      (unify-products child parent))
@@ -241,6 +244,12 @@
   (cond
     ((primitive-type? parent) (make-constraint (atom-primitive-type (literal-type-atom child))
                                                parent))))
+(def-fun! unify-rec-types (child parent)
+  (subtype? (substitute-type (rec-type-variable child)
+                             (rec-type-variable parent)
+                             :supertype
+                             (rec-type-type child))
+            (rec-type-type parent)))
 
 (def-fun! unify-primitives (child parent)
   ;; This is fail only unifier, equal primitives just eliminate

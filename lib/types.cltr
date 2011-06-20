@@ -179,7 +179,10 @@
                parent))
     ((and? (rec-type? child)
            (rec-type? parent))
-     (subtype? (rec-type-type child)
+     (subtype?  (substitute-type (rec-type-variable child)
+                                 (rec-type-variable parent)
+                                 :supertype
+                                 (rec-type-type child))
                (rec-type-type parent)))
     ((and? (arrow-type? child)
            (arrow-type? parent))
