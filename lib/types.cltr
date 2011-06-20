@@ -52,6 +52,15 @@
 (def-fun! labeled-type-get (label type)
   (plist-get label (labeled-type-types type)))
 
+(def-struct! rec-type variable type)
+
+(def-fun! fold-type (with rec-type)
+  (substitute-type (rec-type-variable rec-type) with :supertype (rec-type-type rec-type)))
+
+(def-fun! unfold-type (with type variable)
+  (make-rec-type variable
+                 (substitute-type with variable :supertype type)))
+
 (def! top :top)
 (def! bottom :bottom)
 
@@ -68,15 +77,16 @@
                      record-type?))
 
 (def-fun! get-type-constructor (type)
-  (pred-case
+  (pred-case type
    (literal-type? make-literal-type)
    (primitive-type? make-primitive-type)
    (arrow-type? (curry make-arrow-type type))
-   (product-type make-product-type)
+   (product-type? make-product-type)
    (intersection-type? make-intersection-type)
    (union-type? make-union-type)
    (variant-type? make-variant-type)
-   (record-type? make-record-type)))
+   (record-type? make-record-type)
+   (rec-type? make-rec-type)))
 
 (def-fun! atom-primitive-type (atom)
   (pred-case atom
