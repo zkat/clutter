@@ -2,24 +2,26 @@
 
 (declaim (optimize (debug 3)))
 
-(defstruct (compiler-env (:constructor make-compiler-env (&rest parents)))
+(defstruct (compiler-env (:constructor make-compiler-env (toplevel &rest parents)))
   parents
-  (bindings (make-hash-table :test 'eq)))
+  (bindings (make-hash-table :test 'eq))
+  toplevel)
 
 (defun compiler-lookup (symbol env)
   (multiple-value-bind (value exists)
       (gethash symbol (compiler-env-bindings env))
     (if exists
-        value
+        (values value env)
         (loop for parent in (compiler-env-parents env)
               for result = (compiler-lookup symbol parent)
               when result
                 return result))))
 
-(defvar *root-compiler-env* (make-compiler-env)
+(defvar *root-compiler-env* (make-compiler-env t)
   "Globals, including most primitives.")
 
 (defvar *module*)
+(defvar *alloc*)
 
 (defstruct (primitive-func (:constructor make-primitive-func (compiler)))
   compiler)
@@ -189,7 +191,7 @@
   (unwind-protect
        (let* ((func (llvm:add-function *module* (clutter-symbol-name name) (llvm:function-type (llvm:int32-type) (make-array (length args) :initial-element (llvm:int32-type)))))
               (entry (llvm:append-basic-block func "entry"))
-              (inner-env (make-compiler-env env)))
+              (inner-env (make-compiler-env nil env)))
          (setf ret func)
          (llvm:position-builder-at-end new-builder entry)
          ;; Name and allocate mutable space for arguments
@@ -199,7 +201,7 @@
                       (gethash name (compiler-env-bindings inner-env))
                       (aprog1 (llvm:build-alloca new-builder (llvm:int32-type)
                                                  (concatenate 'string name-string "-ptr"))
-                        (llvm:build-store new-builder argument it ))))
+                        (llvm:build-store new-builder argument it))))
               (llvm:params func)
               args)
          ;; Compile body and return the value of the last form
@@ -235,13 +237,18 @@
                          (list then-result else-result)
                          (list then-block else-block)))))
 
+(defun emit-externs ()
+  (setf *alloc* (llvm:add-function *module* "GC_malloc" (llvm:function-type (llvm:pointer-type (llvm:void-type)) (vector (llvm:int32-type))))))
+
 (defun cltr-compile (expr &aux builder pm)
   (unwind-protect
        (progn
          (setf *module* (llvm:make-module "clutter")
                builder (llvm:make-builder)
                pm (llvm:create-pass-manager))
-         
+
+         (emit-externs)
+
          (compile-form builder expr *root-compiler-env*)
 
          (llvm:add-promote-memory-to-register-pass pm)
