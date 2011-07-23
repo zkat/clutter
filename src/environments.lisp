@@ -42,14 +42,12 @@
   (when (eq symbol *ignore*)
     (error "Attempted to find binding env of #ignore in ~A" lookup-env))
   (if lookup-env
-      (multiple-value-bind (value exists)
-          (gethash symbol (env-bindings lookup-env))
-        (if exists
-            value
-            (loop for parent in (env-parents lookup-env)
-                  for result = (binding-env symbol parent)
-                  when result
-                    return result)))
+      (if (nth-value 1 (gethash symbol (env-bindings lookup-env)))
+          lookup-env
+          (loop for parent in (env-parents lookup-env)
+                for result = (binding-env symbol parent)
+                when result
+                  return result))
       nil))
 
 (defun (setf lookup) (new-value symbol &optional (env *global-env*))
