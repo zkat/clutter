@@ -154,6 +154,14 @@
         unless remaining
           return result))
 
+(defun add-entry-alloca (function type name &aux builder)
+  (unwind-protect
+       (progn
+         (setf builder (llvm:make-builder))
+         (llvm:position-builder-at-end builder (llvm:entry-basic-block function))
+         (llvm:build-alloca builder type name))
+    (llvm:dispose-builder builder)))
+
 (def-compiler-primfexpr "def-in!" (builder denv target-env name value)
   (let* ((target-compiler-env
           (cond
@@ -175,14 +183,13 @@
              (error "Dynamic bindings are unimplemented! (tried to add global binding from a function)"))
             ((compiler-env-toplevel denv)
              (error "Tried to modify a dynamic environment from the toplevel; WTF?"))
-            ((eq (compiler-env-func target-env)
-                 (llvm:basic-block-parent (llvm:insertion-block builder)))
-             (unless (eq (compiler-env-func target-env)
-                         (compiler-env-func denv))
-               (error "Dynamic bindings are unimplemented! (tried to add bindings in one function from another)"))
-             (aprog1 (llvm:build-alloca builder type
-                                        (clutter-symbol-name name))
-               (llvm:build-store builder compiled-value it)))))))
+            ((eq (compiler-env-func target-compiler-env)
+                 (compiler-env-func denv))
+             (aprog1 (add-entry-alloca (compiler-env-func target-compiler-env)
+                                       type (clutter-symbol-name name))
+               (llvm:build-store builder compiled-value it)))
+            (t (error "wat"))))
+    compiled-value))
 
 (def-compiler-primfexpr "set-in!" (builder denv target-env name value)
   (aprog1 (compile-form builder value denv)
@@ -205,24 +212,29 @@
   (unwind-protect
        (let* ((func (llvm:add-function *module* (clutter-symbol-name name) (llvm:function-type (llvm:int32-type) (make-array (length args) :initial-element (llvm:int32-type)))))
               (entry (llvm:append-basic-block func "entry"))
+              (begin (llvm:append-basic-block func "begin"))
               (inner-env (make-compiler-env :func func :parents (list env))))
          (setf ret func)
-         (llvm:position-builder-at-end new-builder entry)
          ;; Name and allocate mutable space for arguments
+         (llvm:position-builder-at-end new-builder entry)
          (map nil
               (lambda (argument name &aux (name-string (clutter-symbol-name name)))
                 (setf (llvm:value-name argument) name-string
                       (gethash name (compiler-env-bindings inner-env))
                       (aprog1 (llvm:build-alloca new-builder (llvm:int32-type)
-                                                 (concatenate 'string name-string "-ptr"))
+                                                 name-string)
                         (llvm:build-store new-builder argument it))))
               (llvm:params func)
               args)
          ;; Compile body and return the value of the last form
+         (llvm:position-builder-at-end new-builder begin)
          (loop for (form . remaining) on body
                for result = (compile-form new-builder form inner-env)
                unless remaining do
-                 (llvm:build-ret new-builder result)))
+                 (llvm:build-ret new-builder result))
+         ;; Complete entry block
+         (llvm:position-builder-at-end new-builder entry)
+         (llvm:build-br new-builder begin))
     (llvm:dispose-builder new-builder))
   ret)
 
