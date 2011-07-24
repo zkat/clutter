@@ -205,10 +205,50 @@
                          denv)
                         (t (error "Binding values in non-constant environments is unimplemented!")))))))
 
+(defun collect-outside-refs (locals form)
+  (typecase form
+    (clutter-symbol
+     (if (member form locals)
+         (values nil locals)
+         (values (list form) locals)))
+    (list
+     (destructuring-bind (combiner . args) form
+       (cond
+         ;; Handle unresolved combiner reference
+         ((clutter-symbol-p combiner)
+          (let ((arg-refs
+                  (loop for form in args
+                        for result = (multiple-value-list (collect-outside-refs locals form))
+                        appending (first result)
+                        do (setf locals (append (second result) locals)))))
+            (if (member combiner locals)
+              (values arg-refs locals)
+              (values (cons combiner arg-refs) locals))))
+         ;; Handle each possible post-peval binding-introduction form.
+         ((eq combiner (lookup (cs "def-in!")))
+          (destructuring-bind (env symbol value) args
+            (if (equal env (list (lookup (cs "get-current-env"))))
+                (multiple-value-bind (refs new-locals) (collect-outside-refs locals value)
+                  (values refs (cons symbol new-locals)))
+                (error "Nontrivial function environments in closures are unimplemented!"))))
+         ((eq combiner (lookup (cs "nlambda")))
+          (destructuring-bind (name args &rest body) args
+            (declare (ignore name))
+            (setf locals (append args locals))
+            (values
+             (loop for form in body
+                   for result = (multiple-value-list (collect-outside-refs locals form))
+                   appending (first result)
+                   do (setf locals (second result)))
+             locals))))))
+    (t (values nil locals))))
+
 ;;; FIXME: This will error if the stdlib hasn't been loaded yet due to nlambda being defined in-language.
 (def-compiler-primfexpr "nlambda" (builder env name args &rest body &aux
-                                           ret (new-builder (llvm:make-builder)))
+                                   closing-over ret (new-builder (llvm:make-builder)))
   (declare (ignore builder))
+  ;; Determine what, if anything, we're closing over
+  (setf closing-over (mapcan (curry #'collect-outside-refs args) body))
   (unwind-protect
        (let* ((func (llvm:add-function *module* (clutter-symbol-name name) (llvm:function-type (llvm:int32-type) (make-array (length args) :initial-element (llvm:int32-type)))))
               (entry (llvm:append-basic-block func "entry"))
