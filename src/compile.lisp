@@ -20,6 +20,10 @@
               when result
                 return result))))
 
+(defstruct (closure (:constructor make-closure (impl context)))
+  impl
+  context)
+
 (defvar *root-compiler-env* (make-compiler-env :func nil)
   "Globals, including most primitives.")
 
@@ -104,6 +108,13 @@
                                        args)))
         (primitive-fexpr (apply (primitive-fexpr-compiler combiner) builder env
                                 args))
+        (closure
+         (llvm:build-call builder (closure-impl combiner)
+                          (coerce (cons (closure-context combiner)
+                                        (mapcar (rcurry (curry #'compile-form builder) env)
+                                                args))
+                                  'vector)
+                          "result"))
         (#+sbcl sb-sys:system-area-pointer     ; Assume it's an LLVM pointer.
          #+ccl  ccl:macptr
            (llvm:build-call builder combiner
@@ -151,6 +162,17 @@
 (def-compiler-primfexpr "quote" (builder denv value)
   (declare (ignore denv))
   (compile-constant builder value))
+
+(def-compiler-primfexpr "wrap" (builder denv value)
+  (declare (ignore denv))
+  (unless (clutter-operative-p value)
+    (error "Dynamic fexprs wrapping unimplemented."))
+  (compile-form builder
+                (list* (cs "nlambda")
+                       (clutter-operative-name value)
+                       (clutter-operative-args value)
+                       (clutter-operative-body value))
+                (compiled-env (clutter-operative-env value))))
 
 (def-compiler-primfexpr "do" (builder denv &rest body)
   ;; Compile body and return the value of the last form
@@ -277,26 +299,67 @@
 ;;; FIXME: This will error if the stdlib hasn't been loaded yet due to nlambda being defined in-language.
 (def-compiler-primfexpr "nlambda" (builder env name args &rest body &aux
                                    closing-over ret (new-builder (llvm:make-builder)))
-  (declare (ignore builder))
-  ;; Determine what, if anything, we're closing over
-  (setf closing-over (mapcan (curry #'collect-outside-refs args) body))
+  ;; Determine what, if anything, we're closing over (removing stuff not on the stack)
+  (setf closing-over (remove-if (lambda (symbol)
+                                  (compiler-env-toplevel (nth-value 1 (compiler-lookup symbol env))))
+                                (loop with locals = args
+                                      for form in body
+                                      for result = (multiple-value-list (collect-outside-refs locals form))
+                                      appending (first result)
+                                      do (setf locals (second result)))))
   (unwind-protect
-       (let* ((func (llvm:add-function *module* (clutter-symbol-name name) (llvm:function-type (llvm:int32-type) (make-array (length args) :initial-element (llvm:int32-type)))))
+       (let* ((context-type (and closing-over
+                                 (llvm:struct-type (coerce (loop for symbol in closing-over
+                                                                 collecting (llvm:type-of (compiler-lookup symbol env))) 'vector) nil)))
+              (func (let ((arg-types (loop for arg in args collect (llvm:int32-type))))
+                      (when closing-over
+                        (push (llvm:pointer-type context-type) arg-types))
+                     (llvm:add-function *module* (clutter-symbol-name name) (llvm:function-type (llvm:int32-type) (coerce arg-types 'vector)))))
               (entry (llvm:append-basic-block func "entry"))
               (begin (llvm:append-basic-block func "begin"))
               (inner-env (make-compiler-env :func func :parents (list env))))
-         (setf ret func)
+         (setf ret (make-closure func
+                                 (if closing-over ; TODO: Heap alloc when necessary
+                                     (aprog1 (add-entry-alloca (compiler-env-func env)
+                                                               context-type "context")
+                                       (loop for var in closing-over
+                                             for index from 0
+                                             do
+                                         (llvm:build-store builder (compiler-lookup var env)
+                                                           (llvm:build-struct-gep builder it index (concatenate 'string (clutter-symbol-name var) "-addr"))))))))
+         (when closing-over
+           (llvm:add-type-name *module* (concatenate 'string (clutter-symbol-name name) "-context")
+                               context-type))
          ;; Name and allocate mutable space for arguments
          (llvm:position-builder-at-end new-builder entry)
-         (map nil
-              (lambda (argument name &aux (name-string (clutter-symbol-name name)))
-                (setf (llvm:value-name argument) name-string
-                      (gethash name (compiler-env-bindings inner-env))
-                      (aprog1 (llvm:build-alloca new-builder (llvm:int32-type)
-                                                 name-string)
-                        (llvm:build-store new-builder argument it))))
-              (llvm:params func)
-              args)
+         (flet ((bind-regular-arg  (argument name &aux (name-string (clutter-symbol-name name)))
+                  (setf (llvm:value-name argument) (concatenate 'string name-string "-arg")
+                        (gethash name (compiler-env-bindings inner-env))
+                        (aprog1 (llvm:build-alloca new-builder (llvm:int32-type)
+                                                   name-string)
+                          (llvm:build-store new-builder argument it)))))
+           (let ((params (llvm:params func)))
+            (if closing-over
+                (progn
+                  (setf (llvm:value-name (first params)) "context")
+                  (loop for symbol in closing-over
+                        for index from 0
+                        for name-string = (clutter-symbol-name symbol)
+                        do (setf (gethash name (compiler-env-bindings inner-env))
+                                 (llvm:build-load new-builder
+                                                  (llvm:build-struct-gep new-builder (first params) index
+                                                                         (concatenate 'string
+                                                                                      name-string
+                                                                                      "-addr"))
+                                                  name-string)))
+                  (map nil
+                       #'bind-regular-arg
+                       (rest params)
+                       (rest args)))
+                (map nil
+                     #'bind-regular-arg
+                     params
+                     args))))
          ;; Compile body and return the value of the last form
          (llvm:position-builder-at-end new-builder begin)
          (loop for (form . remaining) on body
@@ -352,7 +415,8 @@
          (llvm:run-pass-manager pm *module*)
 
          (llvm:dump-module *module*)
-         (llvm:verify-module *module*))
+         ;; (llvm:verify-module *module*)
+         )
     
     (llvm:dispose-builder builder)
     (llvm:dispose-pass-manager pm)
