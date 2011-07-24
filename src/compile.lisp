@@ -231,16 +231,42 @@
                 (multiple-value-bind (refs new-locals) (collect-outside-refs locals value)
                   (values refs (cons symbol new-locals)))
                 (error "Nontrivial function environments in closures are unimplemented!"))))
+         ((eq combiner (lookup (cs "set-in!")))
+          (destructuring-bind (env symbol value) args
+            (if (equal env (list (lookup (cs "get-current-env"))))
+                (multiple-value-bind (refs new-locals) (collect-outside-refs locals value)
+                  (if (member symbol locals)
+                      (values refs new-locals)
+                      (values (cons symbol refs) new-locals)))
+                (error "Nontrivial function environments in closures are unimplemented!"))))
          ((eq combiner (lookup (cs "nlambda")))
           (destructuring-bind (name args &rest body) args
             (declare (ignore name))
-            (setf locals (append args locals))
             (values
-             (loop for form in body
-                   for result = (multiple-value-list (collect-outside-refs locals form))
-                   appending (first result)
-                   do (setf locals (second result)))
-             locals))))))
+             (let ((inner-locals (append args (copy-list locals))))
+               (loop for form in body
+                     for result = (multiple-value-list (collect-outside-refs inner-locals form))
+                     appending (first result)
+                     do (setf inner-locals (second result))))
+             locals)))
+         ;; Handle resolved normal combiners
+         ((clutter-function-p combiner)
+          (values
+           (loop for form in args
+                 for result = (multiple-value-list (collect-outside-refs locals form))
+                 appending (first result)
+                 do (setf locals (second result)))
+           locals))
+         ((clutter-operative-p combiner)
+          (if (eq combiner (lookup (cs "quote")))
+              (values nil locals)
+              ;; Assumes that all args of the remaining primitive combiners may be evaluated (simply), and that no non-primitive combiners have been passed in
+              (values
+               (loop for form in args
+                     for result = (multiple-value-list (collect-outside-refs locals form))
+                     appending (first result)
+                     do (setf locals (second result)))
+               locals))))))
     (t (values nil locals))))
 
 ;;; FIXME: This will error if the stdlib hasn't been loaded yet due to nlambda being defined in-language.
