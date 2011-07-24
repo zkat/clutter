@@ -2,10 +2,13 @@
 
 (declaim (optimize (debug 3)))
 
-(defstruct (compiler-env (:constructor make-compiler-env (toplevel &rest parents)))
+(defstruct compiler-env
   parents
   (bindings (make-hash-table :test 'eq))
-  toplevel)
+  func)
+
+(defun compiler-env-toplevel (instance)
+  (null (compiler-env-func instance)))
 
 (defun compiler-lookup (symbol env)
   (multiple-value-bind (value exists)
@@ -17,7 +20,7 @@
               when result
                 return result))))
 
-(defvar *root-compiler-env* (make-compiler-env t)
+(defvar *root-compiler-env* (make-compiler-env :func nil)
   "Globals, including most primitives.")
 
 (defvar *module*)
@@ -162,13 +165,24 @@
          (compiled-value (compile-form builder value denv))
          (type (llvm:type-of compiled-value)))
     (setf (gethash name (compiler-env-bindings target-compiler-env))
-          (if (eq target-compiler-env *root-compiler-env*)
-              (aprog1 (llvm:add-global *module* type (clutter-symbol-name name))
-                ;; TODO: Evaluate compiled-value first. (JIT? Interpret?)
-                (llvm:set-initializer it compiled-value))
-              (aprog1 (llvm:build-alloca builder type
-                                         (clutter-symbol-name name))
-                (llvm:build-store builder compiled-value it))))))
+          (cond
+            ((and (compiler-env-toplevel target-compiler-env)
+                  (compiler-env-toplevel denv))
+             (aprog1 (llvm:add-global *module* type (clutter-symbol-name name))
+               ;; TODO: Evaluate compiled-value first. (JIT? Interpret?)
+               (llvm:set-initializer it compiled-value)))
+            ((compiler-env-toplevel target-compiler-env)
+             (error "Dynamic bindings are unimplemented! (tried to add global binding from a function)"))
+            ((compiler-env-toplevel denv)
+             (error "Tried to modify a dynamic environment from the toplevel; WTF?"))
+            ((eq (compiler-env-func target-env)
+                 (llvm:basic-block-parent (llvm:insertion-block builder)))
+             (unless (eq (compiler-env-func target-env)
+                         (compiler-env-func denv))
+               (error "Dynamic bindings are unimplemented! (tried to add bindings in one function from another)"))
+             (aprog1 (llvm:build-alloca builder type
+                                        (clutter-symbol-name name))
+               (llvm:build-store builder compiled-value it)))))))
 
 (def-compiler-primfexpr "set-in!" (builder denv target-env name value)
   (aprog1 (compile-form builder value denv)
@@ -191,7 +205,7 @@
   (unwind-protect
        (let* ((func (llvm:add-function *module* (clutter-symbol-name name) (llvm:function-type (llvm:int32-type) (make-array (length args) :initial-element (llvm:int32-type)))))
               (entry (llvm:append-basic-block func "entry"))
-              (inner-env (make-compiler-env nil env)))
+              (inner-env (make-compiler-env :func func :parents (list env))))
          (setf ret func)
          (llvm:position-builder-at-end new-builder entry)
          ;; Name and allocate mutable space for arguments
