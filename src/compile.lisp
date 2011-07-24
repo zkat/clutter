@@ -355,7 +355,7 @@
                   (map nil
                        #'bind-regular-arg
                        (rest params)
-                       (rest args)))
+                       args))
                 (map nil
                      #'bind-regular-arg
                      params
