@@ -96,7 +96,7 @@
            value)
         (#+sbcl sb-sys:system-area-pointer
          #+ccl  ccl:macptr
-           (llvm:build-load builder value (clutter-symbol-name symbol))))
+         (llvm:build-load builder value (clutter-symbol-name symbol))))
       (error "Undefined binding: ~A" symbol)))
 
 (defun compile-invocation (builder invocation env)
@@ -345,7 +345,7 @@
                   (loop for symbol in closing-over
                         for index from 0
                         for name-string = (clutter-symbol-name symbol)
-                        do (setf (gethash name (compiler-env-bindings inner-env))
+                        do (setf (gethash symbol (compiler-env-bindings inner-env))
                                  (llvm:build-load new-builder
                                                   (llvm:build-struct-gep new-builder (first params) index
                                                                          (concatenate 'string
@@ -415,8 +415,7 @@
          (llvm:run-pass-manager pm *module*)
 
          (llvm:dump-module *module*)
-         ;; (llvm:verify-module *module*)
-         )
+         (llvm:verify-module *module*))
     
     (llvm:dispose-builder builder)
     (llvm:dispose-pass-manager pm)
