@@ -31,9 +31,12 @@
 (defstruct (primitive-fexpr (:constructor make-primitive-fexpr (compiler)))
   compiler)
 
-(defvar *compiled-combs* (make-hash-table :test 'eq :weakness :key)
+(defvar *compiled-combs* #+sbcl (make-hash-table :test 'eq :weakness :key)
+                         #+ccl  (make-hash-table :test 'eq :weak t)
   "Mapping from interpreter Clutter functions to compiled versions thereof.")
-(defvar *compiled-envs* (aprog1 (make-hash-table :test 'eq :weakness :key)
+(defvar *compiled-envs* (aprog1
+                            #+sbcl (make-hash-table :test 'eq :weakness :key)
+                            #+ccl  (make-hash-table :test 'eq :weak t)
                           (setf (gethash *global-env* it)
                                 *root-compiler-env*))
   "Mapping from interpreter environments to compiler environments.")
@@ -87,7 +90,8 @@
            value)
         (primitive-fexpr
            value)
-        (sb-sys:system-area-pointer
+        (#+sbcl sb-sys:system-area-pointer
+         #+ccl  ccl:macptr
            (llvm:build-load builder value (clutter-symbol-name symbol))))
       (error "Undefined binding: ~A" symbol)))
 
@@ -100,7 +104,8 @@
                                        args)))
         (primitive-fexpr (apply (primitive-fexpr-compiler combiner) builder env
                                 args))
-        (sb-sys:system-area-pointer     ; Assume it's an LLVM pointer.
+        (#+sbcl sb-sys:system-area-pointer     ; Assume it's an LLVM pointer.
+         #+ccl  ccl:macptr
            (llvm:build-call builder combiner
                             (map 'vector
                                  (rcurry (curry #'compile-form builder) env)
