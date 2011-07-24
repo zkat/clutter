@@ -225,6 +225,27 @@
         (declare-pure! result #t)
         result)))
 
+;;; Shortcut to avoid redundant reconstruction in compiler
+;;; TODO: Make this not be a huge copypasted lump.
+(def-peval-op! nlambda static-env (name vau-list &rest body)
+  (def! vau-env (make-env static-env))
+  (map (lambda (binding)
+         (dyn-def-in! vau-env binding (emit binding (list vau-env))))
+       vau-list)
+  ;; TODO: Handle explicitly introduced but non-escaping environments via escape analysis thereof
+  (def! body-results (map (rcurry smart-eval vau-env) body))
+  (def! outer-envs (compose (curry filter (complement (curry eql? vau-env)))
+                            dynamic-in))
+  (def! impure-here? (complement (compose empty? outer-envs)))
+
+  (if (any? (conjoin dynamic? impure-here?) body-results)
+      (emit (list* nlambda name vau-list (map finalize body-results))
+            (apply append (map outer-envs (filter dynamic? body-results))))
+      ;; Possible double eval here
+      (let (result (eval (list* nlambda name vau-list (map1 finalize body-results)) static-env))
+        (declare-pure! (unwrap result) #t)
+        result)))
+
 (def-peval-op! vau static-env (env-var vau-list &rest body)
   (eval (list* (pe-subst nvau) (quote anonymous) env-var vau-list body) static-env))
 
