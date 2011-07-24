@@ -398,7 +398,7 @@
                          (list then-block else-block)))))
 
 (defun emit-externs ()
-  (setf *alloc* (llvm:add-function *module* "GC_malloc" (llvm:function-type (llvm:pointer-type (llvm:void-type)) (vector (llvm:int32-type))))))
+  (setf *alloc* (llvm:add-function *module* "GC_malloc" (llvm:function-type (llvm:pointer-type (llvm:int8-type)) (vector (llvm:int32-type))))))
 
 (defun cltr-compile (expr &aux builder pm)
   (unwind-protect
