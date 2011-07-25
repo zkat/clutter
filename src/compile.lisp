@@ -328,7 +328,10 @@
                                              (llvm:build-bit-cast builder context
                                                                   (llvm:pointer-type (llvm:int8-type))
                                                                   "pointer")
-                                             (llvm:build-struct-gep builder it 0 "context-addr"))))
+                                             (llvm:build-struct-gep builder it 0 "context-addr"))
+                           (llvm:build-store builder
+                                             func
+                                             (llvm:build-struct-gep builder it 1 "function-addr"))))
                        (llvm:const-struct (vector (llvm:const-pointer-null (llvm:pointer-type (llvm:int8-type)))
                                                   func) nil)))
          (when closing-over
