@@ -95,6 +95,15 @@
          (llvm:build-load builder value (clutter-symbol-name symbol))))
       (error "Undefined binding: ~A" symbol)))
 
+(defun build-closure-call (builder closure args)
+  (llvm:build-call builder (llvm:build-load builder (llvm:build-struct-gep builder closure 1 "function-loc")
+                                            "function")
+                   (coerce (cons (llvm:build-load builder (llvm:build-struct-gep builder closure 0 "context-loc")
+                                                  "context")
+                                 args)
+                           'vector)
+                   "result"))
+
 (defun compile-invocation (builder invocation env)
   (destructuring-bind (combiner-code . args) invocation
     (let ((combiner (compile-form builder combiner-code env)))
@@ -107,13 +116,7 @@
         (#+sbcl sb-sys:system-area-pointer     ; Assume it's an LLVM pointer.
          #+ccl  ccl:macptr
          ;; Closures are { i8*, function }
-         (llvm:build-call builder (llvm:build-load builder (llvm:build-struct-gep builder combiner 1 "function-loc")
-                                                   "function")
-                          (coerce (cons (llvm:build-load builder (llvm:build-struct-gep builder combiner 0 "context-loc")
-                                                         "context")
-                                        (mapcar (rcurry (curry #'compile-form builder) env) args))
-                                  'vector)
-                          "result"))
+         (build-closure-call builder combiner (mapcar (rcurry (curry #'compile-form builder) env) args)))
         (t (error "Attempted to invoke something other than a combiner!"))))))
 
 (defun compile-constant (builder value)
