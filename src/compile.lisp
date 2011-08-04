@@ -326,9 +326,10 @@
                              value-type)
          ;; Construct closure struct (context pointer + function pointer)
          ;; TODO: Heap-allocate closure when necessary
+         ;; TODO: 'ret' is almost certainly unnecessary; get rid of it.
          (setf ret (if closing-over
                        (aprog1 (add-entry-alloca (compiler-env-func env) value-type "closure")
-                         (let ((context (add-entry-alloca (compiler-env-func env) context-type "context")))
+                         (let ((context (add-entry-alloca (compiler-env-func env) context-type "local-context")))
                            (loop for var in closing-over
                                  for index from 0
                                  do (llvm:build-store builder (compiler-lookup var env)
@@ -356,10 +357,10 @@
                           (llvm:build-store new-builder argument it)))))
            (let ((params (llvm:params func)))
              (when closing-over
-               (setf (llvm:value-name (first params)) "context")
+               (setf (llvm:value-name (first params)) "calling-context-ptr")
                (let ((context (llvm:build-bit-cast new-builder (first params)
                                                    (llvm:pointer-type context-type)
-                                                   "context")))
+                                                   "calling-context")))
                  (loop for symbol in closing-over
                        for index from 0
                        for name-string = (clutter-symbol-name symbol)
