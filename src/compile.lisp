@@ -227,7 +227,7 @@
                          denv)
                         (t (error "Binding values in non-constant environments is unimplemented!")))))))
 
-(defun collect-outside-refs (locals form)
+(defun free-vars (locals form)
   (typecase form
     (clutter-symbol
      (if (member form locals)
@@ -240,7 +240,7 @@
          ((clutter-symbol-p combiner)
           (let ((arg-refs
                   (loop for form in args
-                        for result = (multiple-value-list (collect-outside-refs locals form))
+                        for result = (multiple-value-list (free-vars locals form))
                         appending (first result)
                         do (setf locals (append (second result) locals)))))
             (if (member combiner locals)
@@ -249,23 +249,23 @@
          ((listp combiner)
           (let ((arg-refs
                   (loop for form in args
-                        for result = (multiple-value-list (collect-outside-refs locals form))
+                        for result = (multiple-value-list (free-vars locals form))
                         appending (first result)
                         do (setf locals (append (second result) locals)))))
             (values (cons combiner arg-refs) locals)
-            (multiple-value-bind (crefs more-locals) (collect-outside-refs locals combiner)
+            (multiple-value-bind (crefs more-locals) (free-vars locals combiner)
               (values (append crefs arg-refs) (append more-locals locals)))))
          ;; Handle each possible post-peval binding-introduction form.
          ((eq combiner (lookup (cs "def-in!")))
           (destructuring-bind (env symbol value) args
             (if (equal env (list (lookup (cs "get-current-env"))))
-                (multiple-value-bind (refs new-locals) (collect-outside-refs locals value)
+                (multiple-value-bind (refs new-locals) (free-vars locals value)
                   (values refs (cons symbol new-locals)))
                 (error "Nontrivial function environments in closures are unimplemented!"))))
          ((eq combiner (lookup (cs "set-in!")))
           (destructuring-bind (env symbol value) args
             (if (equal env (list (lookup (cs "get-current-env"))))
-                (multiple-value-bind (refs new-locals) (collect-outside-refs locals value)
+                (multiple-value-bind (refs new-locals) (free-vars locals value)
                   (if (member symbol locals)
                       (values refs new-locals)
                       (values (cons symbol refs) new-locals)))
@@ -276,7 +276,7 @@
             (values
              (let ((inner-locals (append args (copy-list locals))))
                (loop for form in body
-                     for result = (multiple-value-list (collect-outside-refs inner-locals form))
+                     for result = (multiple-value-list (free-vars inner-locals form))
                      appending (first result)
                      do (setf inner-locals (second result))))
              locals)))
@@ -284,7 +284,7 @@
          ((clutter-function-p combiner)
           (values
            (loop for form in args
-                 for result = (multiple-value-list (collect-outside-refs locals form))
+                 for result = (multiple-value-list (free-vars locals form))
                  appending (first result)
                  do (setf locals (second result)))
            locals))
@@ -294,7 +294,7 @@
               ;; Assumes that all args of the remaining primitive combiners may be evaluated (simply), and that no non-primitive combiners have been passed in
               (values
                (loop for form in args
-                     for result = (multiple-value-list (collect-outside-refs locals form))
+                     for result = (multiple-value-list (free-vars locals form))
                      appending (first result)
                      do (setf locals (second result)))
                locals))))))
@@ -308,7 +308,7 @@
                                   (compiler-env-toplevel (nth-value 1 (compiler-lookup symbol env))))
                                 (loop with locals = args
                                       for form in body
-                                      for result = (multiple-value-list (collect-outside-refs locals form))
+                                      for result = (multiple-value-list (free-vars locals form))
                                       appending (first result)
                                       do (setf locals (second result)))))
   (unwind-protect
