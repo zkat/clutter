@@ -326,7 +326,6 @@
                              value-type)
          ;; Construct closure struct (context pointer + function pointer)
          ;; TODO: Heap-allocate closure when necessary
-         ;; TODO: 'ret' is almost certainly unnecessary; get rid of it.
          (setf ret (if closing-over
                        (aprog1 (add-entry-alloca (compiler-env-func env) value-type "closure")
                          (let ((context (add-entry-alloca (compiler-env-func env) context-type "local-context")))
@@ -338,7 +337,7 @@
                                              (llvm:build-pointer-cast builder context
                                                                   (llvm:pointer-type (llvm:int8-type))
                                                                   "pointer")
-                                             (llvm:build-struct-gep builder it 0 "context-addr"))
+                                             (llvm:build-struct-gep builder it 0 "local-context-addr"))
                            (llvm:build-store builder
                                              func
                                              (llvm:build-struct-gep builder it 1 "function-addr"))))
@@ -357,10 +356,10 @@
                           (llvm:build-store new-builder argument it)))))
            (let ((params (llvm:params func)))
              (when closing-over
-               (setf (llvm:value-name (first params)) "calling-context-ptr")
+               (setf (llvm:value-name (first params)) "outer-context-ptr")
                (let ((context (llvm:build-pointer-cast new-builder (first params)
                                                    (llvm:pointer-type context-type)
-                                                   "calling-context")))
+                                                   "outer-context")))
                  (loop for symbol in closing-over
                        for index from 0
                        for name-string = (clutter-symbol-name symbol)
@@ -383,9 +382,10 @@
                  (llvm:build-ret new-builder result))
          ;; Complete entry block
          (llvm:position-builder-at-end new-builder entry)
-         (llvm:build-br new-builder begin))
-    (llvm:dispose-builder new-builder))
-  ret)
+         (llvm:build-br new-builder begin)
+         ;; Return closure struct
+         ret)
+    (llvm:dispose-builder new-builder)))
 
 (def-compiler-primfexpr "if" (builder env condition then else)
   (let* ((cond-result (compile-form builder condition env))
