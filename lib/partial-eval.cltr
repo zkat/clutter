@@ -13,9 +13,6 @@
 (def! dynamic-pure? (compose empty? dynamic-in))
 (def! dynamic-impure? (complement dynamic-pure?))
 
-;;; Should be internal to peval to discourage external use.
-(def-op! quote #ignore (x) x)
-
 ;;; For use on partial evaluation results
 (def-fun! finalize (tree)
   (cond
