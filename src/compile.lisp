@@ -243,6 +243,15 @@
             (if (member combiner locals)
               (values arg-refs locals)
               (values (cons combiner arg-refs) locals))))
+         ((listp combiner)
+          (let ((arg-refs
+                  (loop for form in args
+                        for result = (multiple-value-list (collect-outside-refs locals form))
+                        appending (first result)
+                        do (setf locals (append (second result) locals)))))
+            (values (cons combiner arg-refs) locals)
+            (multiple-value-bind (crefs more-locals) (collect-outside-refs locals combiner)
+              (values (append crefs arg-refs) (append more-locals locals)))))
          ;; Handle each possible post-peval binding-introduction form.
          ((eq combiner (lookup (cs "def-in!")))
           (destructuring-bind (env symbol value) args
