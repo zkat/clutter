@@ -418,22 +418,20 @@
 (defun emit-externs ()
   (setf *alloc* (llvm:add-function *module* "GC_malloc" (llvm:function-type (llvm:pointer-type (llvm:int8-type)) (vector (llvm:int32-type))))))
 
-(defun emit-main (function &aux (builder (llvm:make-builder)))
-  (unwind-protect
-       (let* ((func (llvm:add-function *module* "main" (llvm:function-type (llvm:int32-type)
-                                                                           (vector (llvm:int32-type)
-                                                                                   (llvm:pointer-type
-                                                                                    (llvm:pointer-type
-                                                                                     (llvm:int8-type)))))))
-              (entry (llvm:append-basic-block func "entry"))
-              (params (llvm:params func))
-              (argc (first params))
-              (argv (second params)))
-         (llvm:position-builder-at-end builder entry)
-         (setf (llvm:value-name argc) "argc"
-               (llvm:value-name argv) "argv")
-         (llvm:build-ret builder (build-closure-call builder function (vector argc argv))))
-    (llvm:dispose-builder builder)))
+(defun emit-main (builder function)
+  (let* ((func (llvm:add-function *module* "main" (llvm:function-type (llvm:int32-type)
+                                                                      (vector (llvm:int32-type)
+                                                                              (llvm:pointer-type
+                                                                               (llvm:pointer-type
+                                                                                (llvm:int8-type)))))))
+         (entry (llvm:append-basic-block func "entry"))
+         (params (llvm:params func))
+         (argc (first params))
+         (argv (second params)))
+    (llvm:position-builder-at-end builder entry)
+    (setf (llvm:value-name argc) "argc"
+          (llvm:value-name argv) "argv")
+    (llvm:build-ret builder (build-closure-call builder function (vector argc argv)))))
 
 (defun cltr-compile (expr &aux builder pm)
   (unwind-protect
