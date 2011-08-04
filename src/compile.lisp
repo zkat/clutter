@@ -335,7 +335,7 @@
                                  do (llvm:build-store builder (compiler-lookup var env)
                                                       (llvm:build-struct-gep builder context index (concatenate 'string (clutter-symbol-name var) "-addr"))))
                            (llvm:build-store builder
-                                             (llvm:build-bit-cast builder context
+                                             (llvm:build-pointer-cast builder context
                                                                   (llvm:pointer-type (llvm:int8-type))
                                                                   "pointer")
                                              (llvm:build-struct-gep builder it 0 "context-addr"))
@@ -358,7 +358,7 @@
            (let ((params (llvm:params func)))
              (when closing-over
                (setf (llvm:value-name (first params)) "calling-context-ptr")
-               (let ((context (llvm:build-bit-cast new-builder (first params)
+               (let ((context (llvm:build-pointer-cast new-builder (first params)
                                                    (llvm:pointer-type context-type)
                                                    "calling-context")))
                  (loop for symbol in closing-over
