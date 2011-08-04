@@ -390,3 +390,5 @@
   (if (<? n 2)
       1
       (* n (factorial (- n 1)))))
+
+(def-op! quote #ignore (x) x)
