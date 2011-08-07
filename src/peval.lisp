@@ -7,6 +7,10 @@
 (defstruct (dynamic (:constructor make-dynamic (form)))
   form)
 
+(defmethod print-object ((o dynamic) s)
+  (print-unreadable-object (o s :type t)
+    (format s "~A" (dynamic-form o))))
+
 (defun dynamic? (value)
   (typep value 'dynamic))
 
