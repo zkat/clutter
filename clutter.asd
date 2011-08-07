@@ -14,5 +14,6 @@
              (:file "combiners")
              (:file "eval")
              (:file "primitives")
+             (:file "peval")
              (:file "compile")
              (:file "main")))))
