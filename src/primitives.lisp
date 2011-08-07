@@ -17,7 +17,7 @@
   (once-only (name value)
    `(progn
       (push ,value *primitives*)
-      (extend *global-env* (clutter-symbol ,name) ,value))))
+      (extend *global-env* (clutter-symbol ,name) ,value nil))))
 
 (defmacro defprimop (name vau-list &body body)
   `(defprimitive ,name
