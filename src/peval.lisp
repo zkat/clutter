@@ -55,6 +55,19 @@
                              (mapcar (compose #'staticify (rcurry #'peval fake-env)) body))
                        denv)))
 
+(def-peval-prim-op "if" denv (condition-form then-form else-form)
+  (let ((condition (peval condition-form denv))
+        (then (peval then-form denv))
+        (else (peval else-form denv)))
+    (if (static? condition)
+        (if (eq condition *false*)
+            else
+            then)
+        (make-dynamic (list (lookup (cs "if")) (staticify condition) (staticify then) (staticify else))))))
+
+(def-peval-prim-op "set-in!" denv (target-env-form var value-form)
+  (make-dynamic (list (lookup (cs "set-in!")) (staticify (peval target-env-form denv)) var (staticify (peval value-form denv)))))
+
 (defun peval (form &optional (env *global-env*))
   (typecase form
     (list (peval-combiner form env))
