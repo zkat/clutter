@@ -1,5 +1,5 @@
 (def-const-in! ((vau env () env)) get-current-env
-  (wrap (vau env () env)))
+  (wrap (nvau get-current-env env () env)))
 
 (def-const-in! (get-current-env) global-env
   (get-current-env))
