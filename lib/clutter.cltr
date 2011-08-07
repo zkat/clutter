@@ -1,98 +1,113 @@
-(def-in! ((vau env () env)) get-current-env
+(def-const-in! ((vau env () env)) get-current-env
   (wrap (vau env () env)))
 
-(def-in! (get-current-env) global-env
+(def-const-in! (get-current-env) global-env
   (get-current-env))
 
-(def-in! (get-current-env) empty-env
+(def-const-in! (get-current-env) empty-env
   (make-env))
 
-(def-in! global-env def!
+(def-const-in! global-env def!
   (vau env (var value)
     (eval (list def-in! env var value) env)))
 
-(def-in! global-env set!
+(def-const-in! global-env def-const!
+  (vau env (var value)
+    (eval (list def-const-in! env var value) env)))
+
+(def-const-in! global-env set!
   (vau env (var value)
     (eval (list set-in! env var value) env)))
 
-(def! def-op!
+(def-const! def-op!
  (vau env (name env-var vau-list &rest body)
    (eval (list def! name
                (list* nvau name env-var vau-list body))
          env)))
 
-(def-op! dyn-def-in! dyn-env (env var value)
+(def-const! def-const-op!
+ (vau env (name env-var vau-list &rest body)
+   (eval (list def-const! name
+               (list* nvau name env-var vau-list body))
+         env)))
+
+(def-const-op! dyn-def-in! dyn-env (env var value)
   (eval (list def-in!
               (list (unwrap eval) env dyn-env)
               (eval var dyn-env)
               (list (unwrap eval) value dyn-env))
         dyn-env))
 
-(def-op! dyn-set-in! dyn-env (env var value)
+(def-const-op! dyn-set-in! dyn-env (env var value)
     (eval (list set-in!
                 (list (unwrap eval) env dyn-env)
                 (eval var dyn-env)
                 (list (unwrap eval) value dyn-env))
           dyn-env))
 
-(def-op! lambda env (vau-list &rest body)
+(def-const-op! lambda env (vau-list &rest body)
   (wrap (eval (list* vau #ignore vau-list body) env)))
 
-(def-op! nlambda env (name vau-list &rest body)
+(def-const-op! nlambda env (name vau-list &rest body)
   (wrap (eval (list* nvau name #ignore vau-list body) env)))
 
-(def! fun-name
+(def-const! fun-name
   (lambda (f)
     (vau-name (unwrap f))))
 
-(def-op! def-fun! env (name lambda-list &rest body)
+(def-const-op! def-fun! env (name lambda-list &rest body)
   (eval (list def! name
               (list* nlambda name lambda-list body))
         env))
 
-(def-op! lookup env (var lookup-env)
+(def-const-op! def-const-fun! env (name lambda-list &rest body)
+  (eval (list def-const! name
+              (list* nlambda name lambda-list body))
+        env))
+
+(def-const-op! lookup env (var lookup-env)
   (eval var (eval lookup-env env)))
 
-(def-fun! map1 (function values)
+(def-const-fun! map1 (function values)
   (if (empty? values)
       (list)
       (cons (function (car values)) (map function (cdr values)))))
 
-(def-fun! apply1 (function args)
+(def-const-fun! apply1 (function args)
   (eval (cons (unwrap function) args) (get-current-env)))
 
-(def-fun! apply (function &rest args)
+(def-const-fun! apply (function &rest args)
   (eval (list* (unwrap function) (append (butlast args 1) (last args)))
         empty-env))
 
-(def-fun! zip (&rest sequences)
+(def-const-fun! zip (&rest sequences)
   (if (empty? (first sequences))
       (list)
       (list* (map1 first sequences) (apply zip (map1 rest sequences)))))
 
-(def-fun! curry (function &rest first-args)
+(def-const-fun! curry (function &rest first-args)
   (nlambda curried (&rest last-args)
     (apply1 function (append first-args last-args))))
 
-(def-fun! rcurry (function &rest last-args)
+(def-const-fun! rcurry (function &rest last-args)
   (nlambda curried (&rest first-args)
     (apply1 function (append first-args last-args))))
 
-(def-fun! map (function &rest lists)
+(def-const-fun! map (function &rest lists)
   (map1 (curry apply1 function) (apply zip lists)))
 
-(def-fun! reduce (function initial values)
+(def-const-fun! reduce (function initial values)
   (if (empty? values)
       initial
       (function initial (reduce function (car values) (cdr values)))))
 
-(def-fun! flatten (sequence)
+(def-const-fun! flatten (sequence)
   (reduce append (list) sequence))
 
-(def-fun! constantly (value)
+(def-const-fun! constantly (value)
   (lambda (&rest #ignore) value))
 
-(def-op! destructuring-bind dyn-env (vau-list values &rest body)
+(def-const-op! destructuring-bind dyn-env (vau-list values &rest body)
   (let (env (make-env dyn-env))
     (def-fun! perform-binding (vau-list values)
       (cond
@@ -106,39 +121,39 @@
     (perform-binding vau-list (eval values dyn-env))
     (eval (cons do body) env)))
 
-(def-op! do env (&rest body)
+(def-const-op! do env (&rest body)
   (if (eql? (length body) 1)
       (eval (first body) env)
       (eval (list (list* vau #ignore () body)) env)))
 
-(def-op! cond env (&rest forms)
+(def-const-op! cond env (&rest forms)
   (if (empty? forms)
       #f
       (if (eval (car (car forms)) env)
           (eval (list* do (cdr (car forms))) env)
           (eval (list* cond (cdr forms)) env))))
 
-(def-fun! assoc (key alist)
+(def-const-fun! assoc (key alist)
   (if (eql? alist (list))
       #f
       (if (eql? key (car (car alist)))
           (car alist)
           (assoc key (cdr alist)))))
 
-(def-fun! not (value)
+(def-const-fun! not (value)
   (if value #f #t))
-(def! false? not)
+(def-const! false? not)
 
-(def! null? (curry eql? (list)))
+(def-const! null? (curry eql? (list)))
 
-(def-fun! compose (function &rest more-functions)
+(def-const-fun! compose (function &rest more-functions)
   (reduce (lambda (f g)
             (lambda (&rest args)
               (f (apply g args))))
           function
           more-functions))
 
-(def-fun! conjoin (&rest predicates)
+(def-const-fun! conjoin (&rest predicates)
   (def-fun! conjunction (predicates value)
     (if (empty? predicates)
         #t
@@ -146,7 +161,7 @@
               (conjunction (rest predicates) value))))
   (curry conjunction predicates))
 
-(def-fun! disjoin (&rest predicates)
+(def-const-fun! disjoin (&rest predicates)
   (def-fun! disjunction (predicates value)
     (if (empty? predicates)
         #f
@@ -154,11 +169,11 @@
              (conjunction (rest predicates) value))))
   (curry disjunction predicates))
 
-(def! complement (curry compose not))
+(def-const! complement (curry compose not))
 
-(def! empty? null?)
+(def-const! empty? null?)
 
-(def-fun! filter (predicate sequence)
+(def-const-fun! filter (predicate sequence)
   (if (empty? sequence)
       (list)
       (if (predicate (first sequence))
@@ -166,47 +181,47 @@
           (filter predicate (rest sequence)))))
 
 
-(def! first car)
-(def! rest cdr)
-(def-fun! nth (n sequence)
+(def-const! first car)
+(def-const! rest cdr)
+(def-const-fun! nth (n sequence)
   (def-fun! rec (n seq)
     (if (<=? n 0)
         (car seq)
         (rec (- n 1) (cdr seq))))
   (rec n sequence))
-(def! second (curry nth 1))
-(def! third (curry nth 2))
-(def! fourth (curry nth 3))
-(def! fifth (curry nth 4))
-(def! sixth (curry nth 5))
-(def! seventh (curry nth 6))
-(def! eighth (curry nth 7))
-(def! ninth (curry nth 8))
-(def! tenth (curry nth 9))
+(def-const! second (curry nth 1))
+(def-const! third (curry nth 2))
+(def-const! fourth (curry nth 3))
+(def-const! fifth (curry nth 4))
+(def-const! sixth (curry nth 5))
+(def-const! seventh (curry nth 6))
+(def-const! eighth (curry nth 7))
+(def-const! ninth (curry nth 8))
+(def-const! tenth (curry nth 9))
 
-(def-fun! last (seq)
+(def-const-fun! last (seq)
   (def! remainder (rest seq))
   (if (empty? remainder)
       (first seq)
       (last remainder)))
 
-(def-fun! butlast (seq n)
+(def-const-fun! butlast (seq n)
   (if (>=? n (length seq))
       (list)
       (cons (first seq) (butlast (rest seq) n))))
 
-(def-fun! even? (number)
+(def-const-fun! even? (number)
   (=? (rem number 2) 0))
 
-(def! odd? (complement even?))
+(def-const! odd? (complement even?))
 
-(def-op! inc! env (var)
+(def-const-op! inc! env (var)
   (eval (list set! var (list + 1 var)) env))
 
-(def-op! dec! env (var)
+(def-const-op! dec! env (var)
   (eval (list set! var (list - var 1)) env))
 
-(def-op! let env (clauses &rest body)
+(def-const-op! let env (clauses &rest body)
   (eval (list*
          (list* lambda
                 (filter ((lambda (x) (lambda (#ignore) (odd? (inc! x)))) 0)
@@ -216,7 +231,7 @@
                  clauses))
         env))
 
-(def-op! letseq dyn-env (bindings &rest body)
+(def-const-op! letseq dyn-env (bindings &rest body)
   (let (env (make-env dyn-env))
     (if (null? bindings)
         (eval (cons do body) env)
@@ -224,7 +239,7 @@
          (dyn-def-in! env (car bindings) (eval (car (cdr bindings)) dyn-env))
          (eval (list* letseq (cdr (cdr bindings)) body) env)))))
 
-(def-op! letrec dyn-env (bindings &rest body)
+(def-const-op! letrec dyn-env (bindings &rest body)
   (letseq (vars (filter (let (x 0) (lambda (#ignore) (odd? (inc! x)))) bindings)
            values (filter (let (x 0) (lambda (#ignore) (even? (inc! x)))) bindings)
            def-forms (cons do (map (lambda (var val) (list def! var val)) vars values)))
@@ -233,7 +248,7 @@
                  body)
           dyn-env)))
 
-(def-op! letrecseq dyn-env (bindings &rest body)
+(def-const-op! letrecseq dyn-env (bindings &rest body)
   (eval (if (null? bindings)
             (list* letrec bindings body)
             (list letrec
@@ -241,26 +256,26 @@
                   (list* letrecseq (cdr (cdr bindings)) body)))
         dyn-env))
 
-(def-op! when env (test &rest body)
+(def-const-op! when env (test &rest body)
   (if (eval test env)
       (eval (list* do body) env)
       #f))
 
-(def-op! unless env (test &rest body)
+(def-const-op! unless env (test &rest body)
   (if (eval test env)
       #f
       (eval (list* do body) env)))
 
-(def-op! returning env (first &rest body)
+(def-const-op! returning env (first &rest body)
   (let (return-val (eval first env))
     (map (rcurry eval env) body)
     return-val))
 
-(def-op! push! env (value place)
+(def-const-op! push! env (value place)
   (eval (list set! place (list cons value place))
         env))
 
-(def-op! or? env (&rest expressions)
+(def-const-op! or? env (&rest expressions)
   (if (=? (length expressions) 0)
       #f
       (let (result (eval (first expressions) env))
@@ -268,7 +283,7 @@
             result
             (eval (list* or? (rest expressions)) env)))))
 
-(def-op! and? env (&rest expressions)
+(def-const-op! and? env (&rest expressions)
   (if (=? (length expressions) 0)
       #t
       (let (result (eval (first expressions) env))
@@ -276,21 +291,21 @@
             (eval (list* and? (rest expressions)) env)
             #f))))
 
-(def-fun! all? (predicate sequence)
+(def-const-fun! all? (predicate sequence)
   (apply (wrap and?) (map predicate sequence)))
 
-(def-fun! any? (predicate sequence)
+(def-const-fun! any? (predicate sequence)
   (apply (wrap or?) (map predicate sequence)))
 
-(def! sequence? list?)
+(def-const! sequence? list?)
 
-(def-fun! call (function &rest args)
+(def-const-fun! call (function &rest args)
   (apply function args))
 
-(def-fun! combiner? (object)
+(def-const-fun! combiner? (object)
   (any? (rcurry call object) (list function? operative?)))
 
-(def-fun! member? (item sequence)
+(def-const-fun! member? (item sequence)
   (if (>? (length sequence) 0)
       (if (eql? item (first sequence))
           sequence
@@ -298,12 +313,12 @@
       #f))
 
 ;;; Depth-first
-(def-fun! map-tree (pred tree)
+(def-const-fun! map-tree (pred tree)
   (if (sequence? tree)
       (map (curry map-tree pred) tree)
       (pred tree)))
 
-(def-op! case env (value &rest clauses)
+(def-const-op! case env (value &rest clauses)
   (def! actual-value (eval value env))
   (def-fun! process-clauses (clauses)
     (if (empty? clauses)
@@ -316,7 +331,7 @@
               (process-clauses (rest clauses))))))
   (process-clauses clauses))
 
-(def-op! pred-case env (value &rest clauses)
+(def-const-op! pred-case env (value &rest clauses)
   (def! actual-value (eval value env))
   (def! pred-env (make-env env))
   (def-in! pred-env otherwise (constantly #t))
@@ -329,28 +344,28 @@
               (process-clauses (rest clauses))))))
   (process-clauses clauses))
 
-(def-op! with-env callsite-env (target-env &rest body)
+(def-const-op! with-env callsite-env (target-env &rest body)
   (eval (list* do body) (eval target-env callsite-env)))
 
-(def-op! module dyn-env (parent-envs &rest body)
+(def-const-op! module dyn-env (parent-envs &rest body)
   (let (env (apply make-env (map (rcurry eval dyn-env) parent-envs)))
     (map (rcurry eval env) body)
     env))
 
-(def-op! provide! dyn-env (bindings parent-envs &rest body)
+(def-const-op! provide! dyn-env (bindings parent-envs &rest body)
   (let (module-env (eval (list* module parent-envs body) dyn-env))
     (map (lambda (binding)
            (eval (list def-in! dyn-env binding (eval binding module-env)) dyn-env))
          bindings))
   bindings)
 
-(def-op! providing-module dyn-env (bindings parent-envs &rest body)
+(def-const-op! providing-module dyn-env (bindings parent-envs &rest body)
   (eval (list module (list)
               (list* provide! bindings (map (curry eval dyn-env) parent-envs)
                      body))
         dyn-env))
 
-(def-op! import-from! dyn-env (from-env &rest bindings)
+(def-const-op! import-from! dyn-env (from-env &rest bindings)
   (let (env (eval from-env dyn-env))
     (map (lambda (binding)
            (let (var (if (list? binding) (car binding) binding)
@@ -359,36 +374,36 @@
          bindings))
   bindings)
 
-(def! anaphora
+(def-const! anaphora
     (module (global-env)
 
-            (def-op! anaphoric env (op var test &rest body)
+            (def-const-op! anaphoric env (op var test &rest body)
               (eval (list let (list var (eval test env))
                           (list* op var body))
                     env))
 
-            (def-op! aif env (var test then else)
+            (def-const-op! aif env (var test then else)
               (eval (list anaphoric if var test then else) env))
 
-            (def-op! awhen env (var test &rest body)
+            (def-const-op! awhen env (var test &rest body)
               (eval (list* anaphoric when var test body) env))
 
-            (def-op! aunless env (var test &rest body)
+            (def-const-op! aunless env (var test &rest body)
               (eval (list* anaphoric unless var test body) env))
 
-            (def-op! areturning env (var first &rest body)
+            (def-const-op! areturning env (var first &rest body)
               (eval (list* anaphoric returning var first body) env))
 
             ))
 
-(def-fun! fibonacci (n)
+(def-const-fun! fibonacci (n)
   (if (<? n 2)
       n
       (+ (fibonacci (- n 1)) (fibonacci (- n 2)))))
 
-(def-fun! factorial (n)
+(def-const-fun! factorial (n)
   (if (<? n 2)
       1
       (* n (factorial (- n 1)))))
 
-(def-op! quote #ignore (x) x)
+(def-const-op! quote #ignore (x) x)
