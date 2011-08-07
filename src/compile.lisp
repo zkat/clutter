@@ -95,13 +95,14 @@
          (llvm:build-load builder value (clutter-symbol-name symbol))))
       (error "Undefined binding: ~A" symbol)))
 
-(defun build-closure-call (builder closure args)
-  (llvm:build-call builder (llvm:build-load builder (llvm:build-struct-gep builder closure 1 "function-loc")
-                                            "function")
-                   (coerce (cons (llvm:build-load builder (llvm:build-struct-gep builder closure 0 "context-loc")
-                                                  "context")
-                                 args)
-                           'vector)
+(defun build-closure-call (builder closure args &aux function context)
+  (if (llvm:constantp closure)
+      (setf context (llvm:const-extract-value closure (vector 0))
+            function (llvm:const-extract-value closure (vector 1)))
+      (setf context (llvm:build-load builder (llvm:build-struct-gep builder closure 0 "context-addr") "context")
+            function (llvm:build-load builder (llvm:build-struct-gep builder closure 1 "function-addr") "function")))
+  (llvm:build-call builder function
+                   (coerce (cons context args) 'vector)
                    "result"))
 
 (defun compile-invocation (builder invocation env)
@@ -344,7 +345,7 @@
                            (llvm:build-store builder
                                              func
                                              (llvm:build-struct-gep builder it 1 "function-addr"))))
-                       (llvm:const-struct (vector (llvm:const-pointer-null (llvm:pointer-type (llvm:int8-type)))
+                       (llvm:const-struct (vector (llvm:undef (llvm:pointer-type (llvm:int8-type)))
                                                   func) nil)))
          (when closing-over
            (llvm:add-type-name *module* (concatenate 'string (clutter-symbol-name name) "-context")
@@ -418,7 +419,7 @@
 (defun emit-externs ()
   (setf *alloc* (llvm:add-function *module* "GC_malloc" (llvm:function-type (llvm:pointer-type (llvm:int8-type)) (vector (llvm:int32-type))))))
 
-(defun emit-main (builder function)
+(defun emit-main (builder closure)
   (let* ((func (llvm:add-function *module* "main" (llvm:function-type (llvm:int32-type)
                                                                       (vector (llvm:int32-type)
                                                                               (llvm:pointer-type
@@ -431,7 +432,7 @@
     (llvm:position-builder-at-end builder entry)
     (setf (llvm:value-name argc) "argc"
           (llvm:value-name argv) "argv")
-    (llvm:build-ret builder (build-closure-call builder function (vector argc argv)))))
+    (llvm:build-ret builder (build-closure-call builder closure (list argc)))))
 
 (defun cltr-compile (expr &aux builder pm)
   (unwind-protect
@@ -442,7 +443,7 @@
 
          (emit-externs)
 
-         (compile-form builder expr *root-compiler-env*)
+         (emit-main builder (compile-form builder expr *root-compiler-env*))
 
          (llvm:add-promote-memory-to-register-pass pm)
          (llvm:run-pass-manager pm *module*)
