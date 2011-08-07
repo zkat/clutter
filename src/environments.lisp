@@ -27,13 +27,14 @@
 (defun get-current-env () *denv*)
 
 (defun lookup (symbol &optional (env *global-env*))
+  "Returns the value of the symbol's binding, whether it is a mutable binding, and the environment in which it is bound"
   (when (eq symbol *ignore*)
     (error "Attempted to lookup #ignore in ~A" env))
   (if env
       (multiple-value-bind (value exists)
           (gethash symbol (env-bindings env))
         (if exists
-            value
+            (values value (gethash symbol (env-mutables env)) env)
             (aif (find-if (curry #'clutter-bound? symbol) (env-parents env))
                  (lookup symbol it)
                  (error "No binding for ~A in or above ~A" symbol env))))
