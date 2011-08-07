@@ -77,9 +77,6 @@
 (def-peval-prim-op "def-in!" denv (target-env-form var value-form)
   (make-dynamic (list (lookup (cs "def-in!")) (staticify (peval target-env-form denv)) var (staticify (peval value-form denv)))))
 
-(def-peval-prim-op "def-const-in!" denv (target-env-form var value-form)
-  (make-dynamic (list (lookup (cs "def-const-in!")) (staticify (peval target-env-form denv)) var (staticify (peval value-form denv)))))
-
 (defun peval (form &optional (env *global-env*))
   (typecase form
     (list (peval-combiner form env))
@@ -89,11 +86,13 @@
 (defun peval-symbol (symbol env)
   (if (eq symbol *ignore*)
       *ignore*
-      (multiple-value-bind (value mutable binding-env) (lookup symbol env)
-        (declare (ignore binding-env))
-        (if mutable
-            (make-dynamic symbol)
-            value))))
+      (multiple-value-bind (value triggers binding-env) (lookup symbol env)
+        ;; Values which already require a recompile on change can be inlined.
+        ;; Fexprs (usually) must be inlined and are forced to do so.
+        (if (or triggers (and (typep value 'clutter-operative)
+                              (setf (triggers-recompile? symbol binding-env) t)))
+            value
+            (make-dynamic symbol)))))
 
 (defun peval-combiner (form env)
   (destructuring-bind (combiner-form &rest arg-forms) form
@@ -114,6 +113,9 @@
             (clutter-eval (cons (clutter-function-operative combiner) args)))
            (t
             (make-dynamic (list* combiner (mapcar #'staticify args)))))))
+       (dynamic
+        ;; TODO: peval args if (subtype? operative combiner)
+        (make-dynamic (list* (staticify combiner) arg-forms)))
        (t (error "Tried to invoke ~A, which is not a combiner" combiner))))))
 
 (defun inline-op (operative args env &aux (inline-env (make-env (clutter-operative-env operative))))

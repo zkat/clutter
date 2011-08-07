@@ -11,7 +11,7 @@
 (defstruct (env (:constructor make-env (&rest parents)))
   parents
   (bindings (make-hash-table :test 'eq))
-  (mutables (make-hash-table :test 'eq)))
+  (recompile-triggers (make-hash-table :test 'eq)))
 
 (defmethod print-object ((o env) s)
   (print-unreadable-object (o s :type t :identity t)
@@ -27,18 +27,25 @@
 (defun get-current-env () *denv*)
 
 (defun lookup (symbol &optional (env *global-env*))
-  "Returns the value of the symbol's binding, whether it is a mutable binding, and the environment in which it is bound"
+  "Returns the value of the symbol's binding, whether recompilation must occur if the binding is modified, and the environment in which it is bound"
   (when (eq symbol *ignore*)
     (error "Attempted to lookup #ignore in ~A" env))
   (if env
       (multiple-value-bind (value exists)
           (gethash symbol (env-bindings env))
         (if exists
-            (values value (gethash symbol (env-mutables env)) env)
+            (values value (gethash symbol (env-recompile-triggers env)) env)
             (aif (find-if (curry #'clutter-bound? symbol) (env-parents env))
                  (lookup symbol it)
                  (error "No binding for ~A in or above ~A" symbol env))))
       (error "No binding for ~A in or above ~A" symbol env)))
+
+(defun triggers-recompile? (symbol &optional (env *global-env*))
+  (gethash symbol env))
+
+(defun (setf triggers-recompile?) (value symbol &optional (env *global-env*))
+  (setf (gethash symbol (env-recompile-triggers env))
+        value))
 
 (defun binding-env (symbol &optional (lookup-env *global-env*))
   (when (eq symbol *ignore*)
@@ -57,9 +64,9 @@
     (error "Attempted to set #ignore in ~A" env))
   (if env
       (if (nth-value 1 (gethash symbol (env-bindings env)))
-          (if (gethash symbol (env-mutables env))
-              (setf (gethash symbol (env-bindings env)) new-value)
-              (error "Tried to assign to immutable binding ~A in ~A" symbol env))
+          (if-let (triggers (gethash symbol (env-recompile-triggers env)))
+            (error "Tried to assign to recompile-triggering binding ~A in ~A.  Recompilation is unimplemented." symbol env)
+            (setf (gethash symbol (env-bindings env)) new-value))
           (aif (find-if (curry #'clutter-bound? symbol) (env-parents env))
                (setf (lookup symbol it) new-value)
                (error "No binding for ~A in or above ~A" symbol env)))
@@ -73,13 +80,14 @@
             t))
       nil))
 
-(defun extend (env symbol value &optional (mutable t))
+(defun extend (env symbol value &optional (recompile-triggers nil recompile-triggers-p))
   (assert (clutter-symbol-p symbol))
   (unless (eq symbol *ignore*)
     (when (nth-value 1 (gethash symbol (env-bindings env)))
       (warn "Redefinition of ~A." symbol))
     (setf (gethash symbol (env-bindings env)) value)
-    (setf (gethash symbol (env-mutables env)) mutable)))
+    (when recompile-triggers-p
+      (setf (gethash symbol (env-recompile-triggers env)) recompile-triggers))))
 
 (defun mapenv (func env)
   (maphash func (env-bindings env)))
