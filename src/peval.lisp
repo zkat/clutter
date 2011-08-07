@@ -50,7 +50,7 @@
           (extend fake-env arg (make-dynamic arg)))
         args)
   (clutter-eval
-   (list
+   (list*
     (lookup (cs "nlambda"))
     name args
     (nsubst (list (lookup (cs "get-current-env")))
