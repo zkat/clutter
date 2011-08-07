@@ -10,7 +10,8 @@
 
 (defstruct (env (:constructor make-env (&rest parents)))
   parents
-  (bindings (make-hash-table :test 'eq)))
+  (bindings (make-hash-table :test 'eq))
+  (mutables (make-hash-table :test 'eq)))
 
 (defmethod print-object ((o env) s)
   (print-unreadable-object (o s :type t :identity t)
@@ -55,7 +56,9 @@
     (error "Attempted to set #ignore in ~A" env))
   (if env
       (if (nth-value 1 (gethash symbol (env-bindings env)))
-          (setf (gethash symbol (env-bindings env)) new-value)
+          (if (gethash symbol (env-mutables env))
+              (setf (gethash symbol (env-bindings env)) new-value)
+              (error "Tried to assign to immutable binding ~A in ~A" symbol env))
           (aif (find-if (curry #'clutter-bound? symbol) (env-parents env))
                (setf (lookup symbol it) new-value)
                (error "No binding for ~A in or above ~A" symbol env)))
@@ -69,12 +72,13 @@
             t))
       nil))
 
-(defun extend (env symbol &optional value)
+(defun extend (env symbol value &optional (mutable t))
   (assert (clutter-symbol-p symbol))
   (unless (eq symbol *ignore*)
     (when (nth-value 1 (gethash symbol (env-bindings env)))
       (warn "Redefinition of ~A." symbol))
-    (setf (gethash symbol (env-bindings env)) value)))
+    (setf (gethash symbol (env-bindings env)) value)
+    (setf (gethash symbol (env-mutables env)) mutable)))
 
 (defun mapenv (func env)
   (maphash func (env-bindings env)))
