@@ -8,19 +8,19 @@
   (make-env))
 
 (def-const-in! global-env def!
-  (vau env (var value)
+  (nvau def! env (var value)
     (eval (list def-in! env var value) env)))
 
 (def-const-in! global-env def-const!
-  (vau env (var value)
+  (nvau def-const! env (var value)
     (eval (list def-const-in! env var value) env)))
 
 (def-const-in! global-env set!
-  (vau env (var value)
+  (nvau set! env (var value)
     (eval (list set-in! env var value) env)))
 
 (def-const! def-op!
- (vau env (name env-var vau-list &rest body)
+ (nvau def-op! env (name env-var vau-list &rest body)
    (eval (list def-const! name
                (list* nvau name env-var vau-list body))
          env)))
