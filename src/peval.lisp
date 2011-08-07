@@ -98,16 +98,18 @@
            (primitive
             (apply (pevaluator combiner) args))
            ((and (clutter-operative-pure (clutter-function-operative combiner))
-                 (every (complement #'dynamic?) args))
+                 (every #'static? args))
             (clutter-eval (cons (clutter-function-operative combiner) args)))
            (t
             (make-dynamic (list* combiner (mapcar #'staticify args)))))))
        (t (error "Tried to invoke ~A, which is not a combiner" combiner))))))
 
 (defun inline-op (operative args env &aux (inline-env (make-env (clutter-operative-env operative))))
-  ;; TODO: Mark all these bindings as constant.
-  (mapc (curry #'extend inline-env)
+  (mapc (rcurry (curry #'extend inline-env) nil)
         (list* (clutter-operative-denv-var operative) (clutter-operative-args operative))
         (list* env args))
-  (list* (lookup (cs "do"))
-         (mapcar (rcurry #'peval inline-env) (clutter-operative-body operative))))
+  (let ((body (subst (clutter-operative-env operative) inline-env
+                     (mapcar (rcurry #'peval inline-env) (clutter-operative-body operative)))))
+    (if (> (length body) 1)
+        (list* (lookup (cs "do")) body)
+        (first body))))
