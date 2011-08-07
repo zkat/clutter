@@ -49,11 +49,15 @@
   (mapc (lambda (arg)
           (extend fake-env arg (make-dynamic arg)))
         args)
-  (subst (list (lookup (cs "get-current-env")))
-         fake-env
-         (clutter-eval (list (lookup (cs "nlambda")) name args
-                             (mapcar (compose #'staticify (rcurry #'peval fake-env)) body))
-                       denv)))
+  (clutter-eval
+   (list
+    (lookup (cs "nlambda"))
+    name args
+    (nsubst (list (lookup (cs "get-current-env")))
+            (list (lookup (cs "quote")) fake-env)
+            (mapcar (compose #'staticify (rcurry #'peval fake-env)) body)
+            :test #'equal))
+   denv))
 
 (def-peval-prim-op "if" denv (condition-form then-form else-form)
   (let ((condition (peval condition-form denv))
