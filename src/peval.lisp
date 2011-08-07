@@ -2,7 +2,9 @@
 
 (declaim (optimize (debug 3)))
 
-(defvar *peval-prims* (make-hash-table :test 'eq))
+(defvar *peval-prims* #+sbcl (make-hash-table :test 'eq :weakness :key)
+                      #+ccl  (make-hash-table :test 'eq :weak t)
+  "Mapping from interpreter Clutter functions to primitive partial evaluation functions.")
 
 (defstruct (dynamic (:constructor make-dynamic (form)))
   form)
