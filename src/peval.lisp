@@ -59,8 +59,13 @@
     (t form)))
 
 (defun peval-symbol (symbol env)
-  ;; TODO: Only deref if the binding is constant; otherwise make a dynamic value.
-  (clutter-eval symbol env))
+  (if (eq symbol *ignore*)
+      *ignore*
+      (multiple-value-bind (value mutable binding-env) (lookup symbol env)
+        (declare (ignore binding-env))
+        (if mutable
+            (make-dynamic symbol)
+            value))))
 
 (defun peval-combiner (form env)
   (destructuring-bind (combiner-form &rest arg-forms) form
