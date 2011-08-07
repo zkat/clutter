@@ -46,6 +46,7 @@
   (peval form env))
 
 (def-peval-prim-op "nlambda" denv (name args &rest body &aux (fake-env (make-env denv)))
+  ;; TODO: Handle &rest
   (mapc (lambda (arg)
           (extend fake-env arg (make-dynamic arg)))
         args)
@@ -53,6 +54,7 @@
    (list*
     (lookup (cs "nlambda"))
     name args
+    ;; TODO: Handle trivial child environments.
     (nsubst (list (lookup (cs "get-current-env")))
             (list (lookup (cs "quote")) fake-env)
             (mapcar (compose #'staticify (rcurry #'peval fake-env)) body)
@@ -118,8 +120,9 @@
   (mapc (rcurry (curry #'extend inline-env) nil)
         (list* (clutter-operative-denv-var operative) (clutter-operative-args operative))
         (list* env args))
-  (let ((body (subst (clutter-operative-env operative) inline-env
-                     (mapcar (rcurry #'peval inline-env) (clutter-operative-body operative)))))
+  ;; TODO: Handle trivial child environments
+  (let ((body (nsubst (clutter-operative-env operative) inline-env
+                      (mapcar (rcurry #'peval inline-env) (clutter-operative-body operative)))))
     (if (> (length body) 1)
         (list* (lookup (cs "do")) body)
         (first body))))
