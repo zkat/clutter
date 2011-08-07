@@ -105,6 +105,10 @@
   (extend (clutter-eval env *denv*) var (clutter-eval value *denv*))
   var)
 
+(defprimop "def-const-in!" (*denv* env var value)
+  (extend (clutter-eval env *denv*) var (clutter-eval value *denv*) nil)
+  var)
+
 (defun clutter-true-p (exp)
   (not (eq exp *false*)))
 
