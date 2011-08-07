@@ -72,6 +72,12 @@
 (def-peval-prim-op "set-in!" denv (target-env-form var value-form)
   (make-dynamic (list (lookup (cs "set-in!")) (staticify (peval target-env-form denv)) var (staticify (peval value-form denv)))))
 
+(def-peval-prim-op "def-in!" denv (target-env-form var value-form)
+  (make-dynamic (list (lookup (cs "def-in!")) (staticify (peval target-env-form denv)) var (staticify (peval value-form denv)))))
+
+(def-peval-prim-op "def-const-in!" denv (target-env-form var value-form)
+  (make-dynamic (list (lookup (cs "def-const-in!")) (staticify (peval target-env-form denv)) var (staticify (peval value-form denv)))))
+
 (defun peval (form &optional (env *global-env*))
   (typecase form
     (list (peval-combiner form env))
