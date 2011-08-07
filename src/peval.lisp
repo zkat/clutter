@@ -16,6 +16,9 @@
 (defun dynamic? (value)
   (typep value 'dynamic))
 
+(defun static? (value)
+  (not (dynamic? value)))
+
 (defun staticify (value)
   (if (dynamic? value)
       (dynamic-form value)
