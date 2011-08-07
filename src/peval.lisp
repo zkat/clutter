@@ -78,7 +78,7 @@
                  (every (complement #'dynamic?) args))
             (clutter-eval (cons (clutter-function-operative combiner) args)))
            (t
-            (make-dynamic form)))))
+            (make-dynamic (list* combiner (mapcar #'staticify args)))))))
        (t (error "Tried to invoke ~A, which is not a combiner" combiner))))))
 
 (defun inline-op (operative args env &aux (inline-env (make-env (clutter-operative-env operative))))
