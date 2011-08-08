@@ -46,9 +46,9 @@
   (peval form env))
 
 (def-peval-prim-op "nlambda" denv (name args &rest body &aux (fake-env (make-env denv)))
-  ;; TODO: Handle &rest
   (mapc (lambda (arg)
-          (extend fake-env arg (make-dynamic arg)))
+          (unless (eq arg (cs "&rest"))
+            (extend fake-env arg (make-dynamic arg))))
         args)
   (clutter-eval
    (list*
@@ -89,8 +89,9 @@
       (multiple-value-bind (value triggers binding-env) (lookup symbol env)
         ;; Values which already require a recompile on change can be inlined.
         ;; Fexprs (usually) must be inlined and are forced to do so.
-        (if (or triggers (and (typep value 'clutter-operative)
-                              (setf (triggers-recompile? symbol binding-env) t)))
+        (if (or triggers
+                (and (typep value 'clutter-operative)
+                     (setf (triggers-recompile? symbol binding-env) t)))
             value
             (make-dynamic symbol)))))
 
@@ -119,10 +120,15 @@
        (t (error "Tried to invoke ~A, which is not a combiner" combiner))))))
 
 (defun inline-op (operative args env &aux (inline-env (make-env (clutter-operative-env operative))))
-  (mapc (rcurry (curry #'extend inline-env) nil)
-        (list* (clutter-operative-denv-var operative) (clutter-operative-args operative))
-        (list* env args))
-  ;; TODO: Handle trivial child environments
+  (assert (clutter-operative-pure operative))
+  ;; NOTE: Strictly recompile-trigger=t here is nonsensical; we use it to ensure eval goes through, because these are constant values.
+  (extend inline-env (clutter-operative-denv-var operative) env t)
+  (loop with vau-list = (clutter-operative-args operative)
+        while args
+        do (if (eq (car vau-list) (cs "&rest"))
+               (progn (extend inline-env (second vau-list) args t)
+                      (return))
+               (extend inline-env (pop vau-list) (pop args) t)))
   (let ((body (nsubst (clutter-operative-env operative) inline-env
                       (mapcar (rcurry #'peval inline-env) (clutter-operative-body operative)))))
     (if (> (length body) 1)
