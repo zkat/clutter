@@ -206,6 +206,15 @@
 (def-op! dec! env (var)
   (eval (list set! var (list - var 1)) env))
 
+(def-op! push! env (obj place)
+  (eval (list set! place (list cons (eval obj env) (eval place env))) env))
+
+(def-op! pop! env (place)
+  (def! value (eval place env))
+  (def! ret (first value))
+  (eval (list set! place (cons list (rest value))) env)
+  ret)
+
 (def-op! let env (clauses &rest body)
   (eval (list*
          (list* lambda
