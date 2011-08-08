@@ -297,7 +297,7 @@
 
 ;;; FIXME: This will error if the stdlib hasn't been loaded yet due to nlambda being defined in-language.
 (def-compiler-primfexpr "nlambda" (builder env name args &rest body &aux
-                                   closing-over ret (new-builder (llvm:make-builder)))
+                                   closing-over (new-builder (llvm:make-builder)))
   ;; Determine what, if anything, we're closing over (removing stuff not on the stack)
   (setf closing-over (remove-if (lambda (symbol)
                                   (compiler-env-toplevel (nth-value 1 (compiler-lookup symbol env))))
@@ -322,25 +322,6 @@
               (inner-env (make-compiler-env :func func :parents (list env))))
          (llvm:add-type-name *module* (concatenate 'string (clutter-symbol-name name) "-closure")
                              value-type)
-         ;; Construct closure struct (context pointer + function pointer)
-         ;; TODO: Heap-allocate closure when necessary
-         (setf ret (if closing-over
-                       (aprog1 (add-entry-alloca (compiler-env-func env) value-type "closure")
-                         (let ((context (add-entry-alloca (compiler-env-func env) context-type "local-context")))
-                           (loop for var in closing-over
-                                 for index from 0
-                                 do (llvm:build-store builder (compiler-lookup var env)
-                                                      (llvm:build-struct-gep builder context index (concatenate 'string (clutter-symbol-name var) "-addr"))))
-                           (llvm:build-store builder
-                                             (llvm:build-pointer-cast builder context
-                                                                  (llvm:pointer-type (llvm:int8-type))
-                                                                  "pointer")
-                                             (llvm:build-struct-gep builder it 0 "local-context-addr"))
-                           (llvm:build-store builder
-                                             func
-                                             (llvm:build-struct-gep builder it 1 "function-addr"))))
-                       (llvm:const-struct (vector (llvm:undef (llvm:pointer-type (llvm:int8-type)))
-                                                  func) nil)))
          (when closing-over
            (llvm:add-type-name *module* (concatenate 'string (clutter-symbol-name name) "-context")
                                context-type))
@@ -381,8 +362,25 @@
          ;; Complete entry block
          (llvm:position-builder-at-end new-builder entry)
          (llvm:build-br new-builder begin)
-         ;; Return closure struct
-         ret)
+         ;; Construct closure struct in the caller (context pointer + function pointer) as the return value
+         ;; TODO: Heap-allocate closure and referenced variables when necessary
+         (if closing-over
+             (aprog1 (add-entry-alloca (compiler-env-func env) value-type "closure")
+               (let ((context (add-entry-alloca (compiler-env-func env) context-type "local-context")))
+                 (loop for var in closing-over
+                       for index from 0
+                       do (llvm:build-store builder (compiler-lookup var env)
+                                            (llvm:build-struct-gep builder context index (concatenate 'string (clutter-symbol-name var) "-addr"))))
+                 (llvm:build-store builder
+                                   (llvm:build-pointer-cast builder context
+                                                            (llvm:pointer-type (llvm:int8-type))
+                                                            "pointer")
+                                   (llvm:build-struct-gep builder it 0 "local-context-addr"))
+                 (llvm:build-store builder
+                                   func
+                                   (llvm:build-struct-gep builder it 1 "function-addr"))))
+             (llvm:const-struct (vector (llvm:undef (llvm:pointer-type (llvm:int8-type)))
+                                        func) nil)))
     (llvm:dispose-builder new-builder)))
 
 (def-compiler-primfexpr "if" (builder env condition then else)
