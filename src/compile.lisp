@@ -187,14 +187,13 @@
 
 (def-compiler-primfexpr "def-in!" (builder denv target-env name value)
   (let* ((target-compiler-env
-          (cond
-            ((env-p target-env)
-             (compiled-env target-env))
-            ((equal target-env (list (lookup (cs "get-current-env") *global-env*)))
-             denv)
-            (t (error "Binding values in non-constant environments is unimplemented!"))))
+           (if (equal target-env (list (lookup (cs "get-current-env"))))
+               denv
+               (compile-form builder target-env denv)))
          (compiled-value (compile-form builder value denv))
          (type (llvm:type-of compiled-value)))
+    (unless (typep target-compiler-env 'compiler-env)
+      (error "Binding values in non-constant environments is unimplemented!"))
     (setf (gethash name (compiler-env-bindings target-compiler-env))
           (cond
             ((and (compiler-env-toplevel target-compiler-env)
@@ -214,19 +213,14 @@
             (t (error "wat"))))
     compiled-value))
 
-(def-compiler-primfexpr "set-in!" (builder denv target-env name value)
-  (aprog1 (compile-form builder value denv)
-    (llvm:build-store
-     builder
-     it
-     (compiler-lookup name
-                      (cond
-                        ((env-p target-env)
-                         (compiled-env target-env))
-                        ((equal target-env (list (lookup (cs "get-current-env")
-                                                         *global-env*)))
-                         denv)
-                        (t (error "Binding values in non-constant environments is unimplemented!")))))))
+(def-compiler-primfexpr "set-in!" (builder denv target-env-form name value-form)
+  (let ((target-env (if (equal target-env-form (list (lookup (cs "get-current-env"))))
+                        denv
+                        (compile-form builder target-env-form denv))))
+    (unless (typep target-env 'compiler-env)
+      (error "Modifying bindings in non-constant environments is unimplemented!"))
+    (aprog1 (compile-form builder value-form denv)
+      (llvm:build-store builder it (compiler-lookup name target-env)))))
 
 (defun free-vars (locals form)
   (typecase form
