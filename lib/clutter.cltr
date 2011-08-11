@@ -7,6 +7,8 @@
 (def-in! (get-current-env) empty-env
   (make-env))
 
+(def-op! quote #ignore (x) x)
+
 (def-in! global-env def!
   (nvau def! env (var value)
     (eval (list def-in! env var value) env)))
@@ -97,7 +99,7 @@
     (def-fun! perform-binding (vau-list values)
       (cond
         ((empty? vau-list) #t)
-        ((eql? (first vau-list) ((vau #ignore (x) x) &rest))
+        ((eql? (first vau-list) (quote &rest))
          (dyn-def-in! env (second vau-list) values))
         (#t
          (dyn-def-in! env (first vau-list) (first values))
@@ -399,5 +401,3 @@
   (if (<? n 2)
       1
       (* n (factorial (- n 1)))))
-
-(def-op! quote #ignore (x) x)
