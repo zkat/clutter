@@ -319,7 +319,13 @@
                                    closing-over (new-builder (llvm:make-builder)))
   ;; Determine what, if anything, we're closing over (removing stuff not on the stack)
   (setf closing-over (remove-if (lambda (symbol)
-                                  (compiler-env-toplevel (nth-value 1 (compiler-lookup symbol env))))
+                                  (multiple-value-bind (value exists binding-env)
+                                      (compiler-lookup symbol env)
+                                    (declare (ignore value))
+                                    (unless exists
+                                      (error "Symbol ~A has no binding in or above ~A"
+                                             symbol env))
+                                   (compiler-env-toplevel binding-env)))
                                 (loop with locals = args
                                       for form in body
                                       for result = (multiple-value-list (free-vars locals form))
