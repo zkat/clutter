@@ -71,9 +71,11 @@
     value))
 
 (defprimfun t "wrap" (operative)
+  (assert (clutter-operative-p operative) (operative) "~A is not an operative" operative)
   (make-function operative))
 
 (defprimfun t "unwrap" (function)
+  (assert (clutter-function-p function) (function) "~A is not a function" function)
   (clutter-function-operative function))
 
 (defprimfun nil "eval" (expression environment)
