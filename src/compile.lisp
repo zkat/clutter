@@ -374,9 +374,9 @@
                         (gethash name (compiler-env-bindings inner-env))
                         (aprog1 (llvm:build-alloca new-builder (llvm:int32-type)
                                                    name-string)
-                          (llvm:build-store new-builder argument it)))))
-           (rest params)
-           args)
+                          (llvm:build-store new-builder argument it))))
+                (rest params)
+                args))
          ;; Compile body and return the value of the last form
          (llvm:position-builder-at-end new-builder begin)
          (loop for (form . remaining) on body
