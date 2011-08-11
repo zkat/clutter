@@ -43,7 +43,9 @@
   `(setf (pevaluator (lookup (cs ,name) *global-env*)) (lambda ,(cons env-var args) ,@body)))
 
 (def-peval-prim "eval" (form env)
-  (peval form env))
+  (if (and (static? form) (static? env))
+      (peval form env)
+      (make-dynamic (list (lookup (cs "eval")) (staticify form) (staticify env)))))
 
 (def-peval-prim-op "nlambda" denv (name args &rest body &aux (fake-env (make-env denv)))
   (mapc (lambda (arg)
