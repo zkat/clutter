@@ -208,8 +208,9 @@
 (def-op! dec! env (var)
   (eval (list set! var (list - var 1)) env))
 
-(def-op! push! env (obj place)
-  (eval (list set! place (list cons (eval obj env) (eval place env))) env))
+(def-op! push! env (value place)
+  (eval (list set! place (list cons value place))
+        env))
 
 (def-op! pop! env (place)
   (def! value (eval place env))
@@ -271,10 +272,6 @@
   (let (return-val (eval first env))
     (map (rcurry eval env) body)
     return-val))
-
-(def-op! push! env (value place)
-  (eval (list set! place (list cons value place))
-        env))
 
 (def-op! or? env (&rest expressions)
   (if (=? (length expressions) 0)
