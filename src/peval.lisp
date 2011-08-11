@@ -123,7 +123,7 @@
                  (clutter-function-p (lookup combiner-form env)))
             (make-dynamic (list* (list (lookup (cs "unwrap"))
                                        (staticify combiner))
-                                 (mapcar (rcurry #'peval env) arg-forms)))
+                                 (mapcar (compose #'staticify (rcurry #'peval env)) arg-forms)))
             (make-dynamic (list* combiner-form arg-forms))))
        (t (error "Tried to invoke ~A, which is not a combiner" combiner))))))
 
