@@ -117,8 +117,14 @@
            (t
             (make-dynamic (list* combiner (mapcar #'staticify args)))))))
        (dynamic
-        ;; TODO: peval args if (subtype? operative combiner)
-        (make-dynamic (list* (staticify combiner) arg-forms)))
+        ;; HACK: This should be based on the type of the value, since its value isn't necessarily available or even from a binding.
+        (if (and (clutter-symbol-p combiner-form)
+                 (clutter-bound? combiner-form)
+                 (clutter-function-p (lookup combiner-form env)))
+            (make-dynamic (list* (list (lookup (cs "unwrap"))
+                                       (staticify combiner))
+                                 (mapcar (rcurry #'peval env) arg-forms)))
+            (make-dynamic (list* combiner-form arg-forms))))
        (t (error "Tried to invoke ~A, which is not a combiner" combiner))))))
 
 (defun inline-op (operative args env &aux (inline-env (make-env (clutter-operative-env operative))))
