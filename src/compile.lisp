@@ -30,6 +30,8 @@
   compiler)
 (defstruct (primitive-fexpr (:constructor make-primitive-fexpr (compiler)))
   compiler)
+(defstruct (unwrapped-func (:constructor make-unwrapped-func (func)))
+  func)
 
 (defvar *compiled-combs* #+sbcl (make-hash-table :test 'eq :weakness :key)
                          #+ccl  (make-hash-table :test 'eq :weak t)
@@ -87,9 +89,11 @@
   (if value
       (typecase value
         (primitive-func
-           value)
+         value)
         (primitive-fexpr
-           value)
+         value)
+        (unwrapped-func
+         value)
         (#+sbcl sb-sys:system-area-pointer
          #+ccl  ccl:macptr
          (llvm:build-load builder value (clutter-symbol-name symbol))))
@@ -106,18 +110,27 @@
                    "result"))
 
 (defun compile-invocation (builder invocation env)
-  (destructuring-bind (combiner-code . args) invocation
-    (let ((combiner (compile-form builder combiner-code env)))
+  (destructuring-bind (combiner-form . arg-forms) invocation
+    (let ((combiner (compile-form builder combiner-form env)))
       (typecase combiner
         (primitive-func (apply (primitive-func-compiler combiner) builder
                                (mapcar (rcurry (curry #'compile-form builder) env)
-                                       args)))
+                                       arg-forms)))
         (primitive-fexpr (apply (primitive-fexpr-compiler combiner) builder env
-                                args))
+                                arg-forms))
+        (unwrapped-func
+         (let ((inner-comb (unwrapped-func-func combiner))
+               (args (mapcar (curry #'compile-constant builder) arg-forms)))
+           (cond
+             ((clutter-function-p inner-comb)
+              (build-closure-call builder (compiled-comb builder inner-comb) args))
+             ((primitive-func-p inner-comb)
+              (apply (primitive-func-compiler inner-comb) builder args))
+             (t (error "Internal error: invalid unwrapped function")))))
         (#+sbcl sb-sys:system-area-pointer     ; Assume it's an LLVM pointer.
          #+ccl  ccl:macptr
          ;; Closures are { i8*, function }
-         (build-closure-call builder combiner (mapcar (rcurry (curry #'compile-form builder) env) args)))
+         (build-closure-call builder combiner (mapcar (rcurry (curry #'compile-form builder) env) arg-forms)))
         (t (error "Attempted to invoke something other than a combiner!"))))))
 
 (defun compile-constant (builder value)
@@ -168,6 +181,12 @@
                        (clutter-operative-args value)
                        (clutter-operative-body value))
                 (compiled-env (clutter-operative-env value))))
+
+(def-compiler-primfun "unwrap" (builder value)
+  (declare (ignore builder))
+  (unless (or (clutter-function-p value) (primitive-func-p value))
+    (error "Dynamic function unwrapping unimplemented."))
+  (make-unwrapped-func value))
 
 (def-compiler-primfexpr "do" (builder denv &rest body)
   ;; Compile body and return the value of the last form
