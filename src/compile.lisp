@@ -352,32 +352,31 @@
                                context-type))
          ;; Name and allocate mutable space for arguments
          (llvm:position-builder-at-end new-builder entry)
-         (flet ((bind-regular-arg  (argument name &aux (name-string (clutter-symbol-name name)))
+         (let ((params (llvm:params func)))
+           (when closing-over
+             (setf (llvm:value-name (first params)) "outer-context-ptr")
+             (let ((context (llvm:build-pointer-cast new-builder (first params)
+                                                     (llvm:pointer-type context-type)
+                                                     "outer-context")))
+               (loop for symbol in closing-over
+                     for index from 0
+                     for name-string = (clutter-symbol-name symbol)
+                     do (setf (gethash symbol (compiler-env-bindings inner-env))
+                              (llvm:build-load new-builder
+                                               (llvm:build-struct-gep new-builder context index
+                                                                      (concatenate 'string
+                                                                                   name-string
+                                                                                   "-addr"))
+                                               name-string)))))
+           (map nil
+                (lambda (argument name &aux (name-string (clutter-symbol-name name)))
                   (setf (llvm:value-name argument) (concatenate 'string name-string "-arg")
                         (gethash name (compiler-env-bindings inner-env))
                         (aprog1 (llvm:build-alloca new-builder (llvm:int32-type)
                                                    name-string)
                           (llvm:build-store new-builder argument it)))))
-           (let ((params (llvm:params func)))
-             (when closing-over
-               (setf (llvm:value-name (first params)) "outer-context-ptr")
-               (let ((context (llvm:build-pointer-cast new-builder (first params)
-                                                   (llvm:pointer-type context-type)
-                                                   "outer-context")))
-                 (loop for symbol in closing-over
-                       for index from 0
-                       for name-string = (clutter-symbol-name symbol)
-                       do (setf (gethash symbol (compiler-env-bindings inner-env))
-                                (llvm:build-load new-builder
-                                                 (llvm:build-struct-gep new-builder context index
-                                                                        (concatenate 'string
-                                                                                     name-string
-                                                                                     "-addr"))
-                                                 name-string)))))
-             (map nil
-                  #'bind-regular-arg
-                  (rest params)
-                  args)))
+           (rest params)
+           args)
          ;; Compile body and return the value of the last form
          (llvm:position-builder-at-end new-builder begin)
          (loop for (form . remaining) on body
