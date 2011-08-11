@@ -159,8 +159,7 @@
   (declare (ignore denv))
   (compile-constant builder value))
 
-(def-compiler-primfexpr "wrap" (builder denv value)
-  (declare (ignore denv))
+(def-compiler-primfun "wrap" (builder value)
   (unless (clutter-operative-p value)
     (error "Dynamic fexprs wrapping unimplemented."))
   (compile-form builder
