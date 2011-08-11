@@ -144,7 +144,7 @@
     (clutter-function (compiled-comb builder value))
     (env (compiled-env value))
     (clutter-operative (compiled-comb builder value))
-    (t (error "Unsupported compiletime constant!"))))
+    (t (error "Unsupported compiletime constant: ~A" value))))
 
 (defun compile-form (builder form env)
   (typecase form
