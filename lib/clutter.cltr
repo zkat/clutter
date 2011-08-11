@@ -7,8 +7,6 @@
 (def-in! (get-current-env) empty-env
   (make-env))
 
-(def-op! quote #ignore (x) x)
-
 (def-in! global-env def!
   (nvau def! env (var value)
     (eval (list def-in! env var value) env)))
@@ -36,6 +34,8 @@
                 (eval var dyn-env)
                 (list (unwrap eval) value dyn-env))
           dyn-env))
+
+(def-op! quote #ignore (x) x)
 
 (def-op! nlambda env (name vau-list &rest body)
   (wrap (eval (list* nvau name #ignore vau-list body) env)))
