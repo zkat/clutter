@@ -37,11 +37,11 @@
                 (list (unwrap eval) value dyn-env))
           dyn-env))
 
-(def-op! lambda env (vau-list &rest body)
-  (wrap (eval (list* vau #ignore vau-list body) env)))
-
 (def-op! nlambda env (name vau-list &rest body)
   (wrap (eval (list* nvau name #ignore vau-list body) env)))
+
+(def-op! lambda env (vau-list &rest body)
+  (eval (list* nlambda (quote anonymous) vau-list body) env))
 
 (def! fun-name
   (lambda (f)
