@@ -11,10 +11,11 @@
   (null (compiler-env-func instance)))
 
 (defun compiler-lookup (symbol env)
+  "Returns value, existence, and binding environment"
   (multiple-value-bind (value exists)
       (gethash symbol (compiler-env-bindings env))
     (if exists
-        (values value env)
+        (values value t env)
         (loop for parent in (compiler-env-parents env)
               for result = (compiler-lookup symbol parent)
               when result
