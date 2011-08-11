@@ -52,4 +52,4 @@
 (defun invoke (operative env args)
   (if (clutter-operative-p operative)
       (apply (clutter-operative-function operative) env args)
-      (error "Not a function: ~A." operative)))
+      (error "Not an operative: ~A." operative)))
