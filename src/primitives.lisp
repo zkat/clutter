@@ -24,7 +24,7 @@
        (make-clutter-operative
         :name (cs ,name)
         :function (lambda ,vau-list ,@body)
-        :args ',(rest vau-list))))
+        :args (mapcar (compose #'cs #'symbol-name) ',(rest vau-list)))))
 
 (defmacro defprimfun (purity name vau-list &body body)
   `(defprimitive ,name
@@ -33,8 +33,9 @@
          :name (cs ,name)
          :function (lambda (*denv* ,@vau-list)
                      ,@body)
-         :args ',vau-list
-         :pure ,purity))))
+         :args (mapcar (compose #'cs #'symbol-name) ',vau-list)
+         :pure ,purity
+         :denv-var *ignore*))))
 
 (defun make-vau (static-env env-var vau-list body &optional (name "anonymous fexpr"))
   ;; TODO: Determine purity
@@ -95,7 +96,7 @@
       *true*
       *false*))
 
-(defprimfun t "bound?" (symbol &optional (env (get-current-env)))
+(defprimfun t "bound?" (symbol env)
   (if (clutter-bound? symbol env)
       *true*
       *false*))
