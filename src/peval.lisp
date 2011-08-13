@@ -47,6 +47,11 @@
       (peval form env)
       (make-dynamic (list (lookup (cs "eval")) (staticify form) (staticify env)))))
 
+(def-peval-prim "rem" (number divisor)
+  (if (and (static? number) (static? divisor))
+      (rem number divisor)
+      (make-dynamic (list (lookup (cs "rem")) (staticify number) (staticify divisor)))))
+
 (def-peval-prim-op "nlambda" denv (name args &rest body &aux (fake-env (make-env denv)))
   (mapc (lambda (arg)
           (unless (eq arg (cs "&rest"))
@@ -117,7 +122,7 @@
            (t
             (make-dynamic (list* combiner (mapcar #'staticify args)))))))
        (dynamic
-        ;; HACK: This should be based on the type of the value, since its value isn't necessarily available or even from a binding.
+        ;; HACK: This should be based on the type of the value, since its value isn't necessarily available or even from a binding.  This seems to break when combined with the sketchy assignment primitives!
         (if (and (clutter-symbol-p combiner-form)
                  (clutter-bound? combiner-form)
                  (clutter-function-p (lookup combiner-form env)))
@@ -127,13 +132,14 @@
             (make-dynamic (list* combiner-form arg-forms))))
        (t (error "Tried to invoke ~A, which is not a combiner" combiner))))))
 
+;;; TODO: Handle unwrapped primitive functions somehow.
 (defun inline-op (operative args env &aux (inline-env (make-env (clutter-operative-env operative))))
   (assert (clutter-operative-pure operative))
   ;; NOTE: Strictly recompile-trigger=t here is nonsensical; we use it to ensure eval goes through, because these are constant values.
   (extend inline-env (clutter-operative-denv-var operative) env t)
   (loop with vau-list = (clutter-operative-args operative)
         while args
-        do (if (eq (car vau-list) (cs "&rest"))
+        do (if (eq (first vau-list) (cs "&rest"))
                (progn (extend inline-env (second vau-list) args t)
                       (return))
                (extend inline-env (pop vau-list) (pop args) t)))
