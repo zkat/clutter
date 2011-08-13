@@ -220,7 +220,7 @@
     (unless (typep target-env 'compiler-env)
       (error "Modifying bindings in non-constant environments is unimplemented!"))
     (aprog1 (compile-form builder value-form denv)
-      (llvm:build-store builder it (compiler-lookup name target-env)))))
+      (llvm:build-store builder (llvm-handle it) (llvm-handle (compiler-lookup name target-env))))))
 
 (defun free-vars (locals form)
   (typecase form
