@@ -15,5 +15,6 @@
              (:file "eval")
              (:file "primitives")
              (:file "peval")
+             (:file "compiler-values")
              (:file "compile")
              (:file "main")))))

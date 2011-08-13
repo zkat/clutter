@@ -27,13 +27,6 @@
 (defvar *module*)
 (defvar *alloc*)
 
-(defstruct (primitive-func (:constructor make-primitive-func (compiler)))
-  compiler)
-(defstruct (primitive-fexpr (:constructor make-primitive-fexpr (compiler)))
-  compiler)
-(defstruct (unwrapped-func (:constructor make-unwrapped-func (func)))
-  func)
-
 (defvar *compiled-combs* #+sbcl (make-hash-table :test 'eq :weakness :key)
                          #+ccl  (make-hash-table :test 'eq :weak t)
   "Mapping from interpreter Clutter functions to compiled versions thereof.")
@@ -46,34 +39,47 @@
 
 (defmacro def-compiler-primfun (name args &body body)
   (with-gensyms (primfunc symbol)
-    `(let ((,primfunc (make-primitive-func (lambda ,args ,@body)))
+    `(let ((,primfunc (make-instance 'primitive-func
+                                     :compiler (lambda ,args ,@body)))
            (,symbol (cs ,name)))
       (setf (gethash ,symbol (compiler-env-bindings *root-compiler-env*)) ,primfunc
             (gethash (lookup ,symbol *global-env*) *compiled-combs*) ,primfunc))))
 
 (defmacro def-compiler-primfexpr (name args &body body)
   (with-gensyms (primfunc symbol)
-    `(let ((,primfunc (make-primitive-fexpr (lambda ,args ,@body)))
+    `(let ((,primfunc (make-instance 'primitive-fexpr
+                                     :compiler (lambda ,args ,@body)))
            (,symbol (cs ,name)))
       (setf (gethash ,symbol (compiler-env-bindings *root-compiler-env*)) ,primfunc
             (gethash (lookup ,symbol *global-env*) *compiled-combs*) ,primfunc))))
 
 (defun compiled-comb (builder clutter-comb)
   (multiple-value-bind (value exists) (gethash clutter-comb *compiled-combs*)
-    (cond
-      ;; Allow for functions and primitive fexprs only
-      (exists value)
-      ((clutter-operative-p clutter-comb)
-       (error "Can't compile fexprs!"))
-      (t
-       (setf (gethash clutter-comb *compiled-combs*)
-             (let ((op (clutter-function-operative clutter-comb)))
-               (compile-form builder
-                             (list* (cs "nlambda")
-                                    (clutter-operative-name op)
-                                    (clutter-operative-args op)
-                                    (clutter-operative-body op))
-                             (compiled-env (clutter-operative-env op)))))))))
+    (if exists
+        value
+        (setf (gethash clutter-comb *compiled-combs*)
+              (aprog1
+                  (ctypecase clutter-comb
+                    (clutter-operative
+                     (unless (eq *ignore* (clutter-operative-denv-var clutter-comb))
+                       (error "Dynamic environment access is unimplemented!"))
+                     ;; TODO: Use nvau, not nlambda
+                     (let ((func (compile-form builder
+                                               (list* (cs "nlambda")
+                                                      (clutter-operative-name clutter-comb)
+                                                      (clutter-operative-args clutter-comb)
+                                                      (clutter-operative-body clutter-comb))
+                                               (compiled-env (clutter-operative-env clutter-comb)))))
+                       (make-instance 'compiled-fexpr :llvm-handle (llvm-handle func))))
+                    (clutter-function
+                     (let ((op (clutter-function-operative clutter-comb)))
+                       (compile-form builder
+                                     (list* (cs "nlambda")
+                                            (clutter-operative-name op)
+                                            (clutter-operative-args op)
+                                            (clutter-operative-body op))
+                                     (compiled-env (clutter-operative-env op))))))
+                (setf (interpreter-value it) clutter-comb))))))
 
 (defun compiled-env (clutter-env)
   (multiple-value-bind (value exists) (gethash clutter-env *compiled-envs*)
@@ -88,63 +94,29 @@
 
 (defun compile-symbol (builder symbol env &aux (value (compiler-lookup symbol env)))
   (if value
-      (typecase value
-        (primitive-func
+      (ctypecase value
+        (invokable
          value)
-        (primitive-fexpr
-         value)
-        (unwrapped-func
-         value)
-        (#+sbcl sb-sys:system-area-pointer
-         #+ccl  ccl:macptr
-         (llvm:build-load builder value (clutter-symbol-name symbol))))
+        (compiled-value
+         (make-value (llvm:build-load builder (llvm-handle value) (clutter-symbol-name symbol)))))
       (error "Undefined binding: ~A" symbol)))
-
-(defun build-closure-call (builder closure args &aux function context)
-  (if (llvm:constantp closure)
-      (setf context (llvm:const-extract-value closure (vector 0))
-            function (llvm:const-extract-value closure (vector 1)))
-      (setf context (llvm:build-load builder (llvm:build-struct-gep builder closure 0 "context-addr") "context")
-            function (llvm:build-load builder (llvm:build-struct-gep builder closure 1 "function-addr") "function")))
-  (llvm:build-call builder function
-                   (coerce (cons context args) 'vector)
-                   "result"))
 
 (defun compile-invocation (builder invocation env)
   (destructuring-bind (combiner-form . arg-forms) invocation
     (let ((combiner (compile-form builder combiner-form env)))
-      (typecase combiner
-        (primitive-func (apply (primitive-func-compiler combiner) builder
-                               (mapcar (rcurry (curry #'compile-form builder) env)
-                                       arg-forms)))
-        (primitive-fexpr (apply (primitive-fexpr-compiler combiner) builder env
-                                arg-forms))
-        (unwrapped-func
-         (let ((inner-comb (unwrapped-func-func combiner))
-               (args (mapcar (curry #'compile-constant builder) arg-forms)))
-           (cond
-             ((clutter-function-p inner-comb)
-              (build-closure-call builder (compiled-comb builder inner-comb) args))
-             ((primitive-func-p inner-comb)
-              (apply (primitive-func-compiler inner-comb) builder args))
-             (t (error "Internal error: invalid unwrapped function")))))
-        (#+sbcl sb-sys:system-area-pointer     ; Assume it's an LLVM pointer.
-         #+ccl  ccl:macptr
-         ;; Closures are { i8*, function }
-         (build-closure-call builder combiner (mapcar (rcurry (curry #'compile-form builder) env) arg-forms)))
-        (t (error "Attempted to invoke something other than a combiner!"))))))
+      (build-invocation builder combiner arg-forms env))))
 
 (defun compile-constant (builder value)
   (typecase value
     ;; Literals
-    (integer (llvm:const-int (llvm:int32-type) value nil))
-    (single-float (llvm:const-real (llvm:float-type) value))
-    (double-float (llvm:const-real (llvm:double-type) value))
-    (string (llvm:const-string value nil))
+    (integer (make-value (llvm:const-int (llvm:int32-type) value nil) value))
+    (single-float (make-value (llvm:const-real (llvm:float-type) value) value))
+    (double-float (make-value (llvm:const-real (llvm:double-type) value) value))
+    (string (make-value (llvm:const-string value nil) value))
     ;; peval results
     (clutter-function (compiled-comb builder value))
-    (env (compiled-env value))
     (clutter-operative (compiled-comb builder value))
+    (env (compiled-env value))
     (t (error "Unsupported compiletime constant: ~A" value))))
 
 (defun compile-form (builder form env)
@@ -154,40 +126,49 @@
     (t              (compile-constant   builder form))))
 
 (def-compiler-primfun "+" (builder x y)
-  (llvm:build-add builder x y "sum"))
+  (make-value (llvm:build-add builder (llvm-handle x) (llvm-handle y) "sum")))
 (def-compiler-primfun "-" (builder x y)
-  (llvm:build-sub builder x y "difference"))
+  (make-value (llvm:build-sub builder (llvm-handle x) (llvm-handle y) "difference")))
 (def-compiler-primfun "*" (builder x y)
-  (llvm:build-mul builder x y "product"))
+  (make-value (llvm:build-mul builder (llvm-handle x) (llvm-handle y) "product")))
 (def-compiler-primfun "/" (builder x y)
-  (llvm:build-s-div builder x y "quotient"))
+  (make-value (llvm:build-s-div builder (llvm-handle x) (llvm-handle y) "quotient")))
 
 (def-compiler-primfun ">?" (builder x y)
-  (llvm:build-i-cmp builder :> x y "greater"))
+  (make-value (llvm:build-i-cmp builder :> (llvm-handle x) (llvm-handle y) "greater")))
 (def-compiler-primfun "<?" (builder x y)
-  (llvm:build-i-cmp builder :< x y "lesser"))
+  (make-value (llvm:build-i-cmp builder :< (llvm-handle x) (llvm-handle y) "lesser")))
 (def-compiler-primfun "=?" (builder x y)
-  (llvm:build-i-cmp builder := x y "equal"))
+  (make-value (llvm:build-i-cmp builder := (llvm-handle x) (llvm-handle y) "equal")))
 
 (def-compiler-primfexpr "quote" (builder denv value)
   (declare (ignore denv))
   (compile-constant builder value))
 
+
+;; TODO: Pass environments when appropriate
 (def-compiler-primfun "wrap" (builder value)
-  (unless (clutter-operative-p value)
-    (error "Dynamic fexprs wrapping unimplemented."))
-  (compile-form builder
-                (list* (cs "nlambda")
-                       (clutter-operative-name value)
-                       (clutter-operative-args value)
-                       (clutter-operative-body value))
-                (compiled-env (clutter-operative-env value))))
+  (declare (ignore builder))
+  (ctypecase value
+    (primitive-fexpr
+     (make-instance 'primitive-func
+                    :compiler (lambda (builder &rest args)
+                                (apply (compiler value) builder nil args))))
+    (compiled-fexpr
+     (make-instance 'compiled-func
+                    :llvm-handle (llvm-handle value)))))
 
 (def-compiler-primfun "unwrap" (builder value)
   (declare (ignore builder))
-  (unless (or (clutter-function-p value) (primitive-func-p value))
-    (error "Dynamic function unwrapping unimplemented."))
-  (make-unwrapped-func value))
+  (ctypecase value
+    (primitive-func
+     (make-instance 'primitive-fexpr
+                    :compiler (lambda (builder denv &rest args)
+                                (declare (ignore denv))
+                                (apply (compiler value) builder args))))
+    (compiled-func
+     (make-instance 'compiled-fexpr
+                    :llvm-handle (llvm-handle value)))))
 
 (def-compiler-primfexpr "do" (builder denv &rest body)
   ;; Compile body and return the value of the last form
@@ -210,7 +191,7 @@
                denv
                (compile-form builder target-env denv)))
          (compiled-value (compile-form builder value denv))
-         (type (llvm:type-of compiled-value)))
+         (type (llvm:type-of (llvm-handle compiled-value))))
     (unless (typep target-compiler-env 'compiler-env)
       (error "Binding values in non-constant environments is unimplemented!"))
     (setf (gethash name (compiler-env-bindings target-compiler-env))
@@ -219,7 +200,7 @@
                   (compiler-env-toplevel denv))
              (aprog1 (llvm:add-global *module* type (clutter-symbol-name name))
                ;; TODO: Evaluate compiled-value first. (JIT? Interpret?)
-               (llvm:set-initializer it compiled-value)))
+               (llvm:set-initializer it (llvm-handle compiled-value))))
             ((compiler-env-toplevel target-compiler-env)
              (error "Dynamic bindings are unimplemented! (tried to add global binding from a function)"))
             ((compiler-env-toplevel denv)
@@ -228,7 +209,7 @@
                  (compiler-env-func denv))
              (aprog1 (add-entry-alloca (compiler-env-func target-compiler-env)
                                        type (clutter-symbol-name name))
-               (llvm:build-store builder compiled-value it)))
+               (llvm:build-store builder (llvm-handle compiled-value) it)))
             (t (error "wat"))))
     compiled-value))
 
@@ -362,19 +343,21 @@
                      for index from 0
                      for name-string = (clutter-symbol-name symbol)
                      do (setf (gethash symbol (compiler-env-bindings inner-env))
-                              (llvm:build-load new-builder
-                                               (llvm:build-struct-gep new-builder context index
-                                                                      (concatenate 'string
-                                                                                   name-string
-                                                                                   "-addr"))
-                                               name-string)))))
+                              (make-value
+                               (llvm:build-load new-builder
+                                                (llvm:build-struct-gep new-builder context index
+                                                                       (concatenate 'string
+                                                                                    name-string
+                                                                                    "-addr"))
+                                                name-string))))))
            (map nil
                 (lambda (argument name &aux (name-string (clutter-symbol-name name)))
                   (setf (llvm:value-name argument) (concatenate 'string name-string "-arg")
                         (gethash name (compiler-env-bindings inner-env))
-                        (aprog1 (llvm:build-alloca new-builder (llvm:int32-type)
-                                                   name-string)
-                          (llvm:build-store new-builder argument it))))
+                        (make-value
+                         (aprog1 (llvm:build-alloca new-builder (llvm:int32-type)
+                                                    name-string)
+                           (llvm:build-store new-builder argument it)))))
                 (rest params)
                 args))
          ;; Compile body and return the value of the last form
@@ -382,29 +365,32 @@
          (loop for (form . remaining) on body
                for result = (compile-form new-builder form inner-env)
                unless remaining do
-                 (llvm:build-ret new-builder result))
+                 (llvm:build-ret new-builder (llvm-handle result)))
          ;; Complete entry block
          (llvm:position-builder-at-end new-builder entry)
          (llvm:build-br new-builder begin)
          ;; Construct closure struct in the caller (context pointer + function pointer) as the return value
          ;; TODO: Heap-allocate closure and referenced variables when necessary
-         (if closing-over
-             (aprog1 (add-entry-alloca (compiler-env-func env) value-type "closure")
-               (let ((context (add-entry-alloca (compiler-env-func env) context-type "local-context")))
-                 (loop for var in closing-over
-                       for index from 0
-                       do (llvm:build-store builder (compiler-lookup var env)
-                                            (llvm:build-struct-gep builder context index (concatenate 'string (clutter-symbol-name var) "-addr"))))
-                 (llvm:build-store builder
-                                   (llvm:build-pointer-cast builder context
-                                                            (llvm:pointer-type (llvm:int8-type))
-                                                            "pointer")
-                                   (llvm:build-struct-gep builder it 0 "local-context-addr"))
-                 (llvm:build-store builder
-                                   func
-                                   (llvm:build-struct-gep builder it 1 "function-addr"))))
-             (llvm:const-struct (vector (llvm:undef (llvm:pointer-type (llvm:int8-type)))
-                                        func) nil)))
+         (make-instance
+          'compiled-func
+          :llvm-handle
+          (if closing-over
+              (aprog1 (add-entry-alloca (compiler-env-func env) value-type "closure")
+                (let ((context (add-entry-alloca (compiler-env-func env) context-type "local-context")))
+                  (loop for var in closing-over
+                        for index from 0
+                        do (llvm:build-store builder (compiler-lookup var env)
+                                             (llvm:build-struct-gep builder context index (concatenate 'string (clutter-symbol-name var) "-addr"))))
+                  (llvm:build-store builder
+                                    (llvm:build-pointer-cast builder context
+                                                             (llvm:pointer-type (llvm:int8-type))
+                                                             "pointer")
+                                    (llvm:build-struct-gep builder it 0 "local-context-addr"))
+                  (llvm:build-store builder
+                                    func
+                                    (llvm:build-struct-gep builder it 1 "function-addr"))))
+              (llvm:const-struct (vector (llvm:undef (llvm:pointer-type (llvm:int8-type)))
+                                         func) nil))))
     (llvm:dispose-builder new-builder)))
 
 (def-compiler-primfexpr "if" (builder env condition then else)
@@ -414,7 +400,7 @@
          (else-block (llvm:append-basic-block func "else"))
          (done-block (llvm:append-basic-block func "endif"))
          then-result else-result)
-    (llvm:build-cond-br builder cond-result then-block else-block)
+    (llvm:build-cond-br builder (llvm-handle cond-result) then-block else-block)
 
     (llvm:position-builder builder then-block)
     (setf then-result (compile-form builder then env))
@@ -429,7 +415,7 @@
     (llvm:position-builder builder done-block)
     (aprog1 (llvm:build-phi builder (llvm:int32-type) "result")
       (llvm:add-incoming it
-                         (list then-result else-result)
+                         (mapcar #'llvm-handle (list then-result else-result))
                          (list then-block else-block)))))
 
 (defun emit-externs ()
@@ -448,7 +434,7 @@
     (llvm:position-builder-at-end builder entry)
     (setf (llvm:value-name argc) "argc"
           (llvm:value-name argv) "argv")
-    (llvm:build-ret builder (build-closure-call builder closure (list argc)))))
+    (llvm:build-ret builder (build-closure-call builder closure (list (make-value argc))))))
 
 (defun cltr-compile (expr &aux builder pm)
   (unwind-protect
