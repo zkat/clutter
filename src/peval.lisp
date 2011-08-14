@@ -123,7 +123,7 @@
            (t
             (make-dynamic (list* combiner (mapcar #'staticify args)))))))
        (dynamic
-        ;; HACK: This should be based on the type of the value, since its value isn't necessarily available or even from a binding.  This seems to break when combined with the sketchy assignment primitives!
+        ;; HACK: This check should use type inference, but currently just hopes nobody sticks an operative where a function used to be.
         (if (and (clutter-symbol-p combiner-form)
                  (clutter-bound? combiner-form)
                  (clutter-function-p (lookup combiner-form env)))
