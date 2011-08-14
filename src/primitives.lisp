@@ -63,9 +63,6 @@
    :denv-var env-var
    :body body))
 
-(defprimop "vau" (static-env env-var vau-list &rest body)
-  (make-vau static-env env-var vau-list body))
-
 (defprimop "nvau" (static-env name env-var vau-list &rest body)
   (let ((value (make-vau static-env env-var vau-list body (clutter-symbol-name name))))
     (setf (clutter-operative-name value) name)

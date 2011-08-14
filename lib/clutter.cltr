@@ -1,4 +1,4 @@
-(def-in! ((vau env () env)) get-current-env
+(def-in! ((nvau get-current-env env () env)) get-current-env
   (wrap (nvau get-current-env env () env)))
 
 (def-in! (get-current-env) global-env
@@ -36,6 +36,9 @@
           dyn-env))
 
 (def-op! quote #ignore (x) x)
+
+(def-op! vau env (env-var vau-list &rest body)
+  (eval (list* nvau (quote anonymous) env-var vau-list body) env))
 
 (def-op! nlambda env (name vau-list &rest body)
   (wrap (eval (list* nvau name #ignore vau-list body) env)))
