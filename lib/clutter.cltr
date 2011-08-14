@@ -223,6 +223,13 @@
     (map (rcurry eval env) body)
     (eval (list* while condition body) env)))
 
+(def-op! while2 env (condition &rest body)
+  (def-fun! while-body ()
+    (when (eval condition env)
+      (map (rcurry eval env) body)
+      (while-body)))
+  (while-body))
+
 (def-op! let env (clauses &rest body)
   (eval (list*
          (list* lambda
