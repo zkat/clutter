@@ -20,6 +20,7 @@
   (not (dynamic? value)))
 
 (defun staticify (value)
+  "Prepares peval'd values to be conventionally evaluated."
   (if (dynamic? value)
       (dynamic-form value)
       (list (lookup (cs "quote")) value)))
@@ -126,9 +127,9 @@
         (if (and (clutter-symbol-p combiner-form)
                  (clutter-bound? combiner-form)
                  (clutter-function-p (lookup combiner-form env)))
-            (make-dynamic (list* (list (lookup (cs "unwrap"))
-                                       (staticify combiner))
-                                 (mapcar (compose #'staticify (rcurry #'peval env)) arg-forms)))
+            (make-dynamic (list* (staticify combiner)
+                                 (mapcar (compose #'staticify (rcurry #'peval env))
+                                         arg-forms)))
             (make-dynamic (list* combiner-form arg-forms))))
        (t (error "Tried to invoke ~A, which is not a combiner" combiner))))))
 
