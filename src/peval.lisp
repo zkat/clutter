@@ -53,15 +53,17 @@
       (rem number divisor)
       (make-dynamic (list (lookup (cs "rem")) (staticify number) (staticify divisor)))))
 
-(def-peval-prim-op "nlambda" denv (name args &rest body &aux (fake-env (make-env denv)))
+(def-peval-prim-op "nvau" denv (name denv-var args &rest body &aux (fake-env (make-env denv)))
   (mapc (lambda (arg)
           (unless (eq arg (cs "&rest"))
             (extend fake-env arg (make-dynamic arg))))
         args)
+  (unless (eq denv-var *ignore*)
+    (extend fake-env denv-var denv))
   (clutter-eval
    (list*
-    (lookup (cs "nlambda"))
-    name args
+    (lookup (cs "nvau"))
+    name denv-var args
     ;; TODO: Handle trivial child environments.
     (nsubst (list (lookup (cs "get-current-env")))
             (list (lookup (cs "quote")) fake-env)
