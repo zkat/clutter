@@ -79,7 +79,9 @@
         (if (eq condition *false*)
             else
             then)
-        (make-dynamic (list (lookup (cs "if")) (staticify condition) (staticify then) (staticify else))))))
+        (make-dynamic (list (lookup (cs "if")) (staticify condition)
+                            (staticify then)
+                            (staticify else))))))
 
 (def-peval-prim-op "set-in!" denv (target-env-form var value-form)
   (make-dynamic (list (lookup (cs "set-in!")) (staticify (peval target-env-form denv)) var (staticify (peval value-form denv)))))
