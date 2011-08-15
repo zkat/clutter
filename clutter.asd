@@ -11,6 +11,7 @@
              (:file "utilities")
              (:file "reader")
              (:file "environments")
+             (:file "types")
              (:file "combiners")
              (:file "eval")
              (:file "primitives")
