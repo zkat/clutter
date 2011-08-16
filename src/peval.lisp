@@ -60,7 +60,7 @@
         args)
   (unless (eq denv-var *ignore*)
     (extend fake-env denv-var denv))
-  (clutter-eval
+  (make-dynamic
    (list*
     (lookup (cs "nvau"))
     name denv-var args
@@ -68,8 +68,7 @@
     (nsubst (list (lookup (cs "get-current-env")))
             (list (lookup (cs "quote")) fake-env)
             (mapcar (compose #'staticify (rcurry #'peval fake-env)) body)
-            :test #'equal))
-   denv))
+            :test #'equal))))
 
 (def-peval-prim-op "if" denv (condition-form then-form else-form)
   (let ((condition (peval condition-form denv))
