@@ -6,8 +6,14 @@
                       #+ccl  (make-hash-table :test 'eq :weak t)
   "Mapping from interpreter Clutter functions to primitive partial evaluation functions.")
 
-(defstruct (dynamic (:constructor make-dynamic (form)))
+(defstruct (dynamic (:constructor %make-dynamic (form)))
   form)
+
+(defun make-dynamic (form)
+  (unless (or (typep form 'list)
+              (typep form 'clutter-symbol))
+    (error "Tried to make a dynamic value out of static value ~A" form))
+  (%make-dynamic form))
 
 (defmethod print-object ((o dynamic) s)
   (print-unreadable-object (o s :type t)
