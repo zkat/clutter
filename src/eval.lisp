@@ -39,8 +39,7 @@
     (cond ((clutter-operative-p f)
            (invoke f env (cdr expression)))
           ((clutter-function-p f)
-           (let ((op (clutter-function-operative f))
-                 (values (mapcar (rcurry #'clutter-eval env) (cdr expression))))
-             (clutter-eval (cons op values) env)))
+           (invoke (clutter-function-operative f) env
+                   (mapcar (rcurry #'clutter-eval env) (cdr expression))))
           (t
            (error "Not an operative: ~A." f)))))
